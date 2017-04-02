@@ -41,7 +41,7 @@ Section Syntax.
   | CEnclave : Enclave -> Com -> Com
   | CKill : Enclave -> Com
   | CSeq : list Com -> Com
-  | CIfElse : Exp -> Com -> Com -> Com
+  | CIf : Exp -> Com -> Com -> Com
   | CWhile : Exp -> Com -> Com.
 
   Inductive Val : Type :=
@@ -53,7 +53,7 @@ End Syntax.
 Section Semantics.
   Definition Reg : Type := Register Val.
   Definition Mem : Type := Memory Val.
-  Definition Location_Mode : Type := Location -> Mode.
+  Definition Loc_Mode : Type := Location -> Mode.
 
   Definition EConfig : Type := Exp * Reg * Mem * set Enclave.
   Definition ecfg_exp (ecfg: EConfig) : Exp :=
@@ -68,7 +68,7 @@ Section Semantics.
   Definition ecfg_update_exp (ecfg: EConfig) (e: Exp) : EConfig :=
     match ecfg with (_, r, m, k) => (e, r, m, k) end.
   
-  Inductive EStep (md: Mode) (d: Location_Mode) (ecfg: EConfig) : Val -> Prop :=
+  Inductive EStep (md: Mode) (d: Loc_Mode) (ecfg: EConfig) : Val -> Prop :=
   | ESNat : forall n, ecfg_exp ecfg = ENat n -> EStep md d ecfg (VNat n)
   | ESLoc : forall l, ecfg_exp ecfg = ELoc l -> EStep md d ecfg (VLoc l)
   | ESLambda : forall c,
