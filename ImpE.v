@@ -90,7 +90,7 @@ Section Semantics.
   | Normal => False
   | Encl i => set_In i k
   end.
-  Definition enclave_access_ok (md : mode) (d : loc_mode) (l : location) (k : set enclave) :=
+  Definition mode_access_ok (md : mode) (d : loc_mode) (l : location) (k : set enclave) :=
   match md with
   | Normal => (d l) = Normal
   | Encl i => ~(enclave_dead md k) /\ (d l) = Encl i
@@ -130,7 +130,7 @@ Section Semantics.
       ecfg = (Ederef e, r, m, k) ->
       estep md d (e, r, m, k) (Vloc l) ->
       m l = v ->
-      enclave_access_ok md d l k ->
+      mode_access_ok md d l k ->
       estep md d ecfg v
   | Estep_isunset : forall cnd v res,
       ecfg_exp ecfg = Eisunset cnd ->
@@ -157,7 +157,9 @@ Section Semantics.
                else (ccfg_reg ccfg) var.
   Definition ecfg_of_ccfg (e: exp) (ccfg : cconfig) : econfig :=
     (e, (ccfg_reg ccfg), (ccfg_mem ccfg), (ccfg_kill ccfg)).
-  
+  Definition ccfg_of_ccfg (c: com) (ccfg : cconfig) : cconfig :=
+    (c, (ccfg_reg ccfg), (ccfg_mem ccfg), (ccfg_kill ccfg)).
+
   Inductive cstep (md: mode) (d: loc_mode) (ccfg: cconfig) : cterm -> trace -> Prop :=
   | Cstep_skip : cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
   | Cstep_assign : forall x e v r',
@@ -178,21 +180,60 @@ Section Semantics.
       estep md d (ecfg_of_ccfg e1 ccfg) (Vloc l) ->
       estep md d (ecfg_of_ccfg e2 ccfg) v ->
       ~(enclave_dead md (ccfg_kill ccfg)) ->
-      enclave_access_ok md d l (ccfg_kill ccfg) -> (*this is redundant?*)  
+      mode_access_ok md d l (ccfg_kill ccfg) -> (*this is redundant?*)  
       is_Not_cnd l ->
       m' = ccfg_update_mem ccfg l v ->
-      cstep md d ccfg (ccfg_reg ccfg, m', ccfg_kill ccfg) [].  .
-  (*
-  | Cdeclassify : var -> exp -> com
-  | Cupdate : exp -> exp -> com
-  | Coutput : exp -> sec_level -> com
-  | Cset : condition -> com
-  | Cenclave : enclave -> com -> com
-  | Ckill : enclave -> com
-  | Cseq : list com -> com
-  | Cif : exp -> com -> com -> com
-  | Cwhile : exp -> com -> com.
-*)
+      cstep md d ccfg (ccfg_reg ccfg, m', ccfg_kill ccfg) []
+  | Cstep_output : forall e sl v,
+      ccfg_com ccfg = Coutput e sl ->
+      estep md d (ecfg_of_ccfg e ccfg) v ->
+      sl = L \/ sl = H ->
+      ~(enclave_dead md (ccfg_kill ccfg)) ->
+      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) [Mem (ccfg_mem ccfg); Out sl v]
+  | Cstep_cset : forall c m',
+      ccfg_com ccfg = Cset c -> (* it seems like we don't need the premise that cnd is a condition b/c of Cset's cstr *)
+      mode_access_ok md d (Cnd c) (ccfg_kill ccfg) ->
+      m' = ccfg_update_mem ccfg (Cnd c) (Vnat 1) ->
+      ~(enclave_dead md (ccfg_kill ccfg)) ->
+      cstep md d ccfg (ccfg_reg ccfg, m', ccfg_kill ccfg) [Mem m']
+  | Cstep_enclave : forall enc c r' m' k' tr,
+    md = Normal ->
+    ccfg_com ccfg = Cenclave enc c ->
+    cstep (Encl enc) d (c, ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) (r', m', k') tr ->
+    cstep md d ccfg (r', m', k') tr
+  | Cstep_seq_nil :
+      ccfg_com ccfg = Cseq [] ->
+      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
+  | Cstep_seq_hd : forall hd tl r m k tr r' m' k' tr',
+      ccfg_com ccfg = Cseq (hd::tl) ->
+      cstep md d (ccfg_of_ccfg hd ccfg) (r, m, k) tr ->
+      cstep md d (Cseq tl, r, m, k) (r', m', k') tr' ->
+      cstep md d ccfg (r', m', k') (tr++tr')
+  | Cstep_if : forall e c1 c2 v r' m' k' tr,
+      ccfg_com ccfg = Cif e c1 c2 ->
+      estep md d (ecfg_of_ccfg e ccfg) v ->
+      ~(v = (Vnat 0)) ->
+      cstep md d (ccfg_of_ccfg c1 ccfg) (r', m', k') tr ->
+      cstep md d ccfg (r', m', k') tr
+  | Cstep_else : forall e c1 c2 v r' m' k' tr,
+      ccfg_com ccfg = Cif e c1 c2 ->
+      estep md d (ecfg_of_ccfg e ccfg) v ->
+      v = (Vnat 0) ->
+      cstep md d (ccfg_of_ccfg c2 ccfg) (r', m', k') tr ->
+      cstep md d ccfg (r', m', k') tr
+  | Cstep_while_t : forall e c v r m k tr r' m' k' tr',
+      ccfg_com ccfg = Cwhile e c ->
+      estep md d (ecfg_of_ccfg e ccfg) v ->
+      ~(v = (Vnat 0)) ->
+      cstep md d (ccfg_of_ccfg c ccfg) (r, m, k) tr ->
+      cstep md d (ccfg_of_ccfg (Cwhile e c) ccfg) (r', m', k') tr' ->
+      cstep md d ccfg (r', m', k') (tr++tr').
+  (* FIXME: (actually fix this..) for some reason set_add isn't working *)
+  | Cstep_kill : forall enc,
+      md = Normal ->
+      ccfg_com ccfg = Ckill enc ->
+      ~(enclave_dead (Encl enc) (ccfg_kill ccfg)) ->
+      cstep md d (ccfg_reg ccfg, ccfg_mem ccfg, set_add enc (ccfg_kill ccfg)) [].
 
                                             
 End Semantics.
