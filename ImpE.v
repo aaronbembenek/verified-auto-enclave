@@ -19,7 +19,13 @@ Definition enclave : Type := nat.
 Inductive mode : Type :=
 | Normal : mode
 | Encl : enclave -> mode.
-
+(* FIXME: Seemed like we might want this but dunno if it'll be a pain *)
+Definition enclave_dead (md : mode) (k : set enclave) :=
+  match md with
+  | Normal => False
+  | Encl i => set_In i k
+  end.
+                    
 Section Syntax.
   Inductive exp : Type :=
   | Enat : nat -> exp
@@ -62,7 +68,6 @@ Section Semantics.
   | ANonEnc : com -> event
   | AEnc : com -> event.
   Definition trace : Type := list event.
-  
 
   Definition econfig : Type := exp * reg * mem * set enclave.
   Definition ecfg_exp (ecfg: econfig) : exp :=
@@ -94,11 +99,11 @@ Section Semantics.
       estep md d (ecfg_update_exp ecfg e1) (Vnat n1) ->
       estep md d (ecfg_update_exp ecfg e2) (Vnat n2) ->
       estep md d ecfg (Vnat (n1 * n2))
-  | Estep_deref : forall e r m k l v i,
+  | Estep_deref : forall e r m k l v,
       ecfg = (Ederef e, r, m, k) ->
       estep md d (e, r, m, k) (Vloc l) ->
       m l = v ->
-      d l = Normal \/ (d l = Encl i /\ ~set_In i k) ->
+      ~(enclave_dead(d l) k) ->
       estep md d ecfg v
   | Estep_isunset : forall cnd v res,
       ecfg_exp ecfg = Eisunset cnd ->
@@ -106,13 +111,46 @@ Section Semantics.
       (v = Vnat 0 /\ res = Vnat 1) \/ (v <> Vnat 0 /\ res = Vnat 0) ->
       estep md d ecfg res.
 
-  (* FIXME: Semantics for commands. *)
+  (* Semantics for commands. *)
   Definition cconfig : Type := com * reg * mem * set enclave.
-  (* FIXME: Do we want to define a type for the result of the judgement? 
-  Inductive cstep (md: mode) (d: loc_mode) (ccfg: cconfig) :
-    reg -> mem -> set enclave -> trace -> Prop :=
-  | TODO : True.
+  Definition cterm : Type := reg * mem * set enclave.
+  Definition ccfg_com (ccfg: cconfig) : com :=
+    match ccfg with (c, _, _, _) => c end.
+  Definition ccfg_reg (ccfg: cconfig) : reg :=
+    match ccfg with (_, r, _, _) => r end.
+  Definition ccfg_mem (ccfg: cconfig) : mem :=
+    match ccfg with (_, _, m, _) => m end.
+  Definition ccfg_kill (ccfg: cconfig) : set enclave :=
+    match ccfg with (_, _, _, k) => k end.
+  Definition ccfg_update_mem (ccfg: cconfig) (l: location) (v: val) : mem := 
+    fun loc => if locations_eq loc l then v
+               else (ccfg_mem ccfg) loc.
+  Definition ccfg_update_reg (ccfg: cconfig) (x: var) (v: val) : reg :=
+    fun var => if var =? x then v
+               else (ccfg_reg ccfg) var.
+  Definition ecfg_of_ccfg (e: exp) (ccfg : cconfig) : econfig :=
+    (e, (ccfg_reg ccfg), (ccfg_mem ccfg), (ccfg_kill ccfg)).
+  
+  Inductive cstep (md: mode) (d: loc_mode) (ccfg: cconfig) : cterm -> trace -> Prop :=
+  | Cstep_skip : cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
+  | Cstep_assign : forall x e v r',
+      ccfg_com ccfg = Cassign x e ->
+      estep md d (ecfg_of_ccfg e ccfg) v ->
+      r' = ccfg_update_reg ccfg x v ->
+      ~(enclave_dead md (ccfg_kill ccfg)) ->
+      cstep md d ccfg (r', ccfg_mem ccfg, ccfg_kill ccfg) [].
+  (*
+  | Cdeclassify : var -> exp -> com
+  | Cupdate : exp -> exp -> com
+  | Coutput : exp -> sec_level -> com
+  | Cset : condition -> com
+  | Cenclave : enclave -> com -> com
+  | Ckill : enclave -> com
+  | Cseq : list com -> com
+  | Cif : exp -> com -> com -> com
+  | Cwhile : exp -> com -> com.
 *)
+
                                             
 End Semantics.
 End ImpE.

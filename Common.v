@@ -28,7 +28,15 @@ Section MachineModel.
     | Not_cnd _ => True
     | Cnd _ => False
     end.
+  Definition locations_eq l1 l2: bool :=
+    match l1, l2 with
+    | Not_cnd n, Not_cnd n' => n =? n'
+    | Cnd c, Cnd c' => c =? c'
+    | _, _ => false
+    end.
 
+  (* FIXME: Do we need to initialize everything to 0 or something? 
+     what happens if we try to get the memory at a location that doesn't hold a value? *)
   Definition register (value_t: Type) : Type := var -> value_t.
   Definition memory (value_t: Type) : Type := location -> value_t.
 End MachineModel.
