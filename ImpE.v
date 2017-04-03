@@ -54,11 +54,15 @@ Section Semantics.
   Definition reg : Type := register val.
   Definition mem : Type := memory val.
   Definition loc_mode : Type := location -> mode.
+  (* FIXME: Need to define enclave equivalence to use as a premise *)
   Inductive event : Type :=
   | Decl : exp -> mem -> event
   | Mem : mem -> event
-  | Out : location -> val -> event.
+  | Out : sec_level -> val -> event
+  | ANonEnc : com -> event
+  | AEnc : com -> event.
   Definition trace : Type := list event.
+  
 
   Definition econfig : Type := exp * reg * mem * set enclave.
   Definition ecfg_exp (ecfg: econfig) : exp :=
