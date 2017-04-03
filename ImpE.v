@@ -159,7 +159,7 @@ Section Semantics.
     (e, (ccfg_reg ccfg), (ccfg_mem ccfg), (ccfg_kill ccfg)).
   Definition ccfg_of_ccfg (c: com) (ccfg : cconfig) : cconfig :=
     (c, (ccfg_reg ccfg), (ccfg_mem ccfg), (ccfg_kill ccfg)).
-
+  
   Inductive cstep (md: mode) (d: loc_mode) (ccfg: cconfig) : cterm -> trace -> Prop :=
   | Cstep_skip : cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
   | Cstep_assign : forall x e v r',
@@ -227,14 +227,12 @@ Section Semantics.
       ~(v = (Vnat 0)) ->
       cstep md d (ccfg_of_ccfg c ccfg) (r, m, k) tr ->
       cstep md d (ccfg_of_ccfg (Cwhile e c) ccfg) (r', m', k') tr' ->
-      cstep md d ccfg (r', m', k') (tr++tr').
-  (* FIXME: (actually fix this..) for some reason set_add isn't working *)
+      cstep md d ccfg (r', m', k') (tr++tr')
   | Cstep_kill : forall enc,
       md = Normal ->
       ccfg_com ccfg = Ckill enc ->
       ~(enclave_dead (Encl enc) (ccfg_kill ccfg)) ->
-      cstep md d (ccfg_reg ccfg, ccfg_mem ccfg, set_add enc (ccfg_kill ccfg)) [].
-
+      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
                                             
 End Semantics.
 End ImpE.
