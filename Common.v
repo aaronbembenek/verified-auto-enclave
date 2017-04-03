@@ -16,10 +16,18 @@ Section MachineModel.
   
   Definition condition : Type := nat.
   Inductive location : Type :=
-  | Non_Cnd : nat -> location
+  | Not_cnd : nat -> location
   | Cnd : condition -> location.
-  Definition is_cnd (l: location) : Prop := exists a, l = Cnd a.
-  Definition is_non_cnd (l: location) : Prop := exists a, l = Non_Cnd a.
+  Definition is_Cnd (l: location) : Prop :=
+    match l with
+    | Not_cnd _ => False
+    | Cnd _ => True
+    end.
+  Definition is_Not_cnd (l: location) : Prop :=
+    match l with
+    | Not_cnd _ => True
+    | Cnd _ => False
+    end.
 
   Definition register (value_t: Type) : Type := var -> value_t.
   Definition memory (value_t: Type) : Type := location -> value_t.
