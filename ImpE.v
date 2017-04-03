@@ -19,13 +19,7 @@ Definition enclave : Type := nat.
 Inductive mode : Type :=
 | Normal : mode
 | Encl : enclave -> mode.
-(* FIXME: Seemed like we might want this but dunno if it'll be a pain *)
-Definition enclave_dead (md : mode) (k : set enclave) :=
-  match md with
-  | Normal => False
-  | Encl i => set_In i k
-  end.
-                    
+
 Section Syntax.
   Inductive exp : Type :=
   | Enat : nat -> exp
@@ -90,6 +84,18 @@ Section Semantics.
   | AEnc : com -> event.
   Definition trace : Type := list event.
 
+  (* FIXME: Seemed like we might want this but dunno if it'll be a pain *)
+  Definition enclave_dead (md : mode) (k : set enclave) :=
+  match md with
+  | Normal => False
+  | Encl i => set_In i k
+  end.
+  Definition enclave_access_ok (md : mode) (d : loc_mode) (l : location) (k : set enclave) :=
+  match md with
+  | Normal => (d l) = Normal
+  | Encl i => ~(enclave_dead md k) /\ (d l) = Encl i
+  end.
+
   Definition econfig : Type := exp * reg * mem * set enclave.
   Definition ecfg_exp (ecfg: econfig) : exp :=
     match ecfg with (e, _, _, _) => e end.
@@ -124,7 +130,7 @@ Section Semantics.
       ecfg = (Ederef e, r, m, k) ->
       estep md d (e, r, m, k) (Vloc l) ->
       m l = v ->
-      ~(enclave_dead(d l) k) ->
+      enclave_access_ok md d l k ->
       estep md d ecfg v
   | Estep_isunset : forall cnd v res,
       ecfg_exp ecfg = Eisunset cnd ->
@@ -166,7 +172,16 @@ Section Semantics.
       estep md d (ecfg_of_ccfg e ccfg) v ->
       r' = ccfg_update_reg ccfg x v ->
       ~(enclave_dead md (ccfg_kill ccfg)) ->
-      cstep md d ccfg (r', ccfg_mem ccfg, ccfg_kill ccfg) [Decl e (ccfg_mem ccfg)].
+      cstep md d ccfg (r', ccfg_mem ccfg, ccfg_kill ccfg) [Decl e (ccfg_mem ccfg)]
+  | Cstep_update : forall e1 e2 l v m',
+      ccfg_com ccfg = Cupdate e1 e2 ->
+      estep md d (ecfg_of_ccfg e1 ccfg) (Vloc l) ->
+      estep md d (ecfg_of_ccfg e2 ccfg) v ->
+      ~(enclave_dead md (ccfg_kill ccfg)) ->
+      enclave_access_ok md d l (ccfg_kill ccfg) -> (*this is redundant?*)  
+      is_Not_cnd l ->
+      m' = ccfg_update_mem ccfg l v ->
+      cstep md d ccfg (ccfg_reg ccfg, m', ccfg_kill ccfg) [].  .
   (*
   | Cdeclassify : var -> exp -> com
   | Cupdate : exp -> exp -> com
