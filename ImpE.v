@@ -15,87 +15,87 @@ Require Common.
 Module ImpE.
 Include Common.
   
-Definition Enclave : Type := nat.
-Inductive Mode : Type :=
-| Normal : Mode
-| Encl : Enclave -> Mode.
+Definition enclave : Type := nat.
+Inductive mode : Type :=
+| Normal : mode
+| Encl : enclave -> mode.
 
 Section Syntax.
-  Inductive Exp : Type :=
-  | ENat : nat -> Exp
-  | EVar : Var -> Exp
-  | EPlus : Exp -> Exp -> Exp
-  | EMult : Exp -> Exp -> Exp
-  | ELoc : Location -> Exp
-  | EDeref : Exp -> Exp
-  | EIs_Unset : Condition -> Exp
-  | ELambda : Mode -> Com -> Exp
+  Inductive exp : Type :=
+  | Enat : nat -> exp
+  | Evar : var -> exp
+  | Eplus : exp -> exp -> exp
+  | Emult : exp -> exp -> exp
+  | Eloc : location -> exp
+  | Ederef : exp -> exp
+  | Eisunset : condition -> exp
+  | Elambda : mode -> com -> exp
                                    
-  with Com : Type :=
-  | CSkip : Com
-  | CAssign : Var -> Exp -> Com
-  | CDeclassify : Var -> Exp -> Com
-  | CUpdate : Exp -> Exp -> Com
-  | COutput : Exp -> Sec_Level -> Com
-  | CSet : Condition -> Com
-  | CEnclave : Enclave -> Com -> Com
-  | CKill : Enclave -> Com
-  | CSeq : list Com -> Com
-  | CIf : Exp -> Com -> Com -> Com
-  | CWhile : Exp -> Com -> Com.
+  with com : Type :=
+  | Cskip : com
+  | Cassign : var -> exp -> com
+  | Cdeclassify : var -> exp -> com
+  | Cupdate : exp -> exp -> com
+  | Coutput : exp -> sec_level -> com
+  | Cset : condition -> com
+  | Cenclave : enclave -> com -> com
+  | Ckill : enclave -> com
+  | Cseq : list com -> com
+  | Cif : exp -> com -> com -> com
+  | Cwhile : exp -> com -> com.
 
-  Inductive Val : Type :=
-  | VLambda : Mode -> Com -> Val
-  | VNat : nat -> Val
-  | VLoc : Location -> Val.
+  Inductive val : Type :=
+  | Vlambda : mode -> com -> val
+  | Vnat : nat -> val
+  | Vloc : location -> val.
 End Syntax.
 
 Section Semantics.
-  Definition Reg : Type := Register Val.
-  Definition Mem : Type := Memory Val.
-  Definition Loc_Mode : Type := Location -> Mode.
+  Definition reg : Type := register val.
+  Definition mem : Type := memory val.
+  Definition loc_mode : Type := location -> mode.
 
-  Definition EConfig : Type := Exp * Reg * Mem * set Enclave.
-  Definition ecfg_exp (ecfg: EConfig) : Exp :=
+  Definition econfig : Type := exp * reg * mem * set enclave.
+  Definition ecfg_exp (ecfg: econfig) : exp :=
     match ecfg with (e, _, _, _) => e end.
-  Definition ecfg_reg (ecfg: EConfig) : Reg :=
+  Definition ecfg_reg (ecfg: econfig) : reg :=
     match ecfg with (_, r, _, _) => r end.
   (* FIXME: Not currently using the next two functions... *)
-  Definition ecfg_mem (ecfg: EConfig) : Mem :=
+  Definition ecfg_mem (ecfg: econfig) : mem :=
     match ecfg with (_, _, m, _) => m end.
-  Definition ecfg_kill (ecfg: EConfig) : set Enclave :=
+  Definition ecfg_kill (ecfg: econfig) : set enclave :=
     match ecfg with (_, _, _, k) => k end.
-  Definition ecfg_update_exp (ecfg: EConfig) (e: Exp) : EConfig :=
+  Definition ecfg_update_exp (ecfg: econfig) (e: exp) : econfig :=
     match ecfg with (_, r, m, k) => (e, r, m, k) end.
   
-  Inductive EStep (md: Mode) (d: Loc_Mode) (ecfg: EConfig) : Val -> Prop :=
-  | ESNat : forall n, ecfg_exp ecfg = ENat n -> EStep md d ecfg (VNat n)
-  | ESLoc : forall l, ecfg_exp ecfg = ELoc l -> EStep md d ecfg (VLoc l)
-  | ESLambda : forall c,
-      ecfg_exp ecfg = ELambda md c -> EStep md d ecfg (VLambda md c)
-  | ESVar : forall x v,
-      ecfg_exp ecfg = EVar x -> ecfg_reg ecfg x = v -> EStep md d ecfg v
-  | ESPlus : forall e1 e2 n1 n2,
-      ecfg_exp ecfg = EPlus e1 e2 ->
-      EStep md d (ecfg_update_exp ecfg e1) (VNat n1) ->
-      EStep md d (ecfg_update_exp ecfg e2) (VNat n2) ->
-      EStep md d ecfg (VNat (n1 + n2))
-  | ESMult : forall e1 e2 n1 n2,
-      ecfg_exp ecfg = EMult e1 e2 ->
-      EStep md d (ecfg_update_exp ecfg e1) (VNat n1) ->
-      EStep md d (ecfg_update_exp ecfg e2) (VNat n2) ->
-      EStep md d ecfg (VNat (n1 * n2))
-  | ESDeref : forall e r m k l v i,
-      ecfg = (EDeref e, r, m, k) ->
-      EStep md d (e, r, m, k) (VLoc l) ->
+  Inductive estep (md: mode) (d: loc_mode) (ecfg: econfig) : val -> Prop :=
+  | Estep_nat : forall n, ecfg_exp ecfg = Enat n -> estep md d ecfg (Vnat n)
+  | Estep_loc : forall l, ecfg_exp ecfg = Eloc l -> estep md d ecfg (Vloc l)
+  | Estep_lambda : forall c,
+      ecfg_exp ecfg = Elambda md c -> estep md d ecfg (Vlambda md c)
+  | Estep_var : forall x v,
+      ecfg_exp ecfg = Evar x -> ecfg_reg ecfg x = v -> estep md d ecfg v
+  | Estep_plus : forall e1 e2 n1 n2,
+      ecfg_exp ecfg = Eplus e1 e2 ->
+      estep md d (ecfg_update_exp ecfg e1) (Vnat n1) ->
+      estep md d (ecfg_update_exp ecfg e2) (Vnat n2) ->
+      estep md d ecfg (Vnat (n1 + n2))
+  | Estep_mult : forall e1 e2 n1 n2,
+      ecfg_exp ecfg = Emult e1 e2 ->
+      estep md d (ecfg_update_exp ecfg e1) (Vnat n1) ->
+      estep md d (ecfg_update_exp ecfg e2) (Vnat n2) ->
+      estep md d ecfg (Vnat (n1 * n2))
+  | Estep_deref : forall e r m k l v i,
+      ecfg = (Ederef e, r, m, k) ->
+      estep md d (e, r, m, k) (Vloc l) ->
       m l = v ->
       d l = Normal \/ (d l = Encl i /\ ~set_In i k) ->
-      EStep md d ecfg v
-  | ESIs_Unset : forall cnd v res,
-      ecfg_exp ecfg = EIs_Unset cnd ->
-      EStep md d (ecfg_update_exp ecfg (EDeref (ELoc (Cnd cnd)))) v ->
-      (v = VNat 0 /\ res = VNat 1) \/ (v <> VNat 0 /\ res = VNat 0) ->
-      EStep md d ecfg res.
+      estep md d ecfg v
+  | Estep_isunset : forall cnd v res,
+      ecfg_exp ecfg = Eisunset cnd ->
+      estep md d (ecfg_update_exp ecfg (Ederef (Eloc (Cnd cnd)))) v ->
+      (v = Vnat 0 /\ res = Vnat 1) \/ (v <> Vnat 0 /\ res = Vnat 0) ->
+      estep md d ecfg res.
 
   (* FIXME: Semantics for commands. *)
 End Semantics.

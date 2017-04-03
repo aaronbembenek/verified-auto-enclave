@@ -12,22 +12,22 @@ Require Import Sorting.Permutation.
 Import ListNotations.
 
 Section MachineModel.
-  Definition Var : Type := nat.
+  Definition var : Type := nat.
   
-  Definition Condition : Type := nat.
-  Inductive Location : Type :=
-  | Non_Cnd : nat -> Location
-  | Cnd : Condition -> Location.
-  Definition is_cnd (l: Location) : Prop := exists c, l = Cnd c.
-  Definition is_non_cnd (l: Location) : Prop := exists n, l = Non_Cnd n.
+  Definition condition : Type := nat.
+  Inductive location : Type :=
+  | Non_Cnd : nat -> location
+  | Cnd : condition -> location.
+  Definition is_cnd (l: location) : Prop := exists a, l = Cnd a.
+  Definition is_non_cnd (l: location) : Prop := exists a, l = Non_Cnd a.
 
-  Definition Register (value_t: Type) : Type := Var -> value_t.
-  Definition Memory (value_t: Type) : Type := Location -> value_t.
+  Definition register (value_t: Type) : Type := var -> value_t.
+  Definition memory (value_t: Type) : Type := location -> value_t.
 End MachineModel.
 
 Section Security.
-  Inductive Sec_Level : Set :=
-  | L : Sec_Level
-  | H : Sec_Level
-  | T : Sec_Level.
+  Inductive sec_level : Set :=
+  | L : sec_level
+  | H : sec_level
+  | T : sec_level.
 End Security.
