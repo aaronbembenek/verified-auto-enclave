@@ -54,6 +54,27 @@ Section Syntax.
   | Vlambda : mode -> com -> val
   | Vnat : nat -> val
   | Vloc : location -> val.
+
+  Function exp_novars (e : exp) : Prop :=
+    match e with
+    | Evar _ => False
+    | Eplus e1 e2 => exp_novars e1 /\ exp_novars e2
+    | Emult e1 e2 => exp_novars e1 /\ exp_novars e2
+    | Ederef e => exp_novars e
+    | Elambda md c => com_novars c
+    | _ => True
+    end
+  with com_novars (c : com) : Prop :=
+    match c with
+    | Cassign _ e => exp_novars e
+    | Cdeclassify _ e => exp_novars e
+    | Cupdate e1 e2 => exp_novars e1 /\ exp_novars e2
+    | Coutput e _ => exp_novars e
+    | Cif e _ _ => exp_novars e
+    | Cwhile e _ => exp_novars e
+    | _ => True
+    end.
+  
 End Syntax.
 
 Section Semantics.
@@ -138,7 +159,14 @@ Section Semantics.
       estep md d (ecfg_of_ccfg e ccfg) v ->
       r' = ccfg_update_reg ccfg x v ->
       ~(enclave_dead md (ccfg_kill ccfg)) ->
-      cstep md d ccfg (r', ccfg_mem ccfg, ccfg_kill ccfg) [].
+      cstep md d ccfg (r', ccfg_mem ccfg, ccfg_kill ccfg) []
+  | Cstep_declassify : forall x e v r',
+      ccfg_com ccfg = Cdeclassify x e ->
+      exp_novars e ->
+      estep md d (ecfg_of_ccfg e ccfg) v ->
+      r' = ccfg_update_reg ccfg x v ->
+      ~(enclave_dead md (ccfg_kill ccfg)) ->
+      cstep md d ccfg (r', ccfg_mem ccfg, ccfg_kill ccfg) [Decl e (ccfg_mem ccfg)].
   (*
   | Cdeclassify : var -> exp -> com
   | Cupdate : exp -> exp -> com
