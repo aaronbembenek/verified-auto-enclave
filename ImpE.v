@@ -54,6 +54,11 @@ Section Semantics.
   Definition reg : Type := register val.
   Definition mem : Type := memory val.
   Definition loc_mode : Type := location -> mode.
+  Inductive event : Type :=
+  | Decl : exp -> mem -> event
+  | Mem : mem -> event
+  | Out : location -> val -> event.
+  Definition trace : Type := list event.
 
   Definition econfig : Type := exp * reg * mem * set enclave.
   Definition ecfg_exp (ecfg: econfig) : exp :=
@@ -98,5 +103,12 @@ Section Semantics.
       estep md d ecfg res.
 
   (* FIXME: Semantics for commands. *)
+  Definition cconfig : Type := com * reg * mem * set enclave.
+  (* FIXME: Do we want to define a type for the result of the judgement? 
+  Inductive cstep (md: mode) (d: loc_mode) (ccfg: cconfig) :
+    reg -> mem -> set enclave -> trace -> Prop :=
+  | TODO : True.
+*)
+                                            
 End Semantics.
 End ImpE.
