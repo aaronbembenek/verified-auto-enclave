@@ -63,5 +63,17 @@ Section Security.
   intros sl1 sl2 sl3;  unfold sec_level_le; intros.
   apply rt_trans with (y:=sl2); auto.
   Defined.
- 
+
+  Inductive sec_policy : Type :=
+  | LevelP : sec_level -> sec_policy
+  | ErasureP : sec_level -> condition -> sec_level -> sec_policy.
+
+  Definition sec_spec : Type :=  location -> sec_policy.
+
+  Function cur (p : sec_policy) (U : set condition) : sec_level :=
+    match p with
+    | LevelP l => l
+    | ErasureP l1 cnd l2 => if (set_mem Nat.eq_dec cnd U) then l1 else l2
+    end.
+
 End Security.
