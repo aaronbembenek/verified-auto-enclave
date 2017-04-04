@@ -87,7 +87,35 @@ Section Semantics.
     match ecfg with (_, _, m) => m end.
   Definition ecfg_update_exp (ecfg: econfig) (e: exp) : econfig :=
     match ecfg with (_, r, m) => (e, r, m) end.
+
   
+  Inductive estep (ecfg: econfig) : val -> Prop :=
+  | Estep_nat : forall n, ecfg_exp ecfg = Enat n -> estep ecfg (Vnat n)
+  | Estep_loc : forall l, ecfg_exp ecfg = Eloc l -> estep ecfg (Vloc l)
+  | Estep_lambda : forall c,
+      ecfg_exp ecfg = Elambda c -> estep ecfg (Vlambda c)
+  | Estep_var : forall x v,
+      ecfg_exp ecfg = Evar x -> ecfg_reg ecfg x = v -> estep ecfg v
+  | Estep_plus : forall e1 e2 n1 n2,
+      ecfg_exp ecfg = Eplus e1 e2 ->
+      estep (ecfg_update_exp ecfg e1) (Vnat n1) ->
+      estep (ecfg_update_exp ecfg e2) (Vnat n2) ->
+      estep ecfg (Vnat (n1 + n2))
+  | Estep_mult : forall e1 e2 n1 n2,
+      ecfg_exp ecfg = Emult e1 e2 ->
+      estep (ecfg_update_exp ecfg e1) (Vnat n1) ->
+      estep (ecfg_update_exp ecfg e2) (Vnat n2) ->
+      estep ecfg (Vnat (n1 * n2))
+  | Estep_deref : forall e r m l v,
+      ecfg = (Ederef e, r, m) ->
+      estep (e, r, m) (Vloc l) ->
+      m l = v ->
+      estep ecfg v
+  | Estep_isunset : forall cnd v res,
+      ecfg_exp ecfg = Eisunset cnd ->
+      estep (ecfg_update_exp ecfg (Ederef (Eloc (Cnd cnd)))) v ->
+      (v = Vnat 0 /\ res = Vnat 1) \/ (v <> Vnat 0 /\ res = Vnat 0) ->
+      estep ecfg res.
 
   (* Semantics for commands. *)
   Definition cconfig : Type := com * reg * mem.
@@ -108,6 +136,72 @@ Section Semantics.
     (e, (ccfg_reg ccfg), (ccfg_mem ccfg)).
   Definition ccfg_update_com (c: com) (ccfg : cconfig) : cconfig :=
     (c, (ccfg_reg ccfg), (ccfg_mem ccfg)).
-                                              
+
+  Inductive cstep (ccfg: cconfig) : cterm -> trace -> Prop :=
+  | Cstep_skip : cstep ccfg (ccfg_reg ccfg, ccfg_mem ccfg) []
+  | Cstep_assign : forall x e v r',
+      ccfg_com ccfg = Cassign x e ->
+      estep (ccfg_to_ecfg e ccfg) v ->
+      r' = ccfg_update_reg ccfg x v ->
+      cstep ccfg (r', ccfg_mem ccfg) []
+  | Cstep_declassify : forall x e v r',
+      ccfg_com ccfg = Cdeclassify x e ->
+      exp_novars e ->
+      estep (ccfg_to_ecfg e ccfg) v ->
+      r' = ccfg_update_reg ccfg x v ->
+      cstep ccfg (r', ccfg_mem ccfg) [Decl e (ccfg_mem ccfg)]
+  | Cstep_update : forall e1 e2 l v m',
+      ccfg_com ccfg = Cupdate e1 e2 ->
+      estep (ccfg_to_ecfg e1 ccfg) (Vloc l) ->
+      estep (ccfg_to_ecfg e2 ccfg) v ->
+      is_Not_cnd l ->
+      m' = ccfg_update_mem ccfg l v ->
+      cstep ccfg (ccfg_reg ccfg, m') []
+  | Cstep_output : forall e sl v,
+      ccfg_com ccfg = Coutput e sl ->
+      estep (ccfg_to_ecfg e ccfg) v ->
+      sl = L \/ sl = H ->
+      cstep ccfg (ccfg_reg ccfg, ccfg_mem ccfg) [Mem (ccfg_mem ccfg); Out sl v]
+  | Cstep_call : forall e c r' m' tr,
+      ccfg_com ccfg = Ccall e ->
+      estep (ccfg_to_ecfg e ccfg) (Vlambda c) ->
+      cstep (ccfg_update_com c ccfg) (r', m') tr ->
+      cstep ccfg (r', m') tr
+  | Cstep_cset : forall c m',
+      ccfg_com ccfg = Cset c ->
+      m' = ccfg_update_mem ccfg (Cnd c) (Vnat 1) ->
+      cstep ccfg (ccfg_reg ccfg, m') [Mem m']
+  | Cstep_seq_nil :
+      ccfg_com ccfg = Cseq [] ->
+      cstep ccfg (ccfg_reg ccfg, ccfg_mem ccfg) []
+  | Cstep_seq_hd : forall hd tl r m tr r' m' tr',
+      ccfg_com ccfg = Cseq (hd::tl) ->
+      cstep (ccfg_update_com hd ccfg) (r, m) tr ->
+      cstep (Cseq tl, r, m) (r', m') tr' ->
+      cstep ccfg (r', m') (tr++tr')
+  | Cstep_if : forall e c1 c2 v r' m' tr,
+      ccfg_com ccfg = Cif e c1 c2 ->
+      estep (ccfg_to_ecfg e ccfg) v ->
+      ~(v = (Vnat 0)) ->
+      cstep (ccfg_update_com c1 ccfg) (r', m') tr ->
+      cstep ccfg (r', m') tr
+  | Cstep_else : forall e c1 c2 v r' m' tr,
+      ccfg_com ccfg = Cif e c1 c2 ->
+      estep (ccfg_to_ecfg e ccfg) v ->
+      v = (Vnat 0) ->
+      cstep (ccfg_update_com c2 ccfg) (r', m') tr ->
+      cstep ccfg (r', m') tr
+  | Cstep_while_t : forall e c v r m tr r' m' tr',
+      ccfg_com ccfg = Cwhile e c ->
+      estep (ccfg_to_ecfg e ccfg) v ->
+      ~(v = (Vnat 0)) ->
+      cstep (ccfg_update_com c ccfg) (r, m) tr ->
+      cstep (ccfg_update_com (Cwhile e c) ccfg) (r', m') tr' ->
+      cstep ccfg (r', m') (tr++tr')
+  | Cstep_while_f : forall e c,
+      ccfg_com ccfg = Cwhile e c ->
+      estep (ccfg_to_ecfg e ccfg) (Vnat 0) ->
+      cstep ccfg (ccfg_reg ccfg, ccfg_mem ccfg) [].
+
 End Semantics.
 End ImpS.
