@@ -46,4 +46,22 @@ Section Security.
   | L : sec_level
   | H : sec_level
   | T : sec_level.
+
+  Inductive sec_level_rel : relation sec_level :=
+  | sec_level_l_rel : sec_level_rel L H
+  | sec_level_h_rel : sec_level_rel H T.
+
+  (* FIXME: not sure if this is the best way to define this. Slightly confused that I had
+     to prove that the reflexive transitive closure was reflexive and transitive... *)
+  Definition sec_level_le := clos_refl_trans sec_level sec_level_rel.
+
+  Global Instance sec_level_le_refl : Reflexive sec_level_le.
+  intro sl; destruct sl; unfold sec_level_le; apply rt_refl.
+  Defined.
+
+  Global Instance sec_level_le_trans : Transitive sec_level_le.
+  intros sl1 sl2 sl3;  unfold sec_level_le; intros.
+  apply rt_trans with (y:=sl2); auto.
+  Defined.
+ 
 End Security.
