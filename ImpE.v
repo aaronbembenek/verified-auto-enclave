@@ -105,11 +105,6 @@ Section Semantics.
     match ecfg with (e, _, _, _) => e end.
   Definition ecfg_reg (ecfg: econfig) : reg :=
     match ecfg with (_, r, _, _) => r end.
-  (* FIXME: Not currently using the next two functions... *)
-  Definition ecfg_mem (ecfg: econfig) : mem :=
-    match ecfg with (_, _, m, _) => m end.
-  Definition ecfg_kill (ecfg: econfig) : set enclave :=
-    match ecfg with (_, _, _, k) => k end.
   Definition ecfg_update_exp (ecfg: econfig) (e: exp) : econfig :=
     match ecfg with (_, r, m, k) => (e, r, m, k) end.
   
@@ -202,8 +197,6 @@ Section Semantics.
       cstep md d ccfg (r', m', k') tr
   | Cstep_cset : forall c m',
       ccfg_com ccfg = Cset c ->
-      (* FIXME: it seems like we don't need the premise that 
-         cnd is a condition b/c of Cset's cstr *)
       mode_access_ok md d (Cnd c) (ccfg_kill ccfg) ->
       m' = ccfg_update_mem ccfg (Cnd c) (Vnat 1) ->
       mode_alive md (ccfg_kill ccfg) ->
@@ -240,6 +233,11 @@ Section Semantics.
       cstep md d (ccfg_update_com c ccfg) (r, m, k) tr ->
       cstep md d (ccfg_update_com (Cwhile e c) ccfg) (r', m', k') tr' ->
       cstep md d ccfg (r', m', k') (tr++tr')
+  | Cstep_while_f : forall e c,
+      ccfg_com ccfg = Cwhile e c ->
+      estep md d (ccfg_to_ecfg e ccfg) (Vnat 0) ->
+      mode_alive md (ccfg_kill ccfg) ->
+      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
   | Cstep_kill : forall enc,
       md = Normal ->
       ccfg_com ccfg = Ckill enc ->
