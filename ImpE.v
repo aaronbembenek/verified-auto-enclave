@@ -15,18 +15,12 @@ Require Common.
 Module ImpE.
 Include Common.
 
-(* FIXME:
-   The more I think about this, we might want these in common?
-   Since we'll need them for the translation? 
-   We might also want the mode_enclave_dead / access_ok to be
-   grouped with these
-*)
-Definition enclave : Type := nat.
-Inductive mode : Type :=
-| Normal : mode
-| Encl : enclave -> mode.
-
 Section Syntax.
+  Definition enclave : Type := nat.
+  Inductive mode : Type :=
+  | Normal : mode
+  | Encl : enclave -> mode.
+  
   Inductive exp : Type :=
   | Enat : nat -> exp
   | Evar : var -> exp
@@ -94,17 +88,17 @@ Section Semantics.
   | AEnc : com -> event.
   Definition trace : Type := list event.
 
-  (* FIXME: Seemed like we might want this but dunno if it'll be a pain *)
-  Definition mode_enclave_dead (md : mode) (k : set enclave) :=
-  match md with
-  | Normal => False
-  | Encl i => set_In i k
-  end.
+  Definition mode_alive (md : mode) (k : set enclave) :=
+    match md with
+    | Normal => True
+    | Encl i => ~set_In i k
+    end.
   Definition mode_access_ok (md : mode) (d : loc_mode) (l : location) (k : set enclave) :=
-  match md with
-  | Normal => (d l) = Normal
-  | Encl i => ~(mode_enclave_dead md k) /\ ((d l) = Encl i \/ (d l) = Normal)
-  end.
+    let lmd := d l in
+    match lmd with
+    | Normal => True
+    | Encl _ => md = lmd /\ mode_alive lmd k
+    end.
 
   Definition econfig : Type := exp * reg * mem * set enclave.
   Definition ecfg_exp (ecfg: econfig) : exp :=
@@ -177,20 +171,20 @@ Section Semantics.
       ccfg_com ccfg = Cassign x e ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       r' = ccfg_update_reg ccfg x v ->
-      ~(mode_enclave_dead md (ccfg_kill ccfg)) ->
+      mode_alive md (ccfg_kill ccfg) ->
       cstep md d ccfg (r', ccfg_mem ccfg, ccfg_kill ccfg) []
   | Cstep_declassify : forall x e v r',
       ccfg_com ccfg = Cdeclassify x e ->
       exp_novars e ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       r' = ccfg_update_reg ccfg x v ->
-      ~(mode_enclave_dead md (ccfg_kill ccfg)) ->
+      mode_alive md (ccfg_kill ccfg) ->
       cstep md d ccfg (r', ccfg_mem ccfg, ccfg_kill ccfg) [Decl e (ccfg_mem ccfg)]
   | Cstep_update : forall e1 e2 l v m',
       ccfg_com ccfg = Cupdate e1 e2 ->
       estep md d (ccfg_to_ecfg e1 ccfg) (Vloc l) ->
       estep md d (ccfg_to_ecfg e2 ccfg) v ->
-      ~(mode_enclave_dead md (ccfg_kill ccfg)) ->
+      mode_alive md (ccfg_kill ccfg) ->
       mode_access_ok md d l (ccfg_kill ccfg) ->
       is_Not_cnd l ->
       m' = ccfg_update_mem ccfg l v ->
@@ -199,7 +193,7 @@ Section Semantics.
       ccfg_com ccfg = Coutput e sl ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       sl = L \/ sl = H ->
-      ~(mode_enclave_dead md (ccfg_kill ccfg)) ->
+      mode_alive md (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) [Mem (ccfg_mem ccfg); Out sl v]
   | Cstep_call : forall e c r' m' k' tr,
       ccfg_com ccfg = Ccall e ->
@@ -212,7 +206,7 @@ Section Semantics.
          cnd is a condition b/c of Cset's cstr *)
       mode_access_ok md d (Cnd c) (ccfg_kill ccfg) ->
       m' = ccfg_update_mem ccfg (Cnd c) (Vnat 1) ->
-      ~(mode_enclave_dead md (ccfg_kill ccfg)) ->
+      mode_alive md (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, m', ccfg_kill ccfg) [Mem m']
   | Cstep_enclave : forall enc c r' m' k' tr,
     md = Normal ->
@@ -249,7 +243,7 @@ Section Semantics.
   | Cstep_kill : forall enc,
       md = Normal ->
       ccfg_com ccfg = Ckill enc ->
-      ~(mode_enclave_dead (Encl enc) (ccfg_kill ccfg)) ->
+      mode_alive (Encl enc) (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
                                             
 End Semantics.
