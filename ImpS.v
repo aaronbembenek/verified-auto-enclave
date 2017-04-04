@@ -24,7 +24,7 @@ Section Syntax.
   | Eloc : location -> exp
   | Ederef : exp -> exp
   | Eisunset : condition -> exp
-  | Elambda : mode -> com -> exp
+  | Elambda : com -> exp
                                    
   with com : Type :=
   | Cskip : com
@@ -32,6 +32,7 @@ Section Syntax.
   | Cdeclassify : var -> exp -> com
   | Cupdate : exp -> exp -> com
   | Coutput : exp -> sec_level -> com
+  | Ccall : exp -> com
   | Cset : condition -> com
   | Cseq : list com -> com
   | Cif : exp -> com -> com -> com
@@ -48,7 +49,7 @@ Section Syntax.
     | Eplus e1 e2 => exp_novars e1 /\ exp_novars e2
     | Emult e1 e2 => exp_novars e1 /\ exp_novars e2
     | Ederef e => exp_novars e
-    | Elambda md c => com_novars c
+    | Elambda c => com_novars c
     | _ => True
     end
   with com_novars (c : com) : Prop :=
@@ -67,15 +68,14 @@ End Syntax.
 
 Section Semantics.
   Definition reg : Type := register val.
-  Definition init_regfile : reg := fun x -> Vnat 0.
+  Definition init_regfile : reg := fun x => Vnat 0.
   Definition mem : Type := memory val.
-  Definition loc_mode : Type := location -> mode.
 
   (* FIXME: what to do about attackers? don't need to model, I'm guessing *)
   Inductive event : Type :=
   | Decl : exp -> mem -> event
   | Mem : mem -> event
-  | Out : sec_level -> val -> event
+  | Out : sec_level -> val -> event.
   Definition trace : Type := list event.
 
   Definition econfig : Type := exp * reg * mem.
@@ -90,8 +90,8 @@ Section Semantics.
   
 
   (* Semantics for commands. *)
-  Definition cconfig : Type := com * reg * mem
-  Definition cterm : Type := reg * mem
+  Definition cconfig : Type := com * reg * mem.
+  Definition cterm : Type := reg * mem.
   Definition ccfg_com (ccfg: cconfig) : com :=
     match ccfg with (c, _, _) => c end.
   Definition ccfg_reg (ccfg: cconfig) : reg :=
