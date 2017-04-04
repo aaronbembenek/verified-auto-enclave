@@ -93,7 +93,7 @@ Section Semantics.
   Definition mode_access_ok (md : mode) (d : loc_mode) (l : location) (k : set enclave) :=
   match md with
   | Normal => (d l) = Normal
-  | Encl i => ~(enclave_dead md k) /\ (d l) = Encl i
+  | Encl i => ~(enclave_dead md k) /\ ((d l) = Encl i \/ (d l) = Normal)
   end.
 
   Definition econfig : Type := exp * reg * mem * set enclave.
