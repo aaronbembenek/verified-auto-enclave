@@ -245,4 +245,24 @@ Section Semantics.
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
                                             
 End Semantics.
+
+Section Typing.
+  Inductive rt : Set :=
+  | Mut
+  | Immut.
+  
+  Inductive base_type : Type :=
+  | Tint : base_type
+  | Tcond : mode -> base_type
+  | Tref : mode -> rt -> base_type
+  | Tlambda : base_type (* TODO *)
+                           
+  with type : Type :=
+  | Typ : base_type -> sec_policy -> type
+                                            
+  with context : Type :=
+  | Cntxt (var_cntxt: var -> option type)
+          (loc_cntxt: location -> option (type * rt)) : context.
+End Typing.
+
 End ImpE.
