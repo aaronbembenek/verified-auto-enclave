@@ -35,8 +35,6 @@ Section MachineModel.
     | _, _ => false
     end.
 
-  (* FIXME: Do we need to initialize everything to 0 or something? 
-     what happens if we try to get the memory at a location that doesn't hold a value? *)
   Definition register (value_t: Type) : Type := var -> value_t.
   Definition memory (value_t: Type) : Type := location -> value_t.
 End MachineModel.
@@ -50,11 +48,9 @@ Section Security.
   Inductive sec_level_rel : relation sec_level :=
   | sec_level_l_rel : sec_level_rel L H
   | sec_level_h_rel : sec_level_rel H T.
-
-  (* FIXME: not sure if this is the best way to define this. Slightly confused that I had
-     to prove that the reflexive transitive closure was reflexive and transitive... *)
+ 
   Definition sec_level_le := clos_refl_trans sec_level sec_level_rel.
-
+  
   Global Instance sec_level_le_refl : Reflexive sec_level_le.
   intro sl; destruct sl; unfold sec_level_le; apply rt_refl.
   Defined.
@@ -63,6 +59,18 @@ Section Security.
   intros sl1 sl2 sl3;  unfold sec_level_le; intros.
   apply rt_trans with (y:=sl2); auto.
   Defined.
+
+  Lemma sec_level_le_dec : forall sl sl', {sec_level_le sl sl'} + {sec_level_le sl' sl}.
+  Proof.
+    intros; destruct sl, sl'; intuition;
+      [left|left|right|left|right|right]; unfold sec_level_le.
+    apply rt_step; apply sec_level_l_rel.
+    apply rt_trans with (y := H); apply rt_step; [apply sec_level_l_rel | apply sec_level_h_rel].
+    apply rt_step; apply sec_level_l_rel.
+    apply rt_step; apply sec_level_h_rel.
+    apply rt_trans with (y := H); apply rt_step; [apply sec_level_l_rel | apply sec_level_h_rel].
+    apply rt_step; apply sec_level_h_rel.
+  Qed.
 
   Inductive sec_policy : Type :=
   | LevelP : sec_level -> sec_policy
@@ -82,3 +90,9 @@ Section Security.
     | ErasureP l1 cnd l2 => if (set_mem Nat.eq_dec cnd U) then l1 else l2
     end.
 End Security.
+
+  (* XXX somehow putting this within the section failed *)
+  Infix " [= " := sec_level_le (at level 90) : core_scope.
+  Infix " [[= " := sec_level_le_dec (at level 90) : core_scope.
+  Global Open Scope core_scope.
+
