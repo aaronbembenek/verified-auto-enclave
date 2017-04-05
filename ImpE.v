@@ -71,8 +71,85 @@ Section Syntax.
     | Ccall e => exp_novars e
     | _ => True
     end.
+
+  Ltac auto_decide :=
+    try match goal with
+    | [x : nat, y : nat |- _] => destruct (Nat.eq_dec x y)
+    | [x : var, y : var |- _] => destruct (Nat.eq_dec x y)
+    | [x : condition, y : condition |- _] => destruct (Nat.eq_dec x y)
+    | _ => idtac
+    end; [left; now subst | right; congruence].
   
+  Lemma exp_decidable : forall e1 e2 : exp, {e1 = e2} + {e1 <> e2}.
+  Proof.
+    Print exp_ind.
+    intro; induction e1; destruct e2; try (right; discriminate).
+    1-2: auto_decide.
+    1-2: destruct IHe1_1 with (e2:=e2_1); destruct IHe1_2 with (e2:=e2_2); subst; auto;
+      right; congruence.
+    destruct l, l0; try (right; discriminate); auto_decide.
+    destruct IHe1 with (e2:=e2); [left; now subst | right; congruence].
+    auto_decide.
+    (* Lambdas require that commands are decidable... :( *)
+    Admitted.
+
+  (*FIXME: Ezra needs to come back and figure out how to prove that expressions
+    and commands are decidable. Is there a way to do a mutually recursive proof...?*)
+  Lemma com_decidable : forall c1 c2 : com, {c1 = c2} + {c1 <> c2}.
+  Admitted.
+ 
+  Lemma prog_decidable : forall p1 p2 : (com + exp), {p1 = p2} + {p1 <> p2}.
+  Proof.
+    intros; destruct p1; destruct p2; try (right; discriminate).
+    - destruct (com_decidable c c0). left; now subst. right; congruence.
+    - destruct (exp_decidable e e0). left; now subst. right; congruence.
+  Qed.
+
+  Lemma mode_decidable : forall m1 m2 : mode, {m1 = m2} + {m1 <> m2}.
+  Proof.
+    intros; destruct m1; destruct m2; try (right; discriminate).
+    - left; auto.
+    - destruct (Nat.eq_dec e e0); [left; now subst | right; congruence].
+  Qed.
+
 End Syntax.
+
+Section Enclave_Equiv.
+  Lemma mode_prog_decidable : forall ep1 ep2 : (mode * (com + exp)), {ep1 = ep2} + {ep1 <> ep2}.
+  Proof.
+    intros; destruct ep1, ep2; destruct (mode_decidable m m0); destruct (prog_decidable s s0).
+    1: left; now subst.
+    all: right; congruence.
+  Qed.
+
+  Fixpoint chi (c : com) : set (mode * (com + exp)) :=
+  let chi_exp :=
+      (fix chi_exp (e : exp) : set (mode * (com + exp)) :=
+         match e with
+         | Eplus e1 e2 | Emult e1 e2 => set_union mode_prog_decidable (chi_exp e1) (chi_exp e2)
+         | Ederef e1 => chi_exp e1
+         | Elambda Normal c => chi c
+         | Elambda m _ => set_add mode_prog_decidable (m, inr e) nil
+         | _ => nil
+         end)
+  
+  in
+  match c with
+  | Cassign _ e => chi_exp e
+  | Cdeclassify _ e => chi_exp e
+  | Cupdate e1 e2 => set_union mode_prog_decidable (chi_exp e1) (chi_exp e2)
+  | Coutput e _ => chi_exp e
+  | Ccall e => chi_exp e
+  | Cenclave enc c1 => set_add mode_prog_decidable (Encl enc, inl c1) nil
+  | Cseq c_lst => fold_left (fun acc elt => set_union mode_prog_decidable (chi elt) acc) c_lst nil
+  | Cif e c1 c2 => set_union mode_prog_decidable (chi_exp e)
+                            (set_union mode_prog_decidable (chi c1) (chi c2))
+  | _ => nil
+  end.
+
+  Definition enc_equiv (c1 c2 : com) : Prop := chi c1 = chi c2.
+
+End Enclave_Equiv.
 
 Section Semantics.
   Definition reg : Type := register val.
