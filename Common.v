@@ -68,6 +68,12 @@ Section Security.
   | LevelP : sec_level -> sec_policy
   | ErasureP : sec_level -> condition -> sec_level -> sec_policy.
 
+  Variable policy_join : sec_policy -> sec_policy -> sec_policy.
+  Variable policy_le : relation sec_policy.
+  Hypothesis policy_le_partial_order : order sec_policy policy_le.
+  Hypothesis policy_le_join : forall p1 p2,
+      policy_le p1 (policy_join p1 p2) /\ policy_le p2 (policy_join p1 p2).
+  
   Definition sec_spec : Type :=  location -> sec_policy.
 
   Function cur (p : sec_policy) (U : set condition) : sec_level :=
@@ -75,5 +81,4 @@ Section Security.
     | LevelP l => l
     | ErasureP l1 cnd l2 => if (set_mem Nat.eq_dec cnd U) then l1 else l2
     end.
-
 End Security.
