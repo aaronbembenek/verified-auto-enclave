@@ -153,7 +153,7 @@ End Enclave_Equiv.
 
 Section Semantics.
   Definition reg : Type := register val.
-  Definition init_regfile : reg := fun x => Vnat 0.
+  Definition reg_init : reg := fun x => Vnat 0.
   Definition mem : Type := memory val.
   Definition loc_mode : Type := location -> mode.
 
@@ -236,6 +236,7 @@ Section Semantics.
     (e, (ccfg_reg ccfg), (ccfg_mem ccfg), (ccfg_kill ccfg)).
   Definition ccfg_update_com (c: com) (ccfg : cconfig) : cconfig :=
     (c, (ccfg_reg ccfg), (ccfg_mem ccfg), (ccfg_kill ccfg)).
+
   
   Inductive cstep (md: mode) (d: loc_mode) (ccfg: cconfig) : cterm -> trace -> Prop :=
   | Cstep_skip : cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
@@ -320,17 +321,37 @@ Section Semantics.
       ccfg_com ccfg = Ckill enc ->
       mode_alive (Encl enc) (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
-                                            
+
+  Inductive attacker : Type :=
+  | passive : attacker
+  | nonencl_active : attacker
+  | encl_active : attacker.
+
+  (* TODO: need to define some way to match on attacker and get the semantics for
+     that attacker. Necessary to parametrize knowledge by attacker 
+  Function attack_semantics (a: attacker) : cstep_type =
+    match a with
+    | passive => cstep
+    | nonencl_active => cstep
+    | encl_active => cstep
+    end.
+  *)
+    
 End Semantics.
 
 Section Security.
   Function tobs (sl: sec_level) (t: trace) : trace :=
     match t with
     | [] => []
-    | Out sl' v :: tl => if (sl' [[= sl) then (Out sl' v) :: (tobs sl tl)
-                         else tobs sl tl        
+    | Out sl' v :: tl => if (sec_level_le_dec sl' sl)
+                                  then (Out sl' v) :: (tobs sl tl)
+                                  else tobs sl tl
     | _ :: tl => tobs sl tl                    
     end.
   
-End Security.
+  Inductive knowledge (c : prog) (sl : sec_level) (a : attacker) (tobs : trace) : mem -> Prop :=
+  | known_mem :
+      cstep Normal (reg_init, r' m' k' t
+  
+  End Security.
 End ImpE.
