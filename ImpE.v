@@ -1,4 +1,5 @@
 (* FIXME: Copied these from pset4; probably won't need all of them. *)
+
 Require Import Bool Arith List Omega ListSet.
 Require Import Recdef Morphisms.
 Require Import Program.Tactics.
@@ -13,8 +14,8 @@ Import ListNotations.
 Require Common.
 
 Module ImpE.
-Include Common.
-
+  Include Common.
+  
 Section Syntax.
   Definition enclave : Type := nat.
   Inductive mode : Type :=
@@ -138,7 +139,6 @@ Section Semantics.
       estep md d ecfg res.
 
   (* Semantics for commands. *)
-  (* FIXME : add inference rules for attackers? *)
   Definition cconfig : Type := com * reg * mem * set enclave.
   Definition cterm : Type := reg * mem * set enclave.
   Definition ccfg_com (ccfg: cconfig) : com :=
@@ -245,4 +245,15 @@ Section Semantics.
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
                                             
 End Semantics.
+
+Section Security.
+  Function tobs (sl: sec_level) (t: trace) : trace :=
+    match t with
+    | [] => []
+    | Out sl' v :: tl => if (sl' [[= sl) then (Out sl' v) :: (tobs sl tl)
+                         else tobs sl tl        
+    | _ :: tl => tobs sl tl                    
+    end.
+  
+End Security.
 End ImpE.
