@@ -340,6 +340,28 @@ End Semantics.
 Section Security.
   Definition esc_hatch : Type := exp.
 
+End Semantics.
+                                            
+Section Typing.
+  Inductive rt : Set :=
+  | Mut
+  | Immut.
+  
+  Inductive base_type : Type :=
+  | Tint : base_type
+  | Tcond : mode -> base_type
+  | Tref : mode -> rt -> base_type
+  | Tlambda : base_type (* TODO *)
+                           
+  with type : Type :=
+  | Typ : base_type -> sec_policy -> type
+                                            
+  with context : Type :=
+  | Cntxt (var_cntxt: var -> option type)
+          (loc_cntxt: location -> option (type * rt)) : context.
+End Typing.
+
+Section Security.
   Inductive attacker : Type :=
   | passive : attacker
   | active_nonencl : attacker
