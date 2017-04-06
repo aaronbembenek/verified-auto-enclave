@@ -9,6 +9,7 @@ Require FMapFacts.
 Require Import Classical.
 Require Import Coq.Classes.RelationClasses.
 Require Import OrderedType OrderedTypeEx DecidableType.
+Require Import Coq.Logic.FunctionalExtensionality.
 Require Import Sorting.Permutation.
 Import ListNotations.
 Require Common.
@@ -79,7 +80,7 @@ Section Syntax.
     | [x : condition, y : condition |- _] => destruct (Nat.eq_dec x y)
     | _ => idtac
     end; [left; now subst | right; congruence].
-  
+
   Lemma exp_decidable : forall e1 e2 : exp, {e1 = e2} + {e1 <> e2}.
   Proof.
     Print exp_ind.
@@ -110,6 +111,15 @@ Section Syntax.
     intros; destruct m1; destruct m2; try (right; discriminate).
     - left; auto.
     - destruct (Nat.eq_dec e e0); [left; now subst | right; congruence].
+  Qed.
+  
+  Lemma val_decidable : forall v1 v2 : val, {v1 = v2} + {v1 <> v2}.
+  Proof.
+    intros. destruct v1, v2; try (right; discriminate).
+    - destruct (mode_decidable m m0); destruct (com_decidable c c0); subst;
+        [left; auto | | |]; right; congruence.
+    - auto_decide.
+    - destruct l, l0; try (right; discriminate); auto_decide.
   Qed.
 
 End Syntax.
@@ -186,31 +196,33 @@ Section Semantics.
     match ecfg with (_, r, _, _) => r end.
   Definition ecfg_update_exp (ecfg: econfig) (e: exp) : econfig :=
     match ecfg with (_, r, m, k) => (e, r, m, k) end.
+  (* XXX I think we need to define semantics for expressions as well for all attackers? *)
+  Definition esemantics : Type := mode -> loc_mode -> econfig -> val -> Prop.
   
-  Inductive estep (md: mode) (d: loc_mode) (ecfg: econfig) : val -> Prop :=
-  | Estep_nat : forall n, ecfg_exp ecfg = Enat n -> estep md d ecfg (Vnat n)
-  | Estep_loc : forall l, ecfg_exp ecfg = Eloc l -> estep md d ecfg (Vloc l)
-  | Estep_lambda : forall c,
+  Inductive estep : esemantics :=
+  | Estep_nat : forall md d ecfg n, ecfg_exp ecfg = Enat n -> estep md d ecfg (Vnat n)
+  | Estep_loc : forall md d ecfg l, ecfg_exp ecfg = Eloc l -> estep md d ecfg (Vloc l)
+  | Estep_lambda : forall md d ecfg c,
       ecfg_exp ecfg = Elambda md c -> estep md d ecfg (Vlambda md c)
-  | Estep_var : forall x v,
+  | Estep_var : forall md d ecfg x v,
       ecfg_exp ecfg = Evar x -> ecfg_reg ecfg x = v -> estep md d ecfg v
-  | Estep_plus : forall e1 e2 n1 n2,
+  | Estep_plus : forall md d ecfg e1 e2 n1 n2,
       ecfg_exp ecfg = Eplus e1 e2 ->
       estep md d (ecfg_update_exp ecfg e1) (Vnat n1) ->
       estep md d (ecfg_update_exp ecfg e2) (Vnat n2) ->
       estep md d ecfg (Vnat (n1 + n2))
-  | Estep_mult : forall e1 e2 n1 n2,
+  | Estep_mult : forall md d ecfg e1 e2 n1 n2,
       ecfg_exp ecfg = Emult e1 e2 ->
       estep md d (ecfg_update_exp ecfg e1) (Vnat n1) ->
       estep md d (ecfg_update_exp ecfg e2) (Vnat n2) ->
       estep md d ecfg (Vnat (n1 * n2))
-  | Estep_deref : forall e r m k l v,
+  | Estep_deref : forall md d ecfg e r m k l v,
       ecfg = (Ederef e, r, m, k) ->
       estep md d (e, r, m, k) (Vloc l) ->
       m l = v ->
       mode_access_ok md d l k ->
       estep md d ecfg v
-  | Estep_isunset : forall cnd v res,
+  | Estep_isunset : forall md d ecfg cnd v res,
       ecfg_exp ecfg = Eisunset cnd ->
       estep md d (ecfg_update_exp ecfg (Ederef (Eloc (Cnd cnd)))) v ->
       (v = Vnat 0 /\ res = Vnat 1) \/ (v <> Vnat 0 /\ res = Vnat 0) ->
@@ -237,10 +249,10 @@ Section Semantics.
     (e, (ccfg_reg ccfg), (ccfg_mem ccfg), (ccfg_kill ccfg)).
   Definition ccfg_update_com (c: com) (ccfg : cconfig) : cconfig :=
     (c, (ccfg_reg ccfg), (ccfg_mem ccfg), (ccfg_kill ccfg)).
-  Definition semantics : Type := mode -> loc_mode -> cconfig -> cterm -> trace -> Prop.  
+  Definition csemantics : Type := mode -> loc_mode -> cconfig -> cterm -> trace -> Prop.  
 
   (* XXX couldn't figure out a way to not have to introduce forall md d ccfg everywhere.. *)
-  Inductive cstep : semantics := 
+  Inductive cstep : csemantics := 
   | Cstep_skip : forall md d ccfg, cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
   | Cstep_assign : forall md d ccfg x e v r',
       ccfg_com ccfg = Cassign x e ->
@@ -323,31 +335,76 @@ Section Semantics.
       ccfg_com ccfg = Ckill enc ->
       mode_alive (Encl enc) (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
-
-  Inductive attacker : Type :=
-  | passive : attacker
-  | nonencl_active : attacker
-  | encl_active : attacker.
-
-    
 End Semantics.
 
 Section Security.
-  Function tobs_sec_level (sl: sec_level) (t: trace) : trace :=
-    match t with
-    | [] => []
-    | Out sl' v :: tl => if (sec_level_le_dec sl' sl)
-                                  then (Out sl' v) :: (tobs_sec_level sl tl)
-                                  else tobs_sec_level sl tl
-    | _ :: tl => tobs_sec_level sl tl                    
-    end.
+  Definition esc_hatch : Type := exp.
+
+  Inductive attacker : Type :=
+  | passive : attacker
+  | active_nonencl : attacker
+  | active_encl : attacker.
+
+  Definition tobs_sec_level (sl: sec_level) (t: trace) : trace :=
+    filter (fun event => match event with
+                         | Out sl' v => if (sec_level_le_dec sl' sl) then true else false
+                         | _ => false                           
+                         end)
+           t.
   
-  Inductive knowledge (c : com) (sl : sec_level) (lstep : semantics) (tobs : trace) : mem -> Prop :=
+  (* XXX definition doesn't have a delta, so I'm assuming delta is just fixed (and quantifying over it) *)
+  Inductive knowledge_attack (c : com) (sl : sec_level) (cstep : csemantics) (tobs : trace)
+    : mem -> Prop :=
   | known_mem : forall d m r' m' k' t t0 t1 t2,
-      lstep Normal d (c, reg_init, m, []) (r', m', k') t ->
+      cstep Normal d (c, reg_init, m, []) (r', m', k') t ->
       t = t0 ++ t1 ++ t2 ->
       tobs_sec_level sl tobs = tobs_sec_level sl t1 ->
-      knowledge c sl lstep tobs m.
-  
-  End Security.
+      knowledge_attack c sl cstep tobs m.
+
+  (* XXX need to enforce that all U are unset? *)
+  Inductive knowledge_ind (m: mem) (g: sec_spec) (U: set condition) (sl : sec_level) : mem -> Prop :=
+  | ind_mem : forall m' l,
+      sec_level_le (cur (g l) U) sl ->
+      m l = m' l ->
+      knowledge_ind m g U sl m'.
+
+  (* XXX check that quantifying over all mds is ok. I think it is... as long as one md exists
+     s.t. the conditions hold, m' is an esc_mem *)
+  Inductive knowledge_esc (m0 m: mem) (estep: esemantics) (e: esc_hatch) : mem -> Prop :=
+  | esc_mem : forall m' d v md,
+      estep md d (e, reg_init, m0, []) v ->
+      estep md d (e, reg_init, m, []) v ->
+      estep md d (e, reg_init, m', []) v ->
+      knowledge_esc m0 m estep e m'.
+
+  Inductive cnd_unset (m: mem) (cnd: condition) : Prop :=
+  | unset : m (Cnd cnd) = Vnat 0 -> cnd_unset m cnd.
+  Inductive cnd_set (m: mem) (cnd: condition) : Prop :=
+  | set : m (Cnd cnd) = Vnat 1 -> cnd_set m cnd.
+                
+  (* XXX This thing with e and csemantics is a little weird. Probably want to
+     define one that encapsulates both, but I'm not sure how...
+   *)
+  Inductive secure_prog (sl: sec_level) (g: sec_spec) (cstep: csemantics) (estep: esemantics)
+            (c: com) (tobs: trace) : Prop :=
+  | secure : forall mhead t''
+                      m0 d thd ttl cterm
+                      tobs_hd tobs_tl mind cnd U mknown
+                      ttobs_hd ttobs_tl mdecl e,
+      (* begin with memory event *)
+      tobs = Mem mhead :: t'' ->
+      cstep Normal d (c, reg_init, m0, []) cterm (thd ++ tobs ++ ttl) ->
+      (* intersection over [tobs]_mem all memories in ind_sl with no set conditions *)
+      tobs = tobs_hd ++ [Mem mind] ++ tobs_tl ->
+      cnd_set mind cnd -> ~In cnd U /\ cnd_unset mind cnd -> In cnd U ->
+      knowledge_ind m0 g U sl mknown ->
+      (* intersection over [tobs]_esc *)
+      thd ++ tobs = ttobs_hd ++ [Decl e mdecl] ++ ttobs_tl ->
+      knowledge_esc m0 mdecl estep e mknown ->
+      (* knowledge_attack has to include all the above, so whenever the above holds,
+         so much knowledge_attack *)
+      knowledge_attack c sl cstep tobs mknown ->
+      secure_prog sl g cstep estep c tobs.
+
+End Security.
 End ImpE.
