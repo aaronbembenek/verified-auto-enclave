@@ -336,12 +336,7 @@ Section Semantics.
       mode_alive (Encl enc) (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
 End Semantics.
-
-Section Security.
-  Definition esc_hatch : Type := exp.
-
-End Semantics.
-                                            
+                                  
 Section Typing.
   Inductive rt : Set :=
   | Mut
@@ -360,8 +355,10 @@ Section Typing.
   | Cntxt (var_cntxt: var -> option type)
           (loc_cntxt: location -> option (type * rt)) : context.
 End Typing.
-
+  
 Section Security.
+  Definition esc_hatch : Type := exp.
+          
   Inductive attacker : Type :=
   | passive : attacker
   | active_nonencl : attacker
@@ -384,7 +381,8 @@ Section Security.
       knowledge_attack c sl cstep tobs m.
 
   (* XXX need to enforce that all U are unset? *)
-  Inductive knowledge_ind (m: mem) (g: sec_spec) (U: set condition) (sl : sec_level) : mem -> Prop :=
+  Inductive knowledge_ind (m: mem) (g: sec_spec) (U: set condition) (sl : sec_level) :
+    mem -> Prop :=
   | ind_mem : forall m' l,
       sec_level_le (cur (g l) U) sl ->
       m l = m' l ->
@@ -392,7 +390,8 @@ Section Security.
 
   (* XXX check that quantifying over all mds is ok. I think it is... as long as one md exists
      s.t. the conditions hold, m' is an esc_mem *)
-  Inductive knowledge_esc (m0 m: mem) (estep: esemantics) (e: esc_hatch) : mem -> Prop :=
+  Inductive knowledge_esc (m0 m: mem) (estep: esemantics) (e: esc_hatch) :
+    mem -> Prop :=
   | esc_mem : forall m' d v md,
       estep md d (e, reg_init, m0, []) v ->
       estep md d (e, reg_init, m, []) v ->
@@ -407,9 +406,9 @@ Section Security.
   (* XXX This thing with e and csemantics is a little weird. Probably want to
      define one that encapsulates both, but I'm not sure how...
    *)
-  Inductive secure_prog (sl: sec_level) (g: sec_spec) (cstep: csemantics) (estep: esemantics)
-            (c: com) (tobs: trace) : Prop :=
-  | secure : forall mhead t''
+  Inductive secure_prog (sl: sec_level) (g: sec_spec) (cstep: csemantics) (estep: esemantics) :
+    com -> Prop :=
+  | secure : forall c tobs mhead t''
                       m0 d thd ttl cterm
                       tobs_hd tobs_tl mind cnd U mknown
                       ttobs_hd ttobs_tl mdecl e,
@@ -426,7 +425,7 @@ Section Security.
       (* knowledge_attack has to include all the above, so whenever the above holds,
          so must knowledge_attack *)
       knowledge_attack c sl cstep tobs mknown ->
-      secure_prog sl g cstep estep c tobs.
+      secure_prog sl g cstep estep c.
 
 End Security.
 End ImpE.
