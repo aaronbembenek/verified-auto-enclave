@@ -15,8 +15,14 @@ Import ListNotations.
 Require Common.
 
 Module ImpE.
-  Include Common.
-  
+Include Common.
+
+(*******************************************************************************
+*
+* SYNTAX
+*
+*******************************************************************************)
+
 Section Syntax.
   Definition enclave : Type := nat.
   Inductive mode : Type :=
@@ -124,6 +130,12 @@ Section Syntax.
 
 End Syntax.
 
+(*******************************************************************************
+*
+* ENCLAVE EQUIVALENCE
+*
+*******************************************************************************)
+
 Section Enclave_Equiv.
   Lemma mode_prog_decidable : forall ep1 ep2 : (mode * (com + exp)), {ep1 = ep2} + {ep1 <> ep2}.
   Proof.
@@ -161,6 +173,12 @@ Section Enclave_Equiv.
 
 End Enclave_Equiv.
 
+(*******************************************************************************
+*
+* SEMANTICS
+*
+*******************************************************************************)
+
 Section Semantics.
   Definition reg : Type := register val.
   Definition reg_init : reg := fun x => Vnat 0.
@@ -175,7 +193,6 @@ Section Semantics.
   | ANonEnc : com -> event
   | AEnc : com -> event.
   Definition trace : Type := list event.
-
   
   Definition mode_alive (md : mode) (k : set enclave) :=
     match md with
@@ -336,7 +353,13 @@ Section Semantics.
       mode_alive (Encl enc) (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
 End Semantics.
-                                  
+
+(*******************************************************************************
+*
+* TYPING
+*
+*******************************************************************************)
+
 Section Typing.
   Inductive ref_type : Set :=
   | Mut
@@ -366,6 +389,9 @@ Section Typing.
   (* FIXME: this isn't getting exported from Common. *)
   Variable policy_join : sec_policy -> sec_policy -> sec_policy.
   Variable policy_le : sec_policy -> sec_policy -> Prop.
+
+  (* FIXME: define this *)
+  Variable all_loc_immutable : exp -> Prop.
   
   Inductive exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
   | ETnat : forall md g d e n,
@@ -421,7 +447,7 @@ Section Typing.
       c = Ckill i ->
       mode_alive (Encl i) k ->
       com_type (LevelP L) Normal g k u d c g (set_add Nat.eq_dec i k)
-  | CTAssign : forall pc md g k u d c x e s p q vc lc vc',
+  | CTassign : forall pc md g k u d c x e s p q vc lc vc',
       c = Cassign x e ->
       exp_type md g d e (Typ s p) ->
       q = policy_join p pc ->
@@ -430,10 +456,33 @@ Section Typing.
       mode_alive md k ->
       g = Cntxt vc lc ->
       vc' = (fun y => if y =? x then Some (Typ s q) else vc y) ->
-      com_type pc md g k u d c (Cntxt vc' lc) k.
+      com_type pc md g k u d c (Cntxt vc' lc) k
+  | CTdeclassify : forall md g k u d c x e s p vc lc vc',
+      c = Cdeclassify x e ->
+      exp_type md g d e (Typ s p) ->
+      p <> LevelP T ->
+      mode_alive md k ->
+      exp_novars e ->
+      all_loc_immutable e ->
+      vc' = (fun y => if y =? x then Some (Typ s (LevelP L)) else vc y) ->
+      com_type (LevelP L) md g k u d c (Cntxt vc' lc) k
+  | CToutput : forall pc md g k u d c e l s p,
+      c = Coutput e l ->
+      exp_type md g d e (Typ s p) ->
+      mode_alive md k ->
+      p <> LevelP T ->
+      sec_level_le (sec_level_join (cur p u) (cur pc u)) l ->
+      com_type pc md g k u d c g k.
   
 End Typing.
-  
+
+
+(*******************************************************************************
+*
+* SECURITY
+*
+*******************************************************************************)
+
 Section Security.
   Definition esc_hatch : Type := exp.
           

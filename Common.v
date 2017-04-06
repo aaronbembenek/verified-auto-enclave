@@ -72,6 +72,13 @@ Section Security.
     apply rt_step; apply sec_level_h_rel.
   Qed.
 
+  Definition sec_level_join (sl sl': sec_level) : sec_level :=
+    match sl, sl' with
+    | T, _ | _, T => T
+    | H, _ | _, H => H
+    | L, L => L
+    end.
+  
   Inductive sec_policy : Type :=
   | LevelP : sec_level -> sec_policy
   | ErasureP : sec_level -> condition -> sec_level -> sec_policy.
