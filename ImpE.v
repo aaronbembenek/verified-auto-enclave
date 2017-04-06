@@ -153,7 +153,7 @@ End Enclave_Equiv.
 
 Section Semantics.
   Definition reg : Type := register val.
-  Definition init_regfile : reg := fun x => Vnat 0.
+  Definition reg_init : reg := fun x => Vnat 0.
   Definition mem : Type := memory val.
   Definition loc_mode : Type := location -> mode.
 
@@ -166,6 +166,7 @@ Section Semantics.
   | AEnc : com -> event.
   Definition trace : Type := list event.
 
+  
   Definition mode_alive (md : mode) (k : set enclave) :=
     match md with
     | Normal => True
@@ -236,23 +237,25 @@ Section Semantics.
     (e, (ccfg_reg ccfg), (ccfg_mem ccfg), (ccfg_kill ccfg)).
   Definition ccfg_update_com (c: com) (ccfg : cconfig) : cconfig :=
     (c, (ccfg_reg ccfg), (ccfg_mem ccfg), (ccfg_kill ccfg)).
-  
-  Inductive cstep (md: mode) (d: loc_mode) (ccfg: cconfig) : cterm -> trace -> Prop :=
-  | Cstep_skip : cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
-  | Cstep_assign : forall x e v r',
+  Definition semantics : Type := mode -> loc_mode -> cconfig -> cterm -> trace -> Prop.  
+
+  (* XXX couldn't figure out a way to not have to introduce forall md d ccfg everywhere.. *)
+  Inductive cstep : semantics := 
+  | Cstep_skip : forall md d ccfg, cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
+  | Cstep_assign : forall md d ccfg x e v r',
       ccfg_com ccfg = Cassign x e ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       r' = ccfg_update_reg ccfg x v ->
       mode_alive md (ccfg_kill ccfg) ->
       cstep md d ccfg (r', ccfg_mem ccfg, ccfg_kill ccfg) []
-  | Cstep_declassify : forall x e v r',
+  | Cstep_declassify : forall md d ccfg x e v r',
       ccfg_com ccfg = Cdeclassify x e ->
       exp_novars e ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       r' = ccfg_update_reg ccfg x v ->
       mode_alive md (ccfg_kill ccfg) ->
       cstep md d ccfg (r', ccfg_mem ccfg, ccfg_kill ccfg) [Decl e (ccfg_mem ccfg)]
-  | Cstep_update : forall e1 e2 l v m',
+  | Cstep_update : forall md d ccfg e1 e2 l v m',
       ccfg_com ccfg = Cupdate e1 e2 ->
       estep md d (ccfg_to_ecfg e1 ccfg) (Vloc l) ->
       estep md d (ccfg_to_ecfg e2 ccfg) v ->
@@ -261,65 +264,66 @@ Section Semantics.
       is_Not_cnd l ->
       m' = ccfg_update_mem ccfg l v ->
       cstep md d ccfg (ccfg_reg ccfg, m', ccfg_kill ccfg) []
-  | Cstep_output : forall e sl v,
+  | Cstep_output : forall md d ccfg e sl v,
       ccfg_com ccfg = Coutput e sl ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       sl = L \/ sl = H ->
       mode_alive md (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) [Mem (ccfg_mem ccfg); Out sl v]
-  | Cstep_call : forall e c r' m' k' tr,
+  | Cstep_call : forall md d ccfg e c r' m' k' tr,
       ccfg_com ccfg = Ccall e ->
       estep md d (ccfg_to_ecfg e ccfg) (Vlambda md c) ->
       cstep md d (ccfg_update_com c ccfg) (r', m', k') tr ->
       cstep md d ccfg (r', m', k') tr
-  | Cstep_cset : forall c m',
+  | Cstep_cset : forall md d ccfg c m',
       ccfg_com ccfg = Cset c ->
       mode_access_ok md d (Cnd c) (ccfg_kill ccfg) ->
       m' = ccfg_update_mem ccfg (Cnd c) (Vnat 1) ->
       mode_alive md (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, m', ccfg_kill ccfg) [Mem m']
-  | Cstep_enclave : forall enc c r' m' k' tr,
+  | Cstep_enclave : forall md d ccfg enc c r' m' k' tr,
     md = Normal ->
     ccfg_com ccfg = Cenclave enc c ->
     cstep (Encl enc) d (c, ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) (r', m', k') tr ->
     cstep md d ccfg (r', m', k') tr
-  | Cstep_seq_nil :
+  | Cstep_seq_nil : forall md d ccfg,
       ccfg_com ccfg = Cseq [] ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
-  | Cstep_seq_hd : forall hd tl r m k tr r' m' k' tr',
+  | Cstep_seq_hd : forall md d ccfg hd tl r m k tr r' m' k' tr',
       ccfg_com ccfg = Cseq (hd::tl) ->
       cstep md d (ccfg_update_com hd ccfg) (r, m, k) tr ->
       cstep md d (Cseq tl, r, m, k) (r', m', k') tr' ->
       cstep md d ccfg (r', m', k') (tr++tr')
-  | Cstep_if : forall e c1 c2 v r' m' k' tr,
+  | Cstep_if : forall md d ccfg e c1 c2 v r' m' k' tr,
       ccfg_com ccfg = Cif e c1 c2 ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       ~(v = (Vnat 0)) ->
       cstep md d (ccfg_update_com c1 ccfg) (r', m', k') tr ->
       cstep md d ccfg (r', m', k') tr
-  | Cstep_else : forall e c1 c2 v r' m' k' tr,
+  | Cstep_else : forall md d ccfg e c1 c2 v r' m' k' tr,
       ccfg_com ccfg = Cif e c1 c2 ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       v = (Vnat 0) ->
       cstep md d (ccfg_update_com c2 ccfg) (r', m', k') tr ->
       cstep md d ccfg (r', m', k') tr
-  | Cstep_while_t : forall e c v r m k tr r' m' k' tr',
+  | Cstep_while_t : forall md d ccfg e c v r m k tr r' m' k' tr',
       ccfg_com ccfg = Cwhile e c ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       ~(v = (Vnat 0)) ->
       cstep md d (ccfg_update_com c ccfg) (r, m, k) tr ->
       cstep md d (ccfg_update_com (Cwhile e c) ccfg) (r', m', k') tr' ->
       cstep md d ccfg (r', m', k') (tr++tr')
-  | Cstep_while_f : forall e c,
+  | Cstep_while_f : forall md d ccfg e c,
       ccfg_com ccfg = Cwhile e c ->
       estep md d (ccfg_to_ecfg e ccfg) (Vnat 0) ->
       mode_alive md (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
-  | Cstep_kill : forall enc,
+  | Cstep_kill : forall md d ccfg enc,
       md = Normal ->
       ccfg_com ccfg = Ckill enc ->
       mode_alive (Encl enc) (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
+
 End Semantics.
                                             
 Section Typing.
@@ -342,13 +346,26 @@ Section Typing.
 End Typing.
 
 Section Security.
-  Function tobs (sl: sec_level) (t: trace) : trace :=
+  Inductive attacker : Type :=
+  | passive : attacker
+  | nonencl_active : attacker
+  | encl_active : attacker.
+
+  Function tobs_sec_level (sl: sec_level) (t: trace) : trace :=
     match t with
     | [] => []
-    | Out sl' v :: tl => if (sl' [[= sl) then (Out sl' v) :: (tobs sl tl)
-                         else tobs sl tl        
-    | _ :: tl => tobs sl tl                    
+    | Out sl' v :: tl => if (sec_level_le_dec sl' sl)
+                                  then (Out sl' v) :: (tobs_sec_level sl tl)
+                                  else tobs_sec_level sl tl
+    | _ :: tl => tobs_sec_level sl tl                    
     end.
+  
+  Inductive knowledge (c : com) (sl : sec_level) (lstep : semantics) (tobs : trace) : mem -> Prop :=
+  | known_mem : forall d m r' m' k' t t0 t1 t2,
+      lstep Normal d (c, reg_init, m, []) (r', m', k') t ->
+      t = t0 ++ t1 ++ t2 ->
+      tobs_sec_level sl tobs = tobs_sec_level sl t1 ->
+      knowledge c sl lstep tobs m.
   
 End Security.
 End ImpE.

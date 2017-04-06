@@ -91,8 +91,4 @@ Section Security.
     end.
 End Security.
 
-  (* XXX somehow putting this within the section failed *)
-  Infix " [= " := sec_level_le (at level 90) : core_scope.
-  Infix " [[= " := sec_level_le_dec (at level 90) : core_scope.
-  Global Open Scope core_scope.
 
