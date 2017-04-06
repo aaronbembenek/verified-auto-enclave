@@ -10,10 +10,9 @@ Require Import Coq.Classes.RelationClasses.
 Require Import OrderedType OrderedTypeEx DecidableType.
 Require Import Sorting.Permutation.
 Import ListNotations.
-Require Common.
+Require Import Common.
 
 Module ImpS.
-Include Common.
 
 Section Syntax.
   Inductive exp : Type :=

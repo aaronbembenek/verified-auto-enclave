@@ -12,10 +12,9 @@ Require Import OrderedType OrderedTypeEx DecidableType.
 Require Import Coq.Logic.FunctionalExtensionality.
 Require Import Sorting.Permutation.
 Import ListNotations.
-Require Common.
+Require Import Common.
 
 Module ImpE.
-Include Common.
 
 (*******************************************************************************
 *
