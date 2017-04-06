@@ -424,7 +424,7 @@ Section Security.
       thd ++ tobs = ttobs_hd ++ [Decl e mdecl] ++ ttobs_tl ->
       knowledge_esc m0 mdecl estep e mknown ->
       (* knowledge_attack has to include all the above, so whenever the above holds,
-         so much knowledge_attack *)
+         so must knowledge_attack *)
       knowledge_attack c sl cstep tobs mknown ->
       secure_prog sl g cstep estep c tobs.
 

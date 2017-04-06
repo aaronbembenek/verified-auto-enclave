@@ -90,5 +90,3 @@ Section Security.
     | ErasureP l1 cnd l2 => if (set_mem Nat.eq_dec cnd U) then l1 else l2
     end.
 End Security.
-
-
