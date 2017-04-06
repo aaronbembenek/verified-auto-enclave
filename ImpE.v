@@ -363,10 +363,6 @@ Section Typing.
   Definition loc_context (g: context) : location -> option (type * ref_type) :=
     match g with Cntxt _ lc => lc end.
 
-  (* FIXME: this isn't getting exported from Common. *)
-  Variable policy_join : sec_policy -> sec_policy -> sec_policy.
-  Variable policy_le : sec_policy -> sec_policy -> Prop.
-  
   Inductive exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
   | ETnat : forall md g d e n,
       e = Enat n ->
