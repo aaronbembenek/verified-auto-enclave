@@ -12,10 +12,9 @@ Require Import OrderedType OrderedTypeEx DecidableType.
 Require Import Coq.Logic.FunctionalExtensionality.
 Require Import Sorting.Permutation.
 Import ListNotations.
-Require Common.
+Require Import Common.
 
 Module ImpE.
-Include Common.
 
 (*******************************************************************************
 *
@@ -505,9 +504,21 @@ Section Security.
   | active_nonencl : attacker
   | active_encl : attacker.
 
+  (*
+  Variable s1 : sec_level.
+  Variable s2 : sec_level.
+  Check sec_level_le_dec s1 s2.
+  Check sec_level_le.
+  Locate "{ _ } + { _ }".
+  Check sumbool.
+  Eval compute in 1.
+  Eval compute in (sec_level_le_dec L T). then 1 else 2.
+*)
+
+  (* FIXME: Lily will look into this. *)
   Definition tobs_sec_level (sl: sec_level) (t: trace) : trace :=
     filter (fun event => match event with
-                         | Out sl' v => if (sec_level_le_dec sl' sl) then true else false
+                         | Out sl' v => if sec_level_le_dec sl' sl then true else false
                          | _ => false                           
                          end)
            t.
