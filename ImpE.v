@@ -169,7 +169,7 @@ Section Enclave_Equiv.
   | _ => nil
   end.
 
-  Definition enc_equiv (c1 c2 : com) : Prop := chi c1 = chi c2.
+  Definition enc_equiv (c1 c2 : com) := chi c1 = chi c2 -> Prop.
 
 End Enclave_Equiv.
 
@@ -191,7 +191,7 @@ Section Semantics.
   | Mem : mem -> event
   | Out : sec_level -> val -> event
   | ANonEnc : com -> event
-  | AEnc : com -> event.
+  | AEnc : forall c c' : com, enc_equiv c c'-> event.
   Definition trace : Type := list event.
   
   Definition mode_alive (md : mode) (k : set enclave) :=
@@ -352,6 +352,24 @@ Section Semantics.
       ccfg_com ccfg = Ckill enc ->
       mode_alive (Encl enc) (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
+
+  Inductive cstep_n_chaos : csemantics :=
+  | Nchaos_cstep : forall md d ccfg cterm t,
+      cstep md d ccfg cterm t -> cstep_n_chaos md d ccfg cterm t
+  | Nchaos_chaos : forall d ccfg cterm c' t' (HEncEq : enc_equiv (ccfg_com ccfg) c'),
+      cstep Normal d (c', ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) cterm t' ->
+      cstep_n_chaos Normal d ccfg cterm
+                    (Mem (ccfg_mem ccfg) :: AEnc (ccfg_com ccfg) c' HEncEq :: t').
+
+  Inductive cstep_e_chaos : set enclave -> csemantics :=
+  | Echaos_cstep : forall I md d ccfg cterm t,
+      cstep md d ccfg cterm t -> cstep_e_chaos I md d ccfg cterm t
+  | Echaos_chaos : forall I d ccfg cterm c' t',
+      (* XXX: is there really no built-in subset definition? *)
+      (forall e, set_In e I -> set_In e (ccfg_kill ccfg)) ->
+      cstep Normal d (c', ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) cterm t' ->
+      cstep_e_chaos I Normal d ccfg cterm
+                    (Mem (ccfg_mem ccfg) :: ANonEnc c' :: t').
 End Semantics.
 
 (*******************************************************************************
