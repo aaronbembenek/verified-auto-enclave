@@ -327,22 +327,82 @@ Section Semantics.
 End Semantics.
                                             
 Section Typing.
-  Inductive rt : Set :=
+  Inductive ref_type : Set :=
   | Mut
   | Immut.
-  
+
+  (* FIXME: we might want to change contexts to be defined in terms of
+     finite maps instead of functions. *)
   Inductive base_type : Type :=
-  | Tint : base_type
+  | Tnat : base_type
   | Tcond : mode -> base_type
-  | Tref : mode -> rt -> base_type
-  | Tlambda : base_type (* TODO *)
+  | Tref : type -> mode -> ref_type -> base_type
+  | Tlambda (g: context) (k:set enclave) (u:set condition) (p: sec_policy)
+            (md: mode) (g': context) (k':set enclave) : base_type
                            
   with type : Type :=
   | Typ : base_type -> sec_policy -> type
                                             
   with context : Type :=
   | Cntxt (var_cntxt: var -> option type)
-          (loc_cntxt: location -> option (type * rt)) : context.
+          (loc_cntxt: location -> option (type * ref_type)) : context.
+
+  Definition var_context (g: context) : var -> option type :=
+    match g with Cntxt vc _ => vc end.
+  Definition loc_context (g: context) : location -> option (type * ref_type) :=
+    match g with Cntxt _ lc => lc end.
+
+  (* FIXME: this isn't getting exported from Common. *)
+  Variable policy_join : sec_policy -> sec_policy -> sec_policy.
+  
+  Inductive exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
+  | ETnat : forall md g d e n,
+      e = Enat n ->
+      exp_type md g d e (Typ Tnat (LevelP L))
+  | ETvar : forall md g d e x t,
+      e = Evar x ->
+      var_context g x = Some t -> exp_type md g d e t
+  | ETcnd : forall md g d e a md',
+      let l := Cnd a in
+      e = Eloc l ->
+      d l = md' ->
+      exp_type md g d e (Typ (Tcond md') (LevelP L))
+  | ETloc : forall md g d e a md' t rt,
+      let l := Not_cnd a in
+      e = Eloc l ->
+      d l = md' ->
+      loc_context g l = Some (t, rt) ->
+      exp_type md g d e (Typ (Tref t md' rt) (LevelP L))
+  | ETderef : forall md g d e e' md' s p rt q,
+      e = Ederef e' ->
+      exp_type md g d e' (Typ (Tref (Typ s p) md' rt) q) ->
+      md' = Normal \/ md' = md ->
+      exp_type md g d e (Typ s (policy_join p q))
+  | ETunset : forall md g d e cnd md',
+      e = Eisunset cnd ->
+      md' = d (Cnd cnd) ->
+      md' = Normal \/ md' = md ->
+      exp_type md g d e (Typ Tnat (LevelP L))
+  | ETlambda : forall md g d e c p k u g' k',
+      e = Elambda md c ->
+      com_type p md g d k u c g' k' ->
+      exp_type md g d e (Typ (Tlambda g k u p md g' k') (LevelP L))
+  | ETplus : forall md g d e e1 e2 p q,
+      e = Eplus e1 e2 ->
+      exp_type md g d e1 (Typ Tnat p) ->
+      exp_type md g d e2 (Typ Tnat q) ->
+      exp_type md g d e (Typ Tnat (policy_join p q))
+  | ETmult : forall md g d e e1 e2 p q,
+      e = Emult e1 e2 ->
+      exp_type md g d e1 (Typ Tnat p) ->
+      exp_type md g d e2 (Typ Tnat q) ->
+      exp_type md g d e (Typ Tnat (policy_join p q))
+
+  with com_type : sec_policy -> mode -> context -> loc_mode ->
+                  set enclave -> set condition -> com ->
+                  context -> set enclave -> Prop :=
+  | Blah : forall pc md g d k u c, com_type pc md g d k u c g k.
+  
 End Typing.
 
 Section Security.
