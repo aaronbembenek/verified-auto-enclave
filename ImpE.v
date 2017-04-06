@@ -398,10 +398,8 @@ Section Security.
       estep md d (e, reg_init, m', []) v ->
       knowledge_esc m0 m estep e m'.
 
-  Inductive cnd_unset (m: mem) (cnd: condition) : Prop :=
-  | unset : m (Cnd cnd) = Vnat 0 -> cnd_unset m cnd.
-  Inductive cnd_set (m: mem) (cnd: condition) : Prop :=
-  | set : m (Cnd cnd) = Vnat 1 -> cnd_set m cnd.
+  Definition cnd_unset (m: mem) (cnd: condition) : Prop := m (Cnd cnd) = Vnat 0.
+  Definition cnd_set (m: mem) (cnd: condition) : Prop := m (Cnd cnd) = Vnat 1.
                 
   (* XXX This thing with e and csemantics is a little weird. Probably want to
      define one that encapsulates both, but I'm not sure how...
