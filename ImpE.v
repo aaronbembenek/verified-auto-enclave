@@ -354,6 +354,7 @@ Section Typing.
 
   (* FIXME: this isn't getting exported from Common. *)
   Variable policy_join : sec_policy -> sec_policy -> sec_policy.
+  Variable policy_le : sec_policy -> sec_policy -> Prop.
   
   Inductive exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
   | ETnat : forall md g d e n,
@@ -385,7 +386,7 @@ Section Typing.
       exp_type md g d e (Typ Tnat (LevelP L))
   | ETlambda : forall md g d e c p k u g' k',
       e = Elambda md c ->
-      com_type p md g d k u c g' k' ->
+      com_type p md g k u d c g' k' ->
       exp_type md g d e (Typ (Tlambda g k u p md g' k') (LevelP L))
   | ETplus : forall md g d e e1 e2 p q,
       e = Eplus e1 e2 ->
@@ -398,10 +399,27 @@ Section Typing.
       exp_type md g d e2 (Typ Tnat q) ->
       exp_type md g d e (Typ Tnat (policy_join p q))
 
-  with com_type : sec_policy -> mode -> context -> loc_mode ->
-                  set enclave -> set condition -> com ->
+  with com_type : sec_policy -> mode -> context -> set enclave ->
+                  set condition -> loc_mode -> com ->
                   context -> set enclave -> Prop :=
-  | Blah : forall pc md g d k u c, com_type pc md g d k u c g k.
+  | CTskip : forall c pc md g d k u,
+      c = Cskip ->
+      mode_alive md k ->
+      com_type pc md g k u d c g k
+  | CTkill : forall c i g d k u,
+      c = Ckill i ->
+      mode_alive (Encl i) k ->
+      com_type (LevelP L) Normal g k u d c g (set_add Nat.eq_dec i k)
+  | CTAssign : forall pc md g k u d c x e s p q vc lc vc',
+      c = Cassign x e ->
+      exp_type md g d e (Typ s p) ->
+      q = policy_join p pc ->
+      q <> LevelP T ->
+      policy_le q (LevelP L) \/ md <> Normal ->
+      mode_alive md k ->
+      g = Cntxt vc lc ->
+      vc' = (fun y => if y =? x then Some (Typ s q) else vc y) ->
+      com_type pc md g k u d c (Cntxt vc' lc) k.
   
 End Typing.
 
