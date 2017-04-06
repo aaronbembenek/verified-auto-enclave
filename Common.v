@@ -72,6 +72,12 @@ Section Security.
     apply rt_step; apply sec_level_h_rel.
   Qed.
 
+  Definition sec_level_le_compute (sl sl': sec_level) :=
+    match sl, sl' with
+      | H, L | T, L | T, H => false
+      | _, _ => true
+    end.
+
   Definition sec_level_join (sl sl': sec_level) : sec_level :=
     match sl, sl' with
     | T, _ | _, T => T
