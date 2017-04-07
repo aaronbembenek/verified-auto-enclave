@@ -395,8 +395,8 @@ Section Typing.
   | Tnat : base_type
   | Tcond : mode -> base_type
   | Tref : type -> mode -> ref_type -> base_type
-  | Tlambda (g: context) (k:set enclave) (u:set condition) (p: sec_policy)
-            (md: mode) (g': context) (k':set enclave) : base_type
+  | Tlambda (G: context) (k:set enclave) (u:set condition) (p: sec_policy)
+            (md: mode) (G': context) (k':set enclave) : base_type
                            
   with type : Type :=
   | Typ : base_type -> sec_policy -> type
@@ -405,10 +405,14 @@ Section Typing.
   | Cntxt (var_cntxt: var -> option type)
           (loc_cntxt: location -> option (type * ref_type)) : context.
 
-  Definition var_context (g: context) : var -> option type :=
-    match g with Cntxt vc _ => vc end.
-  Definition loc_context (g: context) : location -> option (type * ref_type) :=
-    match g with Cntxt _ lc => lc end.
+  Definition var_context (G: context) : var -> option type :=
+    match G with Cntxt vc _ => vc end.
+  Definition loc_context (G: context) : location -> option (type * ref_type) :=
+    match G with Cntxt _ lc => lc end.
+
+  Definition corresponds (G: context) (g: sec_spec) : Prop :=
+    (forall l p bt rt, g l = p -> (loc_context G) l = Some (Typ bt p, rt))
+    /\ (forall x, (var_context G) x = Some (Typ Tnat (LevelP L))).
 
   (* FIXME: define these *)
   Variable all_loc_immutable : exp -> Prop.
@@ -548,12 +552,7 @@ End Typing.
 
 Section Security.
   Definition esc_hatch : Type := exp.
-          
-  Inductive attacker : Type :=
-  | passive : attacker
-  | active_nonencl : attacker
-  | active_encl : attacker.
-
+  
   Definition tobs_sec_level (sl: sec_level) (t: trace) : trace :=
     filter (fun event => match event with
                          | Out sl' v => if sec_level_le_compute sl' sl then true else false
@@ -625,7 +624,8 @@ Section Guarantees.
              | Encl i => if (set_mem Nat.eq_dec i I) then g l else LevelP L
              | _ => LevelP L
              end.
-   
+
+  
   Lemma secure_passive : forall g G G' K' d c sl,
     well_formed g ->
     corresponds G g ->
