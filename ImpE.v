@@ -184,7 +184,6 @@ Section Semantics.
   Definition mem : Type := memory val.
   Definition loc_mode : Type := location -> mode.
 
-  (* FIXME: Need to define enclave equivalence to use as a premise *)
   Inductive event : Type :=
   | Decl : exp -> mem -> event
   | Mem : mem -> event
@@ -504,14 +503,15 @@ Section Security.
   | active_nonencl : attacker
   | active_encl : attacker.
 
-  (* FIXME: Lily will look into this. *)
   Definition tobs_sec_level (sl: sec_level) (t: trace) : trace :=
     filter (fun event => match event with
                          | Out sl' v => if sec_level_le_compute sl' sl then true else false
+                         | AEnc c c' enc_equiv => true
+                         | ANonEnc c => true
                          | _ => false                           
                          end)
            t.
-  
+   
   (* XXX definition doesn't have a delta, so I'm assuming delta is just fixed (and quantifying over it) *)
   Inductive knowledge_attack (c : com) (sl : sec_level) (cstep : csemantics) (tobs : trace)
     : mem -> Prop :=
@@ -556,7 +556,7 @@ Section Security.
       cstep Normal d (c, reg_init, m0, []) cterm (thd ++ tobs ++ ttl) ->
       (* intersection over [tobs]_mem all memories in ind_sl with no set conditions *)
       tobs = tobs_hd ++ [Mem mind] ++ tobs_tl ->
-      cnd_set mind cnd -> ~In cnd U /\ cnd_unset mind cnd -> In cnd U ->
+      ((cnd_set mind cnd -> ~In cnd U) /\ (cnd_unset mind cnd -> In cnd U)) ->
       knowledge_ind m0 g U sl mknown ->
       (* intersection over [tobs]_esc *)
       thd ++ tobs = ttobs_hd ++ [Decl e mdecl] ++ ttobs_tl ->
