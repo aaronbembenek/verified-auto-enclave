@@ -410,6 +410,11 @@ Section Typing.
   Definition loc_context (g: context) : location -> option (type * ref_type) :=
     match g with Cntxt _ lc => lc end.
 
+  Definition context_wt (G: context) (d: loc_mode) : Prop :=
+    forall l s p rt,
+      loc_context G l = Some (Typ s p, rt) ->
+      p <> LevelP T /\ (p = LevelP H -> exists i, d l = Encl i).
+
   (* FIXME: define these *)
   Variable all_loc_immutable : exp -> Prop.
   Variable is_var_low_context : context -> Prop.
@@ -629,21 +634,21 @@ Section Guarantees.
   Lemma secure_passive : forall g G G' K' d c sl,
     well_formed g ->
     corresponds G g ->
-    well_typed G d ->
+    context_wt G d ->
     com_type L Normal G nil nil d c G' K' ->
     secure_prog L g cstep estep c.
 
   Lemma secure_n_chaos : forall g G G' K' d c,
     well_formed g ->
     corresponds G g ->
-    well_typed G d ->
+    context_wt G d ->
     com_type L Normal G nil nil d c G' K' ->
     secure_prog L g cstep_n_chaos estep c.
       
     Lemma secure_e_chaos : forall g G G' K' d c I,
       well_formed g ->
       corresponds G g ->
-      well-typed G d ->
+      context_wt G d ->
       com_type L Normal G nil nil d c G' K' ->
       secure_prog H (g_prime d g I) cstep_e_chaos estep c.
        
