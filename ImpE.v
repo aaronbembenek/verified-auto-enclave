@@ -215,12 +215,19 @@ Section Semantics.
   Definition esemantics : Type := mode -> loc_mode -> econfig -> val -> Prop.
   
   Inductive estep : esemantics :=
-  | Estep_nat : forall md d ecfg n, ecfg_exp ecfg = Enat n -> estep md d ecfg (Vnat n)
-  | Estep_loc : forall md d ecfg l, ecfg_exp ecfg = Eloc l -> estep md d ecfg (Vloc l)
+  | Estep_nat : forall md d ecfg n,
+      ecfg_exp ecfg = Enat n ->
+      estep md d ecfg (Vnat n)
+  | Estep_loc : forall md d ecfg l,
+      ecfg_exp ecfg = Eloc l ->
+      estep md d ecfg (Vloc l)
   | Estep_lambda : forall md d ecfg c,
-      ecfg_exp ecfg = Elambda md c -> estep md d ecfg (Vlambda md c)
+      ecfg_exp ecfg = Elambda md c ->
+      estep md d ecfg (Vlambda md c)
   | Estep_var : forall md d ecfg x v,
-      ecfg_exp ecfg = Evar x -> ecfg_reg ecfg x = v -> estep md d ecfg v
+      ecfg_exp ecfg = Evar x ->
+      ecfg_reg ecfg x = v ->
+      estep md d ecfg v
   | Estep_plus : forall md d ecfg e1 e2 n1 n2,
       ecfg_exp ecfg = Eplus e1 e2 ->
       estep md d (ecfg_update_exp ecfg e1) (Vnat n1) ->
