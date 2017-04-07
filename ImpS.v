@@ -12,8 +12,6 @@ Require Import Sorting.Permutation.
 Import ListNotations.
 Require Import Common.
 
-Module ImpS.
-
 Section Syntax.
   Inductive exp : Type :=
   | Enat : nat -> exp
@@ -204,4 +202,3 @@ Section Semantics.
       cstep ccfg (ccfg_reg ccfg, ccfg_mem ccfg) [].
 
 End Semantics.
-End ImpS.

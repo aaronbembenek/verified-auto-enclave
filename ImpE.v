@@ -14,8 +14,6 @@ Require Import Sorting.Permutation.
 Import ListNotations.
 Require Import Common.
 
-Module ImpE.
-
 (*******************************************************************************
 *
 * SYNTAX
@@ -420,8 +418,8 @@ Section Typing.
       p <> LevelP T /\ (p = LevelP H -> exists i, d l = Encl i).
 
   (* FIXME: define these *)
-  Variable all_loc_immutable : exp -> Prop.
-  Variable is_var_low_context : context -> Prop.
+  Parameter all_loc_immutable : exp -> Prop.
+  Parameter is_var_low_context : context -> Prop.
 
   (* FIXME: currently no subtyping. *)
   Inductive exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
@@ -630,28 +628,31 @@ Section Guarantees.
              | _ => LevelP L
              end.
 
-  
-  Lemma secure_passive : forall g G G' K' d c sl,
-    well_formed_spec g ->
-    corresponds G g ->
-    context_wt G d ->
-    com_type L Normal G nil nil d c G' K' ->
-    secure_prog L g cstep estep c.
-
-  Lemma secure_n_chaos : forall g G G' K' d c,
-    well_formed_spec g ->
-    corresponds G g ->
-    context_wt G d ->
-    com_type L Normal G nil nil d c G' K' ->
-    secure_prog L g cstep_n_chaos estep c.
-      
-    Lemma secure_e_chaos : forall g G G' K' d c I,
+  Lemma secure_passive : forall g G G' K' d c,
       well_formed_spec g ->
       corresponds G g ->
       context_wt G d ->
-      com_type L Normal G nil nil d c G' K' ->
-      secure_prog H (g_prime d g I) cstep_e_chaos estep c.
+      com_type (LevelP L) Normal G nil nil d c G' K' ->
+      secure_prog L g cstep estep c.
+  Proof.
+  Admitted.
+
+  Lemma secure_n_chaos : forall g G G' K' d c,
+      well_formed_spec g ->
+      corresponds G g ->
+      context_wt G d ->
+      com_type (LevelP L) Normal G nil nil d c G' K' ->
+      secure_prog L g cstep_n_chaos estep c.
+  Proof.
+  Admitted.
+
+  Lemma secure_e_chaos : forall g G G' K' d c I,
+      well_formed_spec g ->
+      corresponds G g ->
+      context_wt G d ->
+      com_type (LevelP L) Normal G nil nil d c G' K' ->
+      secure_prog H (g_prime d g I) (cstep_e_chaos I) estep c.
+  Proof.
+  Admitted.
        
 End Guarantees.
-
-End ImpE.
