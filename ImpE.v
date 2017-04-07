@@ -619,6 +619,13 @@ Section Security.
 End Security.
 
 Section Guarantees.
+
+  Definition g_prime (d: loc_mode) (g: sec_spec) (I: set enclave) : sec_spec :=
+    fun l => match (d l) with
+             | Encl i => if (set_mem Nat.eq_dec i I) then g l else LevelP L
+             | _ => LevelP L
+             end.
+   
   Lemma secure_passive : forall g G G' K' d c sl,
     well_formed g ->
     corresponds G g ->
@@ -633,15 +640,12 @@ Section Guarantees.
     com_type L Normal G nil nil d c G' K' ->
     secure_prog L g cstep_n_chaos estep c.
       
-    Lemma secure_e_chaos : forall g G G' K' d c I g' i ->
-                                  well_formed g ->
-                                  corresponds G g ->
-                                  well-typed G d ->
-                                  com_type L Normal G nil nil d c G' K' ->
-                                  d l = Encl i ->
-                                  set_In i I -> g' l = g l ->
-                                  ~set_In i I -> g' l = L ->
-                                  secure_prog H g' cstep_e_chaos estep c.
+    Lemma secure_e_chaos : forall g G G' K' d c I,
+      well_formed g ->
+      corresponds G g ->
+      well-typed G d ->
+      com_type L Normal G nil nil d c G' K' ->
+      secure_prog H (g_prime d g I) cstep_e_chaos estep c.
        
 End Guarantees.
 
