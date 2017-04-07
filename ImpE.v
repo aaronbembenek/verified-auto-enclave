@@ -72,9 +72,10 @@ Section Syntax.
     | Cdeclassify _ e => exp_novars e
     | Cupdate e1 e2 => exp_novars e1 /\ exp_novars e2
     | Coutput e _ => exp_novars e
-    | Cif e _ _ => exp_novars e
-    | Cwhile e _ => exp_novars e
+    | Cif e c1 c2 => exp_novars e /\ com_novars c1 /\ com_novars c2
+    | Cwhile e c => exp_novars e /\ com_novars c
     | Ccall e => exp_novars e
+    | Cseq ls => fold_left (fun acc c => (com_novars c) /\ acc) ls True
     | _ => True
     end.
 
