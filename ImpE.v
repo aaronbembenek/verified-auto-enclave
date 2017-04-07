@@ -627,21 +627,21 @@ Section Guarantees.
 
   
   Lemma secure_passive : forall g G G' K' d c sl,
-    well_formed g ->
+    well_formed_spec g ->
     corresponds G g ->
     well_typed G d ->
     com_type L Normal G nil nil d c G' K' ->
     secure_prog L g cstep estep c.
 
   Lemma secure_n_chaos : forall g G G' K' d c,
-    well_formed g ->
+    well_formed_spec g ->
     corresponds G g ->
     well_typed G d ->
     com_type L Normal G nil nil d c G' K' ->
     secure_prog L g cstep_n_chaos estep c.
       
     Lemma secure_e_chaos : forall g G G' K' d c I,
-      well_formed g ->
+      well_formed_spec g ->
       corresponds G g ->
       well-typed G d ->
       com_type L Normal G nil nil d c G' K' ->

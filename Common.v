@@ -91,6 +91,9 @@ Section Security.
   
   Definition sec_spec : Type :=  location -> sec_policy.
 
+  Definition well_formed_spec (g : sec_spec) : Prop :=
+    forall l, g l <> LevelP T.
+
   Inductive policy_le : relation sec_policy :=
   | PLE1 : forall l1 l2,
       sec_level_le l1 l2 ->
