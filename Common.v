@@ -91,9 +91,45 @@ Section Security.
   
   Definition sec_spec : Type :=  location -> sec_policy.
 
+  Inductive policy_le : relation sec_policy :=
+  | PLE1 : forall l1 l2,
+      sec_level_le l1 l2 ->
+      policy_le (LevelP l1) (LevelP l2)
+  | PLE2 : forall p1 l2 l2' cnd,
+      policy_le p1 (LevelP l2) ->
+      policy_le p1 (ErasureP l2 cnd l2')
+  | PLE3 : forall l1 l1' p2 cnd,
+      policy_le (LevelP l1') p2 ->
+      policy_le (ErasureP l1 cnd l1') p2
+  | PLE4 : forall l1 l1' l2 l2' cnd,
+      sec_level_le l1 l2 ->
+      sec_level_le l1' l2' ->
+      policy_le (ErasureP l1 cnd l1') (ErasureP l2 cnd l2').
+
+  Lemma policy_le_refl : reflexive sec_policy policy_le.
+  Proof.
+    intro x. destruct x.
+    - apply PLE1. apply sec_level_le_refl.
+    - apply PLE4; apply sec_level_le_refl.
+  Qed.
+
+  Lemma policy_le_antisymmetric : antisymmetric sec_policy policy_le.
+  Proof.
+  Admitted.
+
+  Lemma policy_le_transitive : transitive sec_policy policy_le.
+  Proof.
+  Admitted.
+  
+  Lemma policy_le_partial_order : order sec_policy policy_le.
+  Proof.
+    split.
+    - apply policy_le_refl.
+    - apply policy_le_transitive.
+    - apply policy_le_antisymmetric.
+  Qed.  
+  
   Parameter policy_join : sec_policy -> sec_policy -> sec_policy.
-  Parameter policy_le : relation sec_policy.
-  Axiom policy_le_partial_order : order sec_policy policy_le.
   Axiom policy_le_join : forall p1 p2,
       policy_le p1 (policy_join p1 p2) /\ policy_le p2 (policy_join p1 p2).
   
@@ -103,5 +139,3 @@ Section Security.
     | ErasureP l1 cnd l2 => if (set_mem Nat.eq_dec cnd U) then l1 else l2
     end.
 End Security.
-
-  
