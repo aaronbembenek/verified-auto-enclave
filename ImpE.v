@@ -513,7 +513,7 @@ Section Typing.
       com_type pc md g k u d (Cif e c1 c2) g' k'
   | Tenclave : forall pc g k u d c i c' g' k',
       c = Cenclave i c' ->
-      com_type pc (Encl i) g k (empty_set condition) d c' g' k' ->
+      com_type pc (Encl i) g k nil d c' g' k' ->
       is_var_low_context g' ->
       com_type pc Normal g k u d c g' k'
   | Twhile : forall pc md g k u d c e p pc',
@@ -534,7 +534,7 @@ Section Typing.
       exp_type md g d e (Typ (Tlambda gm km u p md gp kp) q) ->
       policy_le (policy_join pc q) p ->
       q <> LevelP T ->
-      u = empty_set condition \/ md <> Normal ->
+      u = nil \/ md <> Normal ->
       com_type pc md g km u d (Ccall e) gout kp.
   
 End Typing.
@@ -616,6 +616,33 @@ Section Security.
          so must knowledge_attack *)
       knowledge_attack c sl cstep tobs mknown ->
       secure_prog sl g cstep estep c.
-
 End Security.
+
+Section Guarantees.
+  Lemma secure_passive : forall g G G' K' d c sl,
+    well_formed g ->
+    corresponds G g ->
+    well_typed G d ->
+    com_type L Normal G nil nil d c G' K' ->
+    secure_prog L g cstep estep c.
+
+  Lemma secure_n_chaos : forall g G G' K' d c,
+    well_formed g ->
+    corresponds G g ->
+    well_typed G d ->
+    com_type L Normal G nil nil d c G' K' ->
+    secure_prog L g cstep_n_chaos estep c.
+      
+    Lemma secure_e_chaos : forall g G G' K' d c I g' i ->
+                                  well_formed g ->
+                                  corresponds G g ->
+                                  well-typed G d ->
+                                  com_type L Normal G nil nil d c G' K' ->
+                                  d l = Encl i ->
+                                  set_In i I -> g' l = g l ->
+                                  ~set_In i I -> g' l = L ->
+                                  secure_prog H g' cstep_e_chaos estep c.
+       
+End Guarantees.
+
 End ImpE.
