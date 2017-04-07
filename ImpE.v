@@ -408,61 +408,49 @@ Section Typing.
 
   (* FIXME: currently no subtyping. *)
   Inductive exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
-  | ETnat : forall md g d e n,
-      e = Enat n ->
-      exp_type md g d e (Typ Tnat (LevelP L))
-  | ETvar : forall md g d e x t,
-      e = Evar x ->
-      var_context g x = Some t -> exp_type md g d e t
-  | ETcnd : forall md g d e a md',
+  | ETnat : forall md g d n,
+      exp_type md g d (Enat n) (Typ Tnat (LevelP L))
+  | ETvar : forall md g d x t,
+      var_context g x = Some t -> exp_type md g d (Evar x) t
+  | ETcnd : forall md g d a md',
       let l := Cnd a in
-      e = Eloc l ->
       d l = md' ->
-      exp_type md g d e (Typ (Tcond md') (LevelP L))
-  | ETloc : forall md g d e a md' t rt,
+      exp_type md g d (Eloc l) (Typ (Tcond md') (LevelP L))
+  | ETloc : forall md g d a md' t rt,
       let l := Not_cnd a in
-      e = Eloc l ->
       d l = md' ->
       loc_context g l = Some (t, rt) ->
-      exp_type md g d e (Typ (Tref t md' rt) (LevelP L))
-  | ETderef : forall md g d e e' md' s p rt q,
-      e = Ederef e' ->
-      exp_type md g d e' (Typ (Tref (Typ s p) md' rt) q) ->
+      exp_type md g d (Eloc l) (Typ (Tref t md' rt) (LevelP L))
+  | ETderef : forall md g d e md' s p rt q,
+      exp_type md g d e (Typ (Tref (Typ s p) md' rt) q) ->
       md' = Normal \/ md' = md ->
-      exp_type md g d e (Typ s (policy_join p q))
-  | ETunset : forall md g d e cnd md',
-      e = Eisunset cnd ->
+      exp_type md g d (Ederef e) (Typ s (policy_join p q))
+  | ETunset : forall md g d cnd md',
       md' = d (Cnd cnd) ->
       md' = Normal \/ md' = md ->
-      exp_type md g d e (Typ Tnat (LevelP L))
-  | ETlambda : forall md g d e c p k u g' k',
-      e = Elambda md c ->
+      exp_type md g d (Eisunset cnd) (Typ Tnat (LevelP L))
+  | ETlambda : forall md g d c p k u g' k',
       com_type p md g k u d c g' k' ->
-      exp_type md g d e (Typ (Tlambda g k u p md g' k') (LevelP L))
-  | ETplus : forall md g d e e1 e2 p q,
-      e = Eplus e1 e2 ->
+      exp_type md g d (Elambda md c) (Typ (Tlambda g k u p md g' k') (LevelP L))
+  | ETplus : forall md g d e1 e2 p q,
       exp_type md g d e1 (Typ Tnat p) ->
       exp_type md g d e2 (Typ Tnat q) ->
-      exp_type md g d e (Typ Tnat (policy_join p q))
-  | ETmult : forall md g d e e1 e2 p q,
-      e = Emult e1 e2 ->
+      exp_type md g d (Eplus e1 e2) (Typ Tnat (policy_join p q))
+  | ETmult : forall md g d e1 e2 p q,
       exp_type md g d e1 (Typ Tnat p) ->
       exp_type md g d e2 (Typ Tnat q) ->
-      exp_type md g d e (Typ Tnat (policy_join p q))
+      exp_type md g d (Emult e1 e2) (Typ Tnat (policy_join p q))
 
   with com_type : sec_policy -> mode -> context -> set enclave ->
                   set condition -> loc_mode -> com ->
                   context -> set enclave -> Prop :=
-  | CTskip : forall c pc md g d k u,
-      c = Cskip ->
+  | CTskip : forall pc md g d k u,
       mode_alive md k ->
-      com_type pc md g k u d c g k
-  | CTkill : forall c i g d k u,
-      c = Ckill i ->
+      com_type pc md g k u d Cskip g k
+  | CTkill : forall i g d k u,
       mode_alive (Encl i) k ->
-      com_type (LevelP L) Normal g k u d c g (set_add Nat.eq_dec i k)
-  | CTassign : forall pc md g k u d c x e s p q vc lc vc',
-      c = Cassign x e ->
+      com_type (LevelP L) Normal g k u d (Ckill i) g (set_add Nat.eq_dec i k)
+  | CTassign : forall pc md g k u d x e s p q vc lc vc',
       exp_type md g d e (Typ s p) ->
       q = policy_join p pc ->
       q <> LevelP T ->
@@ -470,25 +458,22 @@ Section Typing.
       mode_alive md k ->
       g = Cntxt vc lc ->
       vc' = (fun y => if y =? x then Some (Typ s q) else vc y) ->
-      com_type pc md g k u d c (Cntxt vc' lc) k
-  | CTdeclassify : forall md g k u d c x e s p vc lc vc',
-      c = Cdeclassify x e ->
+      com_type pc md g k u d (Cassign x e) (Cntxt vc' lc) k
+  | CTdeclassify : forall md g k u d x e s p vc lc vc',
       exp_type md g d e (Typ s p) ->
       p <> LevelP T ->
       mode_alive md k ->
       exp_novars e ->
       all_loc_immutable e ->
       vc' = (fun y => if y =? x then Some (Typ s (LevelP L)) else vc y) ->
-      com_type (LevelP L) md g k u d c (Cntxt vc' lc) k
-  | CToutput : forall pc md g k u d c e l s p,
-      c = Coutput e l ->
+      com_type (LevelP L) md g k u d (Cdeclassify x e) (Cntxt vc' lc) k
+  | CToutput : forall pc md g k u d e l s p,
       exp_type md g d e (Typ s p) ->
       mode_alive md k ->
       p <> LevelP T ->
       sec_level_le (sec_level_join (cur p u) (cur pc u)) l ->
-      com_type pc md g k u d c g k
-  | CTupdate : forall pc md g k u d c e1 e2 s p md' q p',
-      c = Cupdate e1 e2 ->
+      com_type pc md g k u d (Coutput e l) g k
+  | CTupdate : forall pc md g k u d e1 e2 s p md' q p',
       exp_type md g d e1 (Typ (Tref (Typ s p) md' Mut) q) ->
       exp_type md g d e2 (Typ s p') ->
       policy_le (policy_join (policy_join p' q) pc) p ->
@@ -497,22 +482,19 @@ Section Typing.
       p <> LevelP T ->
       p' <> LevelP T ->
       q <> LevelP T ->
-      com_type pc md g k u d c g k
-  | Tset : forall md g k u d c cnd md',
-      c = Cset cnd ->
+      com_type pc md g k u d (Cupdate e1 e2) g k
+  | Tset : forall md g k u d cnd md',
       md' = d (Cnd cnd) ->
       ~set_In cnd u ->
       md' = Normal \/ md' = md ->
       mode_alive md k ->
-      com_type (LevelP L) md g k u d c g k
-  | Tifunset : forall pc md g k u d c cnd c1 c2 g' k',
-      c = Cif (Eisunset cnd) c1 c2 ->
+      com_type (LevelP L) md g k u d (Cset cnd) g k
+  | Tifunset : forall pc md g k u d cnd c1 c2 g' k',
       exp_type md g d (Eisunset cnd) (Typ Tnat (LevelP L)) ->
       com_type pc md g k (set_add Nat.eq_dec cnd u) d c1 g' k' ->
       com_type pc md g k u d c2 g' k' ->
-      com_type pc md g k u d c g' k'
-  | Tifelse : forall pc md g k u d c e c1 c2 pc' p g' k',
-      c = Cif e c1 c2 ->
+      com_type pc md g k u d (Cif (Eisunset cnd) c1 c2) g' k'
+  | Tifelse : forall pc md g k u d e c1 c2 pc' p g' k',
       ~(exists cnd, e = Eisunset cnd) ->
       com_type pc' md g k u d c1 g' k' ->
       com_type pc' md g k u d c2 g' k' ->
@@ -520,35 +502,32 @@ Section Typing.
       policy_le (policy_join pc p) pc' ->
       policy_le p (LevelP L) \/ md <> Normal ->
       p <> LevelP T ->
-      com_type pc md g k u d c g' k'
+      com_type pc md g k u d (Cif e c1 c2) g' k'
   | Tenclave : forall pc g k u d c i c' g' k',
       c = Cenclave i c' ->
       com_type pc (Encl i) g k (empty_set condition) d c' g' k' ->
       is_var_low_context g' ->
       com_type pc Normal g k u d c g' k'
-  | Twhile : forall pc md g k u d c e c' p pc',
-      c = Cwhile e c' ->
+  | Twhile : forall pc md g k u d c e p pc',
       exp_type md g d e (Typ Tnat p) ->
-      com_type pc' md g k u d c' g k ->
+      com_type pc' md g k u d c g k ->
       policy_le (policy_join pc p) pc' ->
       policy_le p (LevelP L) \/ md <> Normal ->
       p <> LevelP T ->
-      com_type pc md g k u d c g k
-  | Tseq : forall pc md g k u d c c' rest g' k' gn kn,
-      c = Cseq (c' :: rest) ->
-      com_type pc md g k u d c' g' k' ->
+      com_type pc md g k u d (Cwhile e c) g k
+  | Tseq : forall pc md g k u d c rest g' k' gn kn,
+      com_type pc md g k u d c g' k' ->
       com_type pc md g' k' u d (Cseq rest) gn kn ->
-      com_type pc md g k u d c gn kn
+      com_type pc md g k u d (Cseq (c :: rest)) gn kn
   | Tseqnil : forall pc md g k u d,
       com_type pc md g k u d (Cseq []) g k
-  | Tcall : forall pc md g u d c e gm km gp kp gout q p,
+  | Tcall : forall pc md g u d e gm km gp kp gout q p,
       (* FIXME: add stuff about contexts *)
-      c = Ccall e ->
       exp_type md g d e (Typ (Tlambda gm km u p md gp kp) q) ->
       policy_le (policy_join pc q) p ->
       q <> LevelP T ->
       u = empty_set condition \/ md <> Normal ->
-      com_type pc md g km u d c gout kp.
+      com_type pc md g km u d (Ccall e) gout kp.
   
 End Typing.
 
