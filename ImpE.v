@@ -55,6 +55,37 @@ Section Syntax.
   | Vnat : nat -> val
   | Vloc : location -> val.
 
+  Function forall_subexp (e: exp) (P: exp -> Prop) : Prop :=
+    P e /\
+    match e with
+    | Eplus e1 e2 => forall_subexp e1 P /\ forall_subexp e2 P
+    | Emult e1 e2 => forall_subexp e1 P /\ forall_subexp e2 P
+    | Ederef e' => forall_subexp e' P
+    | Elambda _ c => forall_subexp' c P
+    | _ => True
+    end
+  with forall_subexp' (c: com) (P: exp -> Prop) : Prop :=
+    match c with
+    | Cassign _ e => forall_subexp e P
+    | Cdeclassify _ e => forall_subexp e P
+    | Cupdate e1 e2 => forall_subexp e1 P /\ forall_subexp e2 P
+    | Ccall e => forall_subexp e P
+    | Cenclave _ c' => forall_subexp' c' P
+    | Cseq cs => fold_left (fun acc c => forall_subexp' c P /\ acc) cs True
+    | Cif e c1 c2 =>
+      forall_subexp e P /\ forall_subexp' c1 P /\ forall_subexp' c2 P
+    | Cwhile e c' => forall_subexp e P /\ forall_subexp' c' P
+    | _ => True
+    end.
+
+  Definition exp_novars (e: exp) : Prop :=
+    forall_subexp e (fun e =>
+                       match e with
+                       | Evar _ => False
+                       | _ => True
+                       end).
+
+  (*
   Function exp_novars (e : exp) : Prop :=
     match e with
     | Evar _ => False
@@ -76,6 +107,7 @@ Section Syntax.
     | Cseq ls => fold_left (fun acc c => (com_novars c) /\ acc) ls True
     | _ => True
     end.
+*)
 
   Ltac auto_decide :=
     try match goal with
@@ -402,26 +434,79 @@ Section Typing.
   with context : Type :=
   | Cntxt (var_cntxt: var -> option type)
           (loc_cntxt: location -> option (type * ref_type)) : context.
-
+                                      
   Definition var_context (G: context) : var -> option type :=
     match G with Cntxt vc _ => vc end.
+  
   Definition loc_context (G: context) : location -> option (type * ref_type) :=
     match G with Cntxt _ lc => lc end.
 
-  Definition corresponds (G: context) (g: sec_spec) : Prop :=
-    (forall l p bt rt, g l = p -> (loc_context G) l = Some (Typ bt p, rt))
-    /\ (forall x, (var_context G) x = Some (Typ Tnat (LevelP L))).
+  Inductive var_in_dom (G: context) : var -> type -> Prop :=
+  | Var_in_dom : forall x t,
+      var_context G x = Some t ->
+      var_in_dom G x t.
+
+  Inductive loc_in_dom (G: context) : location -> type -> ref_type -> Prop :=
+  | Loc_in_dom : forall l t rt,
+      loc_context G l = Some (t, rt) ->
+      loc_in_dom G l t rt.
+
+  Definition forall_var (G: context) (P: var -> type -> Prop) : Prop :=
+    forall x t, var_in_dom G x t -> P x t.
+
+  Definition forall_loc (G: context)
+             (P: location -> type -> ref_type -> Prop) : Prop :=
+    forall l t rt,
+      loc_in_dom G l t rt -> P l t rt.
+
+  Inductive type_le : type -> type -> Prop :=
+  | Type_le : forall s1 s2 p1 p2,
+      base_type_le s1 s2 ->
+      policy_le p1 p2 ->
+      type_le (Typ s1 p1) (Typ s2 p2)
+
+  with base_type_le : base_type -> base_type -> Prop :=
+  | Base_type_le_refl : forall s, base_type_le s s
+  | Base_type_le_lambda : forall G1 G1' G2 G2' k u p1 p2 md k',
+      policy_le p2 p1 ->
+      context_le G2 G1 ->
+      context_le G1' G2' ->
+      base_type_le (Tlambda G1 k u p1 md G1' k')
+                   (Tlambda G2 k u p2 md G2' k')
+
+  with context_le : context -> context -> Prop :=
+  | Context_le : forall G1 G2,
+      (forall x t,
+          var_in_dom G1 x t -> exists t',
+            var_in_dom G2 x t' /\ type_le t t') ->
+      (forall x t,
+          var_in_dom G2 x t -> exists t', var_in_dom G1 x t') ->
+      (forall l t rt,
+          loc_in_dom G1 l t rt -> exists t',
+            loc_in_dom G2 l t' rt /\ type_le t t') ->
+      (forall l t rt,
+          loc_in_dom G2 l t rt -> exists t', loc_in_dom G1 l t' rt) ->
+      context_le G1 G2.
 
   Definition context_wt (G: context) (d: loc_mode) : Prop :=
-    forall l s p rt,
-      loc_context G l = Some (Typ s p, rt) ->
-      p <> LevelP T /\ (p = LevelP H -> exists i, d l = Encl i).
+    forall_loc G (fun l t _ =>
+                    let (_, p) := t in
+                    p <> LevelP T /\ (p = LevelP H -> exists i, d l = Encl i)).
+  
+  Definition is_var_low_context (G: context) : Prop :=
+    forall_var G (fun _ t => let (_, p) := t in p = LevelP L).
 
-  (* FIXME: define these *)
-  Parameter all_loc_immutable : exp -> Prop.
-  Parameter is_var_low_context : context -> Prop.
+  Definition all_loc_immutable (e: exp) (G: context) : Prop :=
+    forall_subexp e (fun e =>
+                       match e with
+                       | Eloc (Cnd _) => False
+                       | Eloc (Not_cnd l) => forall t rt,
+                           loc_context G (Not_cnd l) = Some (t, rt) ->
+                           rt = Immut
+                       | _ => True
+                       end).
 
-  (* FIXME: currently no subtyping. *)
+  (* FIXME: don't have subsumption rule *)
   Inductive exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
   | ETnat : forall md g d n,
       exp_type md g d (Enat n) (Typ Tnat (LevelP L))
@@ -479,7 +564,7 @@ Section Typing.
       p <> LevelP T ->
       mode_alive md k ->
       exp_novars e ->
-      all_loc_immutable e ->
+      all_loc_immutable e g ->
       vc' = (fun y => if y =? x then Some (Typ s (LevelP L)) else vc y) ->
       com_type (LevelP L) md g k u d (Cdeclassify x e) (Cntxt vc' lc) k
   | CToutput : forall pc md g k u d e l s p,
@@ -622,6 +707,10 @@ End Security.
 
 Section Guarantees.
 
+  Definition corresponds (G: context) (g: sec_spec) : Prop :=
+    (forall l p bt rt, g l = p -> (loc_context G) l = Some (Typ bt p, rt))
+    /\ (forall x, (var_context G) x = Some (Typ Tnat (LevelP L))).
+  
   Definition g_prime (d: loc_mode) (g: sec_spec) (I: set enclave) : sec_spec :=
     fun l => match (d l) with
              | Encl i => if (set_mem Nat.eq_dec i I) then g l else LevelP L
