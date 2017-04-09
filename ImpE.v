@@ -635,6 +635,7 @@ Section Guarantees.
       com_type (LevelP L) Normal G nil nil d c G' K' ->
       secure_prog L g cstep estep c.
   Proof.
+    
   Admitted.
 
   Lemma secure_n_chaos : forall g G G' K' d c,

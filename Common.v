@@ -77,6 +77,14 @@ Section Security.
       | H, L | T, L | T, H => false
       | _, _ => true
     end.
+  Lemma sec_level_le_correct (sl sl': sec_level) :
+    sec_level_le_compute sl sl' = true <-> sec_level_le sl sl'.
+  Proof.
+    destruct sl, sl'; intuition; try discriminate; unfold sec_level_le in *.
+    apply rt_step. constructor.
+    apply rt_trans with (y := H); apply rt_step; constructor.
+    (* XXX why is it so hard to prove that sec_level_le H L is False? *)
+  Admitted.
 
   Definition sec_level_join (sl sl': sec_level) : sec_level :=
     match sl, sl' with
