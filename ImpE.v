@@ -459,6 +459,11 @@ Section Typing.
     forall l t rt,
       loc_in_dom G l t rt -> P l t rt.
 
+  Definition forall_dom (G: context)
+             (P: var -> type -> Prop)
+             (Q: location -> type -> ref_type -> Prop) : Prop :=
+    forall_var G P /\ forall_loc G Q.
+
   Inductive type_le : type -> type -> Prop :=
   | Type_le : forall s1 s2 p1 p2,
       base_type_le s1 s2 ->
@@ -621,13 +626,27 @@ Section Typing.
       com_type pc md g k u d (Cseq (c :: rest)) gn kn
   | Tseqnil : forall pc md g k u d,
       com_type pc md g k u d (Cseq []) g k
-  | Tcall : forall pc md g u d e gm km gp kp gout q p,
-      (* FIXME: add stuff about contexts *)
-      exp_type md g d e (Typ (Tlambda gm km u p md gp kp) q) ->
+  | Tcall : forall pc md G u d e Gm km Gp kp Gout q p,
+      exp_type md G d e (Typ (Tlambda Gm km u p md Gp kp) q) ->
       policy_le (policy_join pc q) p ->
       q <> LevelP T ->
       u = nil \/ md <> Normal ->
-      com_type pc md g km u d (Ccall e) gout kp.
+      forall_dom Gm
+                 (fun x t => exists t', var_in_dom G x t' /\ type_le t' t)
+                 (fun l t rt => exists t',
+                      loc_in_dom G l t' rt /\ type_le t' t) ->
+      forall_dom Gp
+                 (fun x t => exists t', var_in_dom Gout x t' /\ type_le t' t)
+                 (fun l t rt => exists t',
+                      loc_in_dom Gout l t' rt /\ type_le t' t) ->
+      forall_dom G
+                 (fun x t =>
+                    (forall t', ~var_in_dom Gp x t') ->
+                    var_in_dom Gout x t)
+                 (fun l t rt =>
+                    (forall t' rt', ~loc_in_dom Gp l t' rt') ->
+                    loc_in_dom Gout l t rt) ->
+      com_type pc md G km u d (Ccall e) Gout kp.
   
 End Typing.
 
