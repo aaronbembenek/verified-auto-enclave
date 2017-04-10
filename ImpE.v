@@ -662,7 +662,7 @@ Section Security.
   
   Definition tobs_sec_level (sl: sec_level) (t: trace) : trace :=
     filter (fun event => match event with
-                         | Out sl' v => if sec_level_le_compute sl' sl then true else false
+                         | Out sl' v => sec_level_le_compute sl' sl
                          | AEnc c c' enc_equiv => true
                          | ANonEnc c => true
                          | _ => false                           
@@ -681,19 +681,19 @@ Section Security.
   (* XXX need to enforce that all U are unset? *)
   Inductive knowledge_ind (m: mem) (g: sec_spec) (U: set condition) (sl : sec_level) :
     mem -> Prop :=
-  | ind_mem : forall m' l,
-      sec_level_le (cur (g l) U) sl ->
-      m l = m' l ->
+  | ind_mem : forall m',
+      (forall l, sec_level_le (cur (g l) U) sl -> m l = m' l) ->
       knowledge_ind m g U sl m'.
 
   (* XXX check that quantifying over all mds is ok. I think it is... as long as one md exists
      s.t. the conditions hold, m' is an esc_mem *)
   Inductive knowledge_esc (m0 m: mem) (estep: esemantics) (e: esc_hatch) :
     mem -> Prop :=
-  | esc_mem : forall m' d v md,
-      estep md d (e, reg_init, m0, []) v ->
-      estep md d (e, reg_init, m, []) v ->
-      estep md d (e, reg_init, m', []) v ->
+  | esc_mem : forall m' d v,
+      (exists md,
+          estep md d (e, reg_init, m0, []) v /\
+          estep md d (e, reg_init, m, []) v ->
+          estep md d (e, reg_init, m', []) v) ->
       knowledge_esc m0 m estep e m'.
 
   Definition cnd_unset (m: mem) (cnd: condition) : Prop := m (Cnd cnd) = Vnat 0.
