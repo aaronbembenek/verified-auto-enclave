@@ -660,41 +660,65 @@ End Typing.
 Section Security.
   Definition esc_hatch : Type := exp.
   
-  Definition tobs_sec_level (sl: sec_level) (t: trace) : trace :=
+  Definition tobs_sec_level (sl: sec_level) : trace -> trace :=
     filter (fun event => match event with
                          | Out sl' v => sec_level_le_compute sl' sl
                          | AEnc c c' enc_equiv => true
                          | ANonEnc c => true
                          | _ => false                           
-                         end)
-           t.
+                         end).
    
-  (* XXX definition doesn't have a delta, so I'm assuming delta is just fixed (and quantifying over it) *)
-  Inductive knowledge_attack (c : com) (sl : sec_level) (cstep : csemantics) (tobs : trace)
-    : mem -> Prop :=
+  (* XXX definition doesn't have a delta, so I'm assuming delta is just
+     fixed (and quantifying over it) *)
+  (*Inductive knowledge_attack (c : com) (sl : sec_level)
+    (cstep : csemantics) (tobs : trace) : mem -> Prop :=
   | known_mem : forall d m r' m' k' t t0 t1 t2,
       cstep Normal d (c, reg_init, m, []) (r', m', k') t ->
       t = t0 ++ t1 ++ t2 ->
       tobs_sec_level sl tobs = tobs_sec_level sl t1 ->
       knowledge_attack c sl cstep tobs m.
+   *)
+  (* XXX I think it might be easier to use definitions instead of inductive
+     types (don't get the error about not being able to find an instance
+     for all the quantified variables *)
+  Definition knowledge_attack (c: com) (sl: sec_level) (cstep: csemantics)
+             (tobs: trace) (m: mem) : Prop :=
+    forall d r' m' k' t t0 t1 t2,
+      cstep Normal d (c, reg_init, m, []) (r', m', k') t ->
+      t = t0 ++ t1 ++ t2 ->
+      tobs_sec_level sl tobs = tobs_sec_level sl t1.
 
   (* XXX need to enforce that all U are unset? *)
-  Inductive knowledge_ind (m: mem) (g: sec_spec) (U: set condition) (sl : sec_level) :
-    mem -> Prop :=
+  (*
+  Inductive knowledge_ind (m: mem) (g: sec_spec) (U: set condition)
+    (sl : sec_level) : mem -> Prop :=
   | ind_mem : forall m',
       (forall l, sec_level_le (cur (g l) U) sl -> m l = m' l) ->
       knowledge_ind m g U sl m'.
+   *)
+  Definition knowledge_ind (m: mem) (g: sec_spec) (U: set condition)
+             (sl: sec_level) (m': mem) : Prop :=
+    forall l, sec_level_le (cur (g l) U) sl -> m l = m' l.
 
-  (* XXX check that quantifying over all mds is ok. I think it is... as long as one md exists
+  (* XXX check that quantifying over all mds is ok.
+     I think it is... as long as one md exists
      s.t. the conditions hold, m' is an esc_mem *)
+  (*
   Inductive knowledge_esc (m0 m: mem) (estep: esemantics) (e: esc_hatch) :
     mem -> Prop :=
-  | esc_mem : forall m' d v,
-      (exists md,
+  | esc_mem : forall m',
+      (exists md, forall d v,
           estep md d (e, reg_init, m0, []) v /\
           estep md d (e, reg_init, m, []) v ->
           estep md d (e, reg_init, m', []) v) ->
       knowledge_esc m0 m estep e m'.
+   *)
+  Definition knowledge_esc (m0 m: mem) (estep: esemantics) (e: esc_hatch)
+             (m': mem) : Prop :=
+    exists md, forall d v,
+        estep md d (e, reg_init, m0, []) v /\
+        estep md d (e, reg_init, m, []) v ->
+        estep md d (e, reg_init, m', []) v.
 
   Definition cnd_unset (m: mem) (cnd: condition) : Prop := m (Cnd cnd) = Vnat 0.
   Definition cnd_set (m: mem) (cnd: condition) : Prop := m (Cnd cnd) = Vnat 1.
@@ -702,8 +726,8 @@ Section Security.
   (* XXX This thing with e and csemantics is a little weird. Probably want to
      define one that encapsulates both, but I'm not sure how...
    *)
-  Inductive secure_prog (sl: sec_level) (g: sec_spec) (cstep: csemantics) (estep: esemantics) :
-    com -> Prop :=
+  Inductive secure_prog (sl: sec_level) (g: sec_spec) (cstep: csemantics)
+            (estep: esemantics) : com -> Prop :=
   | secure : forall c tobs mhead t''
                       m0 d thd ttl cterm
                       tobs_hd tobs_tl mind cnd U mknown
@@ -711,17 +735,34 @@ Section Security.
       (* begin with memory event *)
       tobs = Mem mhead :: t'' ->
       cstep Normal d (c, reg_init, m0, []) cterm (thd ++ tobs ++ ttl) ->
-      (* intersection over [tobs]_mem all memories in ind_sl with no set conditions *)
+      (* intersection over [tobs]_mem all memories in ind_sl with no
+         set conditions *)
       tobs = tobs_hd ++ [Mem mind] ++ tobs_tl ->
       ((cnd_set mind cnd -> ~In cnd U) /\ (cnd_unset mind cnd -> In cnd U)) ->
       knowledge_ind m0 g U sl mknown ->
       (* intersection over [tobs]_esc *)
       thd ++ tobs = ttobs_hd ++ [Decl e mdecl] ++ ttobs_tl ->
       knowledge_esc m0 mdecl estep e mknown ->
-      (* knowledge_attack has to include all the above, so whenever the above holds,
+      (* knowledge_attack has to include all the above, so whenever the
+         above holds,
          so must knowledge_attack *)
       knowledge_attack c sl cstep tobs mknown ->
       secure_prog sl g cstep estep c.
+
+  (* XXX an alternate (not necessarily correct) def of security *)
+  Definition secure_prog' (sl: sec_level) (g: sec_spec)
+             (cstep: csemantics) (estep: esemantics) (c: com) : Prop :=
+    forall m0 r m k d t tobs t' mknown,
+      cstep Normal d (c, reg_init, m0, []) (r, m, k) (t ++ tobs ++ t') ->
+      (exists m'' t'', tobs = Mem m'' :: t'') ->
+      (forall mind U,
+          In (Mem mind) tobs ->
+          (forall cnd, cnd_unset mind cnd <-> In cnd U) ->
+          knowledge_ind m0 g U sl mknown) ->
+      (forall mdecl e,
+          In (Decl e mdecl) (t ++ tobs) ->
+          knowledge_esc m0 mdecl estep e mknown) ->
+      knowledge_attack c sl cstep tobs mknown.
 End Security.
 
 Section Guarantees.
