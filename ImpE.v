@@ -698,47 +698,6 @@ Section Guarantees.
              | Encl i => if (set_mem Nat.eq_dec i I) then g l else LevelP L
              | _ => LevelP L
              end.
-
-  Inductive protected : sec_policy -> set condition -> Prop :=
-  | level_high: forall S, protected (LevelP H) S
-  | level_top: forall S, protected (LevelP T) S
-  | erase_high: forall cnd S sl pf,
-      protected (ErasureP H cnd sl pf) S
-  | erase_low: forall cnd S sl pf,
-      set_In cnd S -> protected (ErasureP L cnd sl pf) S.
-            
-  (* XXX have to think about whether it just holds for S, or whether it holds for any U *)
-  Lemma loc_differ_protected (m0 m1: mem) (g: sec_spec) (U: set condition):
-      knowledge_ind m0 g U L m1 ->
-      forall l, ~(m0 l = m1 l) ->
-      protected (g l) U.
-  Proof.
-  Admitted.
-
-  (* XXX this might only hold for memories in [t_obs]_esc/mem with the right U *)
-  Lemma exp_differ_protected (e: exp) (m0 m1: mem) (g: sec_spec) (U: set condition)
-        (H: set esc_hatch) (estep: esemantics) (md: mode)
-        (G: context) (d: loc_mode):
-    knowledge_ind m0 g U L m1 ->
-    (* we need to prove that this holds from the defn of esc_hatch_indl *)
-    (set_In e H -> forall v,
-        estep md d (e, reg_init, m0, []) v <-> estep md d (e, reg_init, m1, []) v) ->
-    forall t p,
-      exp_type md G d e (Typ t p) ->               
-      protected p U.
-  Proof.
-  Admitted.
-
-  Search (cstep).
-
-  Definition overlap (tr tobs: trace) :=
-    
-    
-  Lemma eq_overlap_tobs (m1 m2: mem) (tobs: trace) :
-    forall md d c k r' m' k' tr1 tr2,
-    cstep md d (c, reg_init, m1, k) (r', m', k') tr1->
-    cstep md d (c, reg_init, m2, k) (r', m', k') tr2->
-    tobs_sec_level L (overlap tr1 tobs) = tobs_sec_level L (overlap tr2 tobs).
       
   Lemma secure_passive : forall g G G' K' d c,
     well_formed_spec g ->

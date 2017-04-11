@@ -76,12 +76,43 @@ Section Syntax.
     | _ => True
     end.
 
+   Ltac auto_decide :=
+    try match goal with
+    | [x : nat, y : nat |- _] => destruct (Nat.eq_dec x y)
+    | [x : var, y : var |- _] => destruct (Nat.eq_dec x y)
+    | [x : condition, y : condition |- _] => destruct (Nat.eq_dec x y)
+    | _ => idtac
+    end; [left; now subst | right; congruence].
+
   Definition exp2_novars (e: exp2) : Prop :=
     forall_subexp2 e (fun e =>
                        match e with
                        | Evar2 _ => False
                        | _ => True
                        end).
+ 
+  Lemma com2_decidable : forall c1 c2 : com2, {c1 = c2} + {c1 <> c2}.
+  Admitted.
+ 
+  Function val2_eq (v1 v2: val2) : Prop :=
+    match v1, v2 with
+    | Vnat2 x, Vnat2 y => x = y
+    | Vlambda2 md1 c1, Vlambda2 md2 c2 => md1 = md2 /\ c1 = c2
+    | Vloc2 l1, Vloc2 l2 => l1 = l2
+    | Vpair2 v1 v1', Vpair2 v2 v2' => val2_eq v1 v2 /\ val2_eq v1' v2'
+    | _, _ => False
+    end.
+
+  (* XXX I feel like it should be easy to prove this...? *)
+  Lemma val2_decidable : forall v1 v2 : val2, {val2_eq v1 v2} + {~(val2_eq v1 v2)}.
+  Proof.
+    intros. 
+    induction v1; destruct v2; simpl; intuition.
+    destruct (mode_decidable m m0); destruct (com2_decidable c c0); subst; intuition.
+    auto_decide.
+    destruct l, l0; try (right; discriminate); auto_decide.
+  Admitted.
+
 End Syntax.
 
 (*******************************************************************************
@@ -95,22 +126,36 @@ Section Semantics.
   Definition reg_init2 : reg2 := fun x => Vnat2 0.
   Definition mem2 : Type := memory val2.
   Inductive kill2 : Type :=
-  | Single: set enclave -> kill2
-  | Pair: (set enclave * set enclave) -> kill2.
+  | KSingle: set enclave -> kill2
+  | KPair: kill2 -> kill2 -> kill2.
 
   Inductive event2 : Type :=
+  | Emp : event2
   | Decl : exp2 -> mem2 -> event2
   | Mem : mem2 -> event2
-  | Out : sec_level -> val2 -> event2.
+  | Out : sec_level -> val2 -> event2
+  | EPair : event2 -> event2 -> event2.
   Definition trace2 : Type := list event2.
 
-  (* XXX TODO LYT
-  Definition merge_reg (r1 r2: reg2) := .
-  Definition merge_kill (k1 k2: set enclave) := .
-  Definition merge_mem (m1 m2: mem2) := .
-  Definition merge_trace (t1 t2: trace2) := .
-*)  
-
+  Definition merge_reg (r1 r2: reg2) :=
+    fun x => if val2_decidable (r1 x) (r2 x) then r1 x
+             else Vpair2 (r1 x) (r2 x).
+  Definition merge_mem (m1 m2: mem2) :=
+    fun l => if val2_decidable (m1 l) (m2 l) then m1 l
+             else m2 l.
+  Definition tracepair_len (t: trace2 * trace2) := length (fst t) + length (snd t).
+  Function merge_trace (t: trace2 * trace2) {measure tracepair_len t} :=
+    match fst t, snd t with
+    | a1::tl1, a2::tl2 => EPair a1 a2 :: (merge_trace (tl1, tl2))
+    | a1::tl1, [] => EPair a1 Emp :: merge_trace (tl1, [])
+    | [], a2::tl2 => EPair Emp a2 :: merge_trace ([], tl2)
+    | _, _ => []
+    end.
+  Proof.
+    all: intros; unfold tracepair_len; rewrite teq, teq0; simpl; auto; omega.
+  Qed.
+  Definition merge_kill (k1 k2: kill2) := KPair k1 k2.
+(*
   Definition econfig2 : Type := exp2 * reg2 * mem2 * kill2.
   Definition ecfg_exp2 (ecfg: econfig2) : exp2 :=
     match ecfg with (e, _, _, _) => e end.
@@ -263,9 +308,9 @@ Section Semantics.
       ccfg_com2 ccfg = Ckill enc ->
       mode_alive (Encl enc) (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
-  
+  *)
 End Semantics.
-
+(*
 (*******************************************************************************
 *
 * TYPING
@@ -512,8 +557,10 @@ Section Security.
   Inductive protected : sec_policy -> set condition -> Prop :=
   | level_high: forall S, protected (LevelP H) S
   | level_top: forall S, protected (LevelP T) S
-  | erase_high: forall cnd S sl, protected (ErasureP H cnd sl) S
-  | erase_low: forall cnd S sl, protected (ErasureP L cnd sl) S.
+  | erase_high: forall cnd S sl pf,
+      protected (ErasureP H cnd sl pf) S
+  | erase_low: forall cnd S sl pf,
+      set_In cnd S -> protected (ErasureP L cnd sl pf) S.
       
   Definition overlap (tr tobs: trace) :=
   | tobs is entirely contained in tr => tobs
@@ -527,3 +574,4 @@ Section Security.
     tobs_sec_level L (overlap tr1 tobs) = tobs_sec_level L (overlap tr2 tobs).
       
 End Security.
+*)
