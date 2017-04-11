@@ -92,30 +92,31 @@ Section Security.
     | H, _ | _, H => H
     | L, L => L
     end.
-  
+
   Inductive sec_policy : Type :=
   | LevelP : sec_level -> sec_policy
-  | ErasureP : sec_level -> condition -> sec_level -> sec_policy.
+  | ErasureP (l1: sec_level) (cnd: condition) (l2: sec_level)
+             (l1_le_l2: sec_level_le l1 l2) : sec_policy.
   
   Definition sec_spec : Type :=  location -> sec_policy.
 
   Definition well_formed_spec (g : sec_spec) : Prop :=
-    forall l, g l <> LevelP T.
+    forall l, g l <> LevelP T /\ forall cnd sl pf, g l <> ErasureP T cnd sl pf.
 
   Inductive policy_le : relation sec_policy :=
   | PLE1 : forall l1 l2,
       sec_level_le l1 l2 ->
       policy_le (LevelP l1) (LevelP l2)
-  | PLE2 : forall p1 l2 l2' cnd,
+  | PLE2 : forall p1 l2 l2' cnd pf,
       policy_le p1 (LevelP l2) ->
-      policy_le p1 (ErasureP l2 cnd l2')
-  | PLE3 : forall l1 l1' p2 cnd,
+      policy_le p1 (ErasureP l2 cnd l2' pf)
+  | PLE3 : forall l1 l1' p2 cnd pf,
       policy_le (LevelP l1') p2 ->
-      policy_le (ErasureP l1 cnd l1') p2
-  | PLE4 : forall l1 l1' l2 l2' cnd,
+      policy_le (ErasureP l1 cnd l1' pf) p2
+  | PLE4 : forall l1 l1' l2 l2' cnd pf1 pf2,
       sec_level_le l1 l2 ->
       sec_level_le l1' l2' ->
-      policy_le (ErasureP l1 cnd l1') (ErasureP l2 cnd l2').
+      policy_le (ErasureP l1 cnd l1' pf1) (ErasureP l2 cnd l2' pf2).
 
   Lemma policy_le_refl : reflexive sec_policy policy_le.
   Proof.
@@ -147,6 +148,6 @@ Section Security.
   Function cur (p : sec_policy) (U : set condition) : sec_level :=
     match p with
     | LevelP l => l
-    | ErasureP l1 cnd l2 => if (set_mem Nat.eq_dec cnd U) then l1 else l2
+    | ErasureP l1 cnd l2 _ => if (set_mem Nat.eq_dec cnd U) then l1 else l2
     end.
 End Security.
