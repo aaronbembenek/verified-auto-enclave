@@ -702,8 +702,10 @@ Section Guarantees.
   Inductive protected : sec_policy -> set condition -> Prop :=
   | level_high: forall S, protected (LevelP H) S
   | level_top: forall S, protected (LevelP T) S
-  | erase_high: forall cnd S sl, protected (ErasureP H cnd sl) S
-  | erase_low: forall cnd S sl, protected (ErasureP L cnd sl) S.
+  | erase_high: forall cnd S sl pf,
+      protected (ErasureP H cnd sl pf) S
+  | erase_low: forall cnd S sl pf,
+      set_In cnd S -> protected (ErasureP L cnd sl pf) S.
             
   (* XXX have to think about whether it just holds for S, or whether it holds for any U *)
   Lemma loc_differ_protected (m0 m1: mem) (g: sec_spec) (U: set condition):
