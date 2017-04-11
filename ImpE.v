@@ -85,31 +85,7 @@ Section Syntax.
                        | _ => True
                        end).
 
-  (*
-  Function exp_novars (e : exp) : Prop :=
-    match e with
-    | Evar _ => False
-    | Eplus e1 e2 => exp_novars e1 /\ exp_novars e2
-    | Emult e1 e2 => exp_novars e1 /\ exp_novars e2
-    | Ederef e => exp_novars e
-    | Elambda md c => com_novars c
-    | _ => True
-    end
-  with com_novars (c : com) : Prop :=
-    match c with
-    | Cassign _ e => exp_novars e
-    | Cdeclassify _ e => exp_novars e
-    | Cupdate e1 e2 => exp_novars e1 /\ exp_novars e2
-    | Coutput e _ => exp_novars e
-    | Cif e c1 c2 => exp_novars e /\ com_novars c1 /\ com_novars c2
-    | Cwhile e c => exp_novars e /\ com_novars c
-    | Ccall e => exp_novars e
-    | Cseq ls => fold_left (fun acc c => (com_novars c) /\ acc) ls True
-    | _ => True
-    end.
-*)
-
-  Ltac auto_decide :=
+   Ltac auto_decide :=
     try match goal with
     | [x : nat, y : nat |- _] => destruct (Nat.eq_dec x y)
     | [x : var, y : var |- _] => destruct (Nat.eq_dec x y)
@@ -668,16 +644,6 @@ Section Security.
                          | _ => false                           
                          end).
    
-  (* XXX definition doesn't have a delta, so I'm assuming delta is just
-     fixed (and quantifying over it) *)
-  (*Inductive knowledge_attack (c : com) (sl : sec_level)
-    (cstep : csemantics) (tobs : trace) : mem -> Prop :=
-  | known_mem : forall d m r' m' k' t t0 t1 t2,
-      cstep Normal d (c, reg_init, m, []) (r', m', k') t ->
-      t = t0 ++ t1 ++ t2 ->
-      tobs_sec_level sl tobs = tobs_sec_level sl t1 ->
-      knowledge_attack c sl cstep tobs m.
-   *)
   (* XXX I think it might be easier to use definitions instead of inductive
      types (don't get the error about not being able to find an instance
      for all the quantified variables *)
@@ -689,30 +655,10 @@ Section Security.
       tobs_sec_level sl tobs = tobs_sec_level sl t1.
 
   (* XXX need to enforce that all U are unset? *)
-  (*
-  Inductive knowledge_ind (m: mem) (g: sec_spec) (U: set condition)
-    (sl : sec_level) : mem -> Prop :=
-  | ind_mem : forall m',
-      (forall l, sec_level_le (cur (g l) U) sl -> m l = m' l) ->
-      knowledge_ind m g U sl m'.
-   *)
   Definition knowledge_ind (m: mem) (g: sec_spec) (U: set condition)
              (sl: sec_level) (m': mem) : Prop :=
     forall l, sec_level_le (cur (g l) U) sl -> m l = m' l.
 
-  (* XXX check that quantifying over all mds is ok.
-     I think it is... as long as one md exists
-     s.t. the conditions hold, m' is an esc_mem *)
-  (*
-  Inductive knowledge_esc (m0 m: mem) (estep: esemantics) (e: esc_hatch) :
-    mem -> Prop :=
-  | esc_mem : forall m',
-      (exists md, forall d v,
-          estep md d (e, reg_init, m0, []) v /\
-          estep md d (e, reg_init, m, []) v ->
-          estep md d (e, reg_init, m', []) v) ->
-      knowledge_esc m0 m estep e m'.
-   *)
   Definition knowledge_esc (m0 m: mem) (estep: esemantics) (e: esc_hatch)
              (m': mem) : Prop :=
     exists md, forall d v,
@@ -726,31 +672,7 @@ Section Security.
   (* XXX This thing with e and csemantics is a little weird. Probably want to
      define one that encapsulates both, but I'm not sure how...
    *)
-  Inductive secure_prog (sl: sec_level) (g: sec_spec) (cstep: csemantics)
-            (estep: esemantics) : com -> Prop :=
-  | secure : forall c tobs mhead t''
-                      m0 d thd ttl cterm
-                      tobs_hd tobs_tl mind cnd U mknown
-                      ttobs_hd ttobs_tl mdecl e,
-      (* begin with memory event *)
-      tobs = Mem mhead :: t'' ->
-      cstep Normal d (c, reg_init, m0, []) cterm (thd ++ tobs ++ ttl) ->
-      (* intersection over [tobs]_mem all memories in ind_sl with no
-         set conditions *)
-      tobs = tobs_hd ++ [Mem mind] ++ tobs_tl ->
-      ((cnd_set mind cnd -> ~In cnd U) /\ (cnd_unset mind cnd -> In cnd U)) ->
-      knowledge_ind m0 g U sl mknown ->
-      (* intersection over [tobs]_esc *)
-      thd ++ tobs = ttobs_hd ++ [Decl e mdecl] ++ ttobs_tl ->
-      knowledge_esc m0 mdecl estep e mknown ->
-      (* knowledge_attack has to include all the above, so whenever the
-         above holds,
-         so must knowledge_attack *)
-      knowledge_attack c sl cstep tobs mknown ->
-      secure_prog sl g cstep estep c.
-
-  (* XXX an alternate (not necessarily correct) def of security *)
-  Definition secure_prog' (sl: sec_level) (g: sec_spec)
+  Definition secure_prog (sl: sec_level) (g: sec_spec)
              (cstep: csemantics) (estep: esemantics) (c: com) : Prop :=
     forall m0 r m k d t tobs t' mknown,
       cstep Normal d (c, reg_init, m0, []) (r, m, k) (t ++ tobs ++ t') ->
@@ -777,7 +699,35 @@ Section Guarantees.
              | _ => LevelP L
              end.
 
-  Lemma secure_passive : forall g G G' K' d c,
+  Inductive protected : sec_policy -> set condition -> Prop :=
+  | level_high: forall S, protected (LevelP H) S
+  | level_top: forall S, protected (LevelP T) S
+  | erase_high: forall cnd S sl, protected (ErasureP H cnd sl) S
+  | erase_low: forall cnd S sl, protected (ErasureP L cnd sl) S.
+            
+  (* XXX have to think about whether it just holds for S, or whether it holds for any U *)
+  Lemma loc_differ_protected (m0 m1: mem) (g: sec_spec) (U: set condition):
+      knowledge_ind m0 g U L m1 ->
+      forall l, ~(m0 l = m1 l) ->
+      protected (g l) U.
+  Proof.
+  Admitted.
+
+  (* XXX this might only hold for memories in [t_obs]_esc/mem with the right U *)
+  Lemma exp_differ_protected (e: exp) (m0 m1: mem) (g: sec_spec) (U: set condition)
+        (H: set esc_hatch) (estep: esemantics) (md: mode)
+        (G: context) (d: loc_mode):
+    knowledge_ind m0 g U L m1 ->
+    (* we need to prove that this holds from the defn of esc_hatch_indl *)
+    (set_In e H -> forall v,
+        estep md d (e, reg_init, m0, []) v <-> estep md d (e, reg_init, m1, []) v) ->
+    forall t p,
+      exp_type md G d e (Typ t p) ->               
+      protected p U.
+  Proof.
+  Admitted.
+      
+    Lemma secure_passive : forall g G G' K' d c,
       well_formed_spec g ->
       corresponds G g ->
       context_wt G d ->
