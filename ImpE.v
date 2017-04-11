@@ -726,15 +726,28 @@ Section Guarantees.
       protected p U.
   Proof.
   Admitted.
-      
-    Lemma secure_passive : forall g G G' K' d c,
-      well_formed_spec g ->
-      corresponds G g ->
-      context_wt G d ->
-      com_type (LevelP L) Normal G nil nil d c G' K' ->
-      secure_prog L g cstep estep c.
-  Proof.
+
+  Search (cstep).
+
+  Definition overlap (tr tobs: trace) :=
     
+    
+  Lemma eq_overlap_tobs (m1 m2: mem) (tobs: trace) :
+    forall md d c k r' m' k' tr1 tr2,
+    cstep md d (c, reg_init, m1, k) (r', m', k') tr1->
+    cstep md d (c, reg_init, m2, k) (r', m', k') tr2->
+    tobs_sec_level L (overlap tr1 tobs) = tobs_sec_level L (overlap tr2 tobs).
+      
+  Lemma secure_passive : forall g G G' K' d c,
+    well_formed_spec g ->
+    corresponds G g ->
+    context_wt G d ->
+    com_type (LevelP L) Normal G nil nil d c G' K' ->
+    secure_prog L g cstep estep c.
+  Proof.
+    intros. unfold secure_prog. intros.
+    unfold knowledge_attack.
+    intros.
   Admitted.
 
   Lemma secure_n_chaos : forall g G G' K' d c,
