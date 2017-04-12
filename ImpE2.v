@@ -126,6 +126,9 @@ Section Semantics.
   | Decl : exp2 -> mem2 -> event2
   | Mem : mem2 -> event2
   | Out : sec_level -> val2 -> event2
+  | ANonEnc : com2 -> event2
+  (* XXX: need to add enc equiv definition for com2 *)
+  | AEnc : forall c c' : com2, (*enc_equiv c c'*) event2
   | EPair : event2 -> event2 -> event2.
   Definition trace2 : Type := list event2.
 
@@ -164,13 +167,46 @@ Section Semantics.
     end.
   Proof. all: intros; unfold tracepair_len; rewrite teq, teq0; simpl; omega. Qed.
   Definition merge_kill (k1 k2: kill2) := KPair k1 k2.
-
-  Definition project_reg (r: reg2) : reg2 :=
+  
+  Definition project_value (v : val2) (is_left : bool) : val2 :=
+    match v with
+    | Vpair2 v1 v2 => if is_left then v1 else v2
+    | _ => v
+    end.
+  
+  Definition project_reg (r: reg2) (is_left : bool): reg2 :=
     fun x => match r x with
-             | Vpair2 v1 v2 => v1
+             | Vpair2 v1 v2 => if is_left then v1 else v2
              | _ => r x
-             end.
-              
+          end.
+
+  Definition project_mem (m: mem2) (is_left : bool): mem2 :=
+    fun x => match m x with
+          | Vpair2 v1 v2 => if is_left then v1 else v2
+          | _ => m x
+          end.
+
+  Definition project_kill (k: kill2) (is_left : bool) : kill2 :=
+    match k with
+    | KPair ks1 ks2 => if is_left then ks1 else ks2
+    | _ => k
+    end.
+
+  Function project_trace (t: trace2) (is_left : bool) : trace2 :=
+    match t with
+    | [] => []
+    | hd :: tl =>
+      let tl_proj := (project_trace tl is_left) in
+      match hd with
+      | Mem m => Mem (project_mem m is_left) :: tl_proj
+      | Decl e m => Decl e (project_mem m is_left) :: tl_proj
+      | Out l v => Out l (project_value v is_left) :: tl_proj
+      | ANonEnc _ | AEnc _ _ => hd :: tl_proj
+      | EPair e1 e2 => if is_left then e1 :: tl_proj else e2 :: tl_proj
+      | _ => []
+      end
+    end.
+  
   Definition econfig2 : Type := exp2 * reg2 * mem2 * kill2.
   Definition ecfg_exp2 (ecfg: econfig2) : exp2 :=
     match ecfg with (e, _, _, _) => e end.
@@ -242,70 +278,76 @@ Section Semantics.
   Inductive cstep2 : csemantics2 := 
   | Cstep2_skip : forall md d ccfg,
       cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, ccfg_kill2 ccfg) []
-  | Cstep_assign : forall md d ccfg x e v r',
+  | Cstep2_assign : forall md d ccfg x e v r',
       ccfg_com2 ccfg = Cassign2 x e ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) v ->
       r' = ccfg_update_reg2 ccfg x v ->
       mode_alive2 md (ccfg_kill2 ccfg) ->
-      cstep md d ccfg (r', ccfg_mem ccfg, ccfg_kill ccfg) []
-  | Cstep_declassify : forall md d ccfg x e v r',
+      cstep2 md d ccfg (r', ccfg_mem2 ccfg, ccfg_kill2 ccfg) []
+  | Cstep2_declassify : forall md d ccfg x e v r',
       ccfg_com2 ccfg = Cdeclassify2 x e ->
       exp2_novars e ->
-      estep2 md d (ccfg_to_ecfg e ccfg) v ->
-      r' = ccfg_update_reg ccfg x v ->
-      mode_alive md (ccfg_kill ccfg) ->
-      cstep md d ccfg (r', ccfg_mem ccfg, ccfg_kill ccfg) [Decl e (ccfg_mem ccfg)]
-  | Cstep_update : forall md d ccfg e1 e2 l v m',
+      estep2 md d (ccfg_to_ecfg2 e ccfg) v ->
+      r' = ccfg_update_reg2 ccfg x v ->
+      mode_alive2 md (ccfg_kill2 ccfg) ->
+      cstep2 md d ccfg (r', ccfg_mem2 ccfg, ccfg_kill2 ccfg) [Decl e (ccfg_mem2 ccfg)]
+  | Cstep2_update : forall md d ccfg e1 e2 l v m',
       ccfg_com2 ccfg = Cupdate2 e1 e2 ->
-      estep2 md d (ccfg_to_ecfg e1 ccfg) (Vloc l) ->
-      estep2 md d (ccfg_to_ecfg e2 ccfg) v ->
-      mode_alive md (ccfg_kill ccfg) ->
-      mode_access_ok md d l (ccfg_kill ccfg) ->
+      estep2 md d (ccfg_to_ecfg2 e1 ccfg) (Vloc2 l) ->
+      estep2 md d (ccfg_to_ecfg2 e2 ccfg) v ->
+      mode_alive2 md (ccfg_kill2 ccfg) ->
+      mode_access_ok2 md d l (ccfg_kill2 ccfg) ->
       is_Not_cnd l ->
-      m' = ccfg_update_mem ccfg l v ->
-      cstep md d ccfg (ccfg_reg ccfg, m', ccfg_kill ccfg) []
-  | Cstep_output : forall md d ccfg e sl v,
+      m' = ccfg_update_mem2 ccfg l v ->
+      cstep2 md d ccfg (ccfg_reg2 ccfg, m', ccfg_kill2 ccfg) []
+  | Cstep2_output : forall md d ccfg e sl v,
       ccfg_com2 ccfg = Coutput2 e sl ->
-      estep2 md d (ccfg_to_ecfg e ccfg) v ->
+      estep2 md d (ccfg_to_ecfg2 e ccfg) v ->
       sl = L \/ sl = H ->
-      mode_alive md (ccfg_kill ccfg) ->
-      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) [Mem (ccfg_mem ccfg); Out sl v]
-  | Cstep_call : forall md d ccfg e c r' m' k' tr,
+      mode_alive2 md (ccfg_kill2 ccfg) ->
+      cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, ccfg_kill2 ccfg)
+            [Mem (ccfg_mem2 ccfg); Out sl v]
+  | Cstep2_call : forall md d ccfg e c r' m' k' tr,
       ccfg_com2 ccfg = Ccall2 e ->
-      estep2 md d (ccfg_to_ecfg e ccfg) (Vlambda md c) ->
-      cstep md d (ccfg_update_com2 c ccfg) (r', m', k') tr ->
-      cstep md d ccfg (r', m', k') tr
-  | Cstep_cset : forall md d ccfg c m',
+      estep2 md d (ccfg_to_ecfg2 e ccfg) (Vlambda2 md c) ->
+      cstep2 md d (ccfg_update_com2 c ccfg) (r', m', k') tr ->
+      cstep2 md d ccfg (r', m', k') tr
+  | Cstep2_cset : forall md d ccfg c m',
       ccfg_com2 ccfg = Cset2 c ->
-      mode_access_ok md d (Cnd c) (ccfg_kill ccfg) ->
-      m' = ccfg_update_mem ccfg (Cnd c) (Vnat 1) ->
-      mode_alive md (ccfg_kill ccfg) ->
-      cstep md d ccfg (ccfg_reg ccfg, m', ccfg_kill ccfg) [Mem m']
-  | Cstep_enclave : forall md d ccfg enc c r' m' k' tr,
+      mode_access_ok2 md d (Cnd c) (ccfg_kill2 ccfg) ->
+      m' = ccfg_update_mem2 ccfg (Cnd c) (Vnat2 1) ->
+      mode_alive2 md (ccfg_kill2 ccfg) ->
+      cstep2 md d ccfg (ccfg_reg2 ccfg, m', ccfg_kill2 ccfg) [Mem m']
+  | Cstep2_enclave : forall md d ccfg enc c r' m' k' tr,
     md = Normal ->
     ccfg_com2 ccfg = Cenclave2 enc c ->
-    cstep (Encl enc) d (c, ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) (r', m', k') tr ->
-    cstep md d ccfg (r', m', k') tr
-  | Cstep_seq_nil : forall md d ccfg,
+    cstep2 (Encl enc) d (c, ccfg_reg2 ccfg, ccfg_mem2 ccfg, ccfg_kill2 ccfg) (r', m', k') tr ->
+    cstep2 md d ccfg (r', m', k') tr
+  | Cstep2_seq_nil : forall md d ccfg,
       ccfg_com2 ccfg = Cseq2 [] ->
-      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
-  | Cstep_seq_hd : forall md d ccfg hd tl r m k tr r' m' k' tr',
-      ccfg_com2 ccfg = Cseq (hd::tl) ->
-      cstep md d (ccfg_update_com2 hd ccfg) (r, m, k) tr ->
-      cstep md d (Cseq tl, r, m, k) (r', m', k') tr' ->
-      cstep md d ccfg (r', m', k') (tr++tr')
-  | Cstep_if : forall md d ccfg e c1 c2 v r' m' k' tr,
+      cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, ccfg_kill2 ccfg) []
+  | Cstep2_seq_hd : forall md d ccfg hd tl r m k tr r' m' k' tr',
+      ccfg_com2 ccfg = Cseq2 (hd::tl) ->
+      cstep2 md d (ccfg_update_com2 hd ccfg) (r, m, k) tr ->
+      cstep2 md d (Cseq2 tl, r, m, k) (r', m', k') tr' ->
+      cstep2 md d ccfg (r', m', k') (tr++tr')
+  | Cstep2_if : forall md d ccfg e c1 c2 n r' m' k' tr,
       ccfg_com2 ccfg = Cif2 e c1 c2 ->
-      estep2 md d (ccfg_to_ecfg e ccfg) v ->
-      ~(v = (Vnat 0)) ->
-      cstep md d (ccfg_update_com2 c1 ccfg) (r', m', k') tr ->
-      cstep md d ccfg (r', m', k') tr
-  | Cstep_else : forall md d ccfg e c1 c2 v r' m' k' tr,
+      estep2 md d (ccfg_to_ecfg2 e ccfg) (Vnat2 n) ->
+      ~(n = 0) ->
+      cstep2 md d (ccfg_update_com2 c1 ccfg) (r', m', k') tr ->
+      cstep2 md d ccfg (r', m', k') tr
+  | Cstep2_else : forall md d ccfg e c1 c2 n r' m' k' tr,
       ccfg_com2 ccfg = Cif2 e c1 c2 ->
-      estep2 md d (ccfg_to_ecfg e ccfg) v ->
-      v = (Vnat 0) ->
-      cstep md d (ccfg_update_com2 c2 ccfg) (r', m', k') tr ->
-      cstep md d ccfg (r', m', k') tr
+      estep2 md d (ccfg_to_ecfg2 e ccfg) (Vnat2 n) ->
+      (n = 0) ->
+      cstep2 md d (ccfg_update_com2 c2 ccfg) (r', m', k') tr ->
+      cstep2 md d ccfg (r', m', k') tr.
+  | Cstep2_if_div : forall md d ccfg e c1 c2 n1 n2 r1 m1 k1 t1 r2 m2 k2 t2,
+      ccfg_com2 ccfg = Cif2 e c1 c2 ->
+      estep2 md d (ccfg_to_ecfg2 e ccfg) (Vpair2 (Vnat2 n1) (Vnat2 n2)) ->
+      ((~(n1 = 0) /\ cstep2 md d (r1, m1, k1) t1) \/ 
+      
   | Cstep_while_t : forall md d ccfg e c v r m k tr r' m' k' tr',
       ccfg_com2 ccfg = Cwhile2 e c ->
       estep2 md d (ccfg_to_ecfg e ccfg) v ->
