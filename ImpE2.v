@@ -212,6 +212,8 @@ Section Semantics.
     match ecfg with (e, _, _, _) => e end.
   Definition ecfg_reg2 (ecfg: econfig2) : reg2 :=
     match ecfg with (_, r, _, _) => r end.
+  Definition ecfg_mem2 (ecfg: econfig2) : mem2 :=
+    match ecfg with (_, _, m, _) => m end.
   Definition ecfg_update_exp2 (ecfg: econfig2) (e: exp2) : econfig2 :=
     match ecfg with (_, r, m, k) => (e, r, m, k) end.
   Definition esemantics2 : Type := mode -> loc_mode -> econfig2 -> val2 -> Prop.
@@ -316,8 +318,7 @@ Section Semantics.
       ccfg_com2 ccfg = Cset2 c ->
       mode_access_ok2 md d (Cnd c) (ccfg_kill2 ccfg) ->
       m' = ccfg_update_mem2 ccfg (Cnd c) (Vnat2 1) ->
-      mode_alive2 md (ccfg_kill2 ccfg) ->
-      cstep2 md d ccfg (ccfg_reg2 ccfg, m', ccfg_kill2 ccfg) [Mem m']
+      mode_alive2 md (ccfg_kill2 ccfg) ->      cstep2 md d ccfg (ccfg_reg2 ccfg, m', ccfg_kill2 ccfg) [Mem m']
   | Cstep2_enclave : forall md d ccfg enc c r' m' k' tr,
     md = Normal ->
     ccfg_com2 ccfg = Cenclave2 enc c ->
@@ -651,7 +652,82 @@ End Security.
 *
 *******************************************************************************)
 Section Adequacy.
+
+  Definition not_pair_val (v : val2) : Prop :=
+    match v with
+    | Vpair2 _ _ => False
+    | _ => True
+    end.
   
+  Definition no_nest_val (v : val2) : Prop :=
+    match v with
+    | Vpair2 v1 v2 => (not_pair_val v1) /\ (not_pair_val v2)
+    | _ => True
+    end.
+
+  Definition kill_wf (k : kill2) : Prop :=
+    match k with
+    | KPair (KSingle _) (KSingle _) => True
+    | KSingle _ => True
+    | _ => False
+    end.
+
+  Definition reg_wf (r : reg2) : Prop :=
+    forall x, no_nest_val (r x).
+
+  Definition mem_wf (m : mem2) : Prop :=
+    forall x, no_nest_val (m x).
+
+  (* XXX: thought I needed this for exp_output_wf, didn't use it. Might still be useful...? *)
+  Lemma estep2_deterministic : forall md d e r m k v1 v2,
+    estep2 md d (e, r, m, k) v1 ->
+    estep2 md d (e, r, m, k) v2 ->
+    v1 = v2.
+  Proof.
+    intros; revert H0; revert v2.
+    induction H; intros; destruct ecfg as [[[e' r'] m'] k']; simpl in *; try rewrite H in H0.
+    1-3: inversion H0; subst; try discriminate; simpl in H1; congruence.
+    inversion H1; subst; try discriminate; simpl in *; congruence.
+    1-2: rewrite H in H2; inversion H2; try discriminate; simpl in *;
+      assert (e1 = e0) by congruence; assert (e2 = e3) by congruence;
+        subst; apply IHestep2_1 in H4; apply IHestep2_2 in H5;
+          assert (n1 = n0) by congruence; assert (n2 = n3) by congruence; now subst.
+    - rewrite H in H3; inversion H3; subst; try discriminate; simpl in *.
+      assert (e0 = e1) by congruence.
+      assert (r0 = r1) by congruence.
+      assert (m0 = m1) by congruence.
+      assert (k0 = k1) by congruence.
+      subst. apply IHestep2 in H5. assert (l = l0) by congruence; now subst.
+    -  rewrite H in H2; inversion H2; subst; try discriminate; simpl in *.
+       assert (cnd = cnd0) by congruence; subst.
+       apply IHestep2 in H4.
+       destruct H1; destruct H5; destruct_conjs; subst; auto; congruence.
+  Qed.      
+  
+  Lemma impe2_exp_output_wf : forall md d ecfg v,
+      estep2 md d ecfg v ->
+      mem_wf (ecfg_mem2 ecfg) ->
+      reg_wf (ecfg_reg2 ecfg) ->
+      no_nest_val v.
+  Proof.
+    intros.
+    induction H; simpl; auto.
+    - unfold reg_wf in H1; now rewrite <- H2.
+    - rewrite H in H0; unfold mem_wf in H0; simpl in *; now rewrite <- H3.
+    - destruct H3; destruct_conjs; subst; now simpl.
+  Qed.
+      
+  Lemma impe2_output_wf : forall md d ccfg r' m' K' t,
+          reg_wf (ccfg_reg2 ccfg) ->
+          mem_wf (ccfg_mem2 ccfg) ->
+          cstep2 md d ccfg (r', m', K') t ->
+          reg_wf r' /\ mem_wf m' /\ kill_wf K'.
+  Proof.
+  Admitted.
+
+  
+  
+    
   (* XXX this theorem statement doesn't work because the projection functions return back
      the xxx2 types for ImpE2 where we need the types for IMPE... *)
 Lemma impe2_sound : forall md d c r m K r' m' K' t,
