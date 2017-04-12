@@ -196,7 +196,8 @@ Section Semantics.
   | Mem : mem -> event
   | Out : sec_level -> val -> event
   | ANonEnc : com -> event
-  | AEnc : forall c c' : com, enc_equiv c c'-> event.
+  | AEnc : forall c c' : com, enc_equiv c c'-> event
+  | Emp: event.
   Definition trace : Type := list event.
   
   Definition mode_alive (md : mode) (k : set enclave) :=
