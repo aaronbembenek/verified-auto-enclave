@@ -129,6 +129,25 @@ Section Semantics.
   | EPair : event2 -> event2 -> event2.
   Definition trace2 : Type := list event2.
 
+  (* Mode is only alive if it is alive in both of the kill sets in a pair *)
+  (* XXX: not sure if this definition is right but it seems reasonable *)
+  Function mode_alive2 (md : mode) (k : kill2) :=
+    match md with
+    | Normal => True
+    | Encl i =>
+      match k with
+      | KSingle ks => ~set_In i ks
+      | KPair ks1 ks2 => mode_alive2 md ks1 /\ mode_alive2 md ks2
+      end
+    end.
+  
+  Definition mode_access_ok2 (md : mode) (d : loc_mode) (l : location) (k : kill2) :=
+    let lmd := d l in
+    match lmd with
+    | Normal => True
+    | Encl _ => md = lmd /\ mode_alive2 lmd k
+    end.
+  
   Definition merge_reg (r1 r2: reg2) :=
     fun x => if val2_decidable (r1 x) (r2 x) then r1 x
              else Vpair2 (r1 x) (r2 x).
@@ -185,13 +204,12 @@ Section Semantics.
       estep2 md d (ecfg_update_exp2 ecfg e1) (Vnat2 n1) ->
       estep2 md d (ecfg_update_exp2 ecfg e2) (Vnat2 n2) ->
       estep2 md d ecfg (Vnat2 (n1 * n2))
-  (* XXX dealing with pairs of kill sets / pairs of values will be tricky? 
   | Estep2_deref : forall md d ecfg e r m k l v,
       ecfg = (Ederef2 e, r, m, k) ->
       estep2 md d (e, r, m, k) (Vloc2 l) ->
       m l = v ->
-      mode_access_ok md d l k ->
-      estep2 md d ecfg v*)
+      mode_access_ok2 md d l k ->
+      estep2 md d ecfg v
   | Estep2_isunset : forall md d ecfg cnd v res,
       ecfg_exp2 ecfg = Eisunset2 cnd ->
       estep2 md d (ecfg_update_exp2 ecfg (Ederef2 (Eloc2 (Cnd cnd)))) v ->
@@ -221,14 +239,14 @@ Section Semantics.
     (c, (ccfg_reg2 ccfg), (ccfg_mem2 ccfg), (ccfg_kill2 ccfg)).
   Definition csemantics2 : Type := mode -> loc_mode -> cconfig2 -> cterm2 -> trace2 -> Prop.  
 
-  Inductive cstep : csemantics2 := 
-  | Cstep_skip : forall md d ccfg,
-      cstep md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, ccfg_kill2 ccfg) []
+  Inductive cstep2 : csemantics2 := 
+  | Cstep2_skip : forall md d ccfg,
+      cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, ccfg_kill2 ccfg) []
   | Cstep_assign : forall md d ccfg x e v r',
       ccfg_com2 ccfg = Cassign2 x e ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) v ->
       r' = ccfg_update_reg2 ccfg x v ->
-      mode_alive md (ccfg_kill ccfg) ->
+      mode_alive2 md (ccfg_kill2 ccfg) ->
       cstep md d ccfg (r', ccfg_mem ccfg, ccfg_kill ccfg) []
   | Cstep_declassify : forall md d ccfg x e v r',
       ccfg_com2 ccfg = Cdeclassify2 x e ->
@@ -305,7 +323,6 @@ Section Semantics.
       ccfg_com2 ccfg = Ckill2 enc ->
       mode_alive (Encl enc) (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
-  *)
 End Semantics.
 (*
 (*******************************************************************************
