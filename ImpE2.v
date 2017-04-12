@@ -342,29 +342,42 @@ Section Semantics.
       estep2 md d (ccfg_to_ecfg2 e ccfg) (Vnat2 n) ->
       (n = 0) ->
       cstep2 md d (ccfg_update_com2 c2 ccfg) (r', m', k') tr ->
-      cstep2 md d ccfg (r', m', k') tr.
+      cstep2 md d ccfg (r', m', k') tr
   | Cstep2_if_div : forall md d ccfg e c1 c2 n1 n2 r1 m1 k1 t1 r2 m2 k2 t2,
       ccfg_com2 ccfg = Cif2 e c1 c2 ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) (Vpair2 (Vnat2 n1) (Vnat2 n2)) ->
-      ((~(n1 = 0) /\ cstep2 md d (r1, m1, k1) t1) \/ 
-      
+      let cleft := (match n1 with
+                    | 0 => c2
+                    | _ => c1 end) in
+      cstep2 md d (cleft, project_reg (ccfg_reg2 ccfg) true,
+                   project_mem (ccfg_mem2 ccfg) true, project_kill (ccfg_kill2 ccfg) true)
+             (r1, m1, k1) t1 ->
+      let cright := (match n2 with
+                     | 0 => c2
+                     | _ => c1 end) in
+      cstep2 md d (cright, project_reg (ccfg_reg2 ccfg) false,
+                   project_mem (ccfg_mem2 ccfg) false, project_kill (ccfg_kill2 ccfg) false)
+             (r2, m2, k2) t2 ->
+      cstep2 md d ccfg (merge_reg r1 r2, merge_mem m1 m2, merge_kill k1 k2) (merge_trace (t1, t2))
   | Cstep_while_t : forall md d ccfg e c v r m k tr r' m' k' tr',
       ccfg_com2 ccfg = Cwhile2 e c ->
-      estep2 md d (ccfg_to_ecfg e ccfg) v ->
-      ~(v = (Vnat 0)) ->
-      cstep md d (ccfg_update_com2 c ccfg) (r, m, k) tr ->
-      cstep md d (ccfg_update_com2 (Cwhile e c) ccfg) (r', m', k') tr' ->
-      cstep md d ccfg (r', m', k') (tr++tr')
+      estep2 md d (ccfg_to_ecfg2 e ccfg) v ->
+      ~(v = (Vnat2 0)) ->
+      cstep2 md d (ccfg_update_com2 c ccfg) (r, m, k) tr ->
+      cstep2 md d (ccfg_update_com2 (Cwhile2 e c) ccfg) (r', m', k') tr' ->
+      cstep2 md d ccfg (r', m', k') (tr++tr')
   | Cstep_while_f : forall md d ccfg e c,
       ccfg_com2 ccfg = Cwhile2 e c ->
-      estep2 md d (ccfg_to_ecfg e ccfg) (Vnat 0) ->
-      mode_alive md (ccfg_kill ccfg) ->
-      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
+      estep2 md d (ccfg_to_ecfg2 e ccfg) (Vnat2 0) ->
+      mode_alive2 md (ccfg_kill2 ccfg) ->
+      cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, ccfg_kill2 ccfg) []
+  (* XXX add in while-div and call-div *)
+  (* XXX: add in set add for pairs
   | Cstep_kill : forall md d ccfg enc,
       md = Normal ->
       ccfg_com2 ccfg = Ckill2 enc ->
-      mode_alive (Encl enc) (ccfg_kill ccfg) ->
-      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
+      mode_alive2 (Encl enc) (ccfg_kill2 ccfg) ->
+      cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, set_add Nat.eq_dec enc (ccfg_kill2 ccfg)) []*).
 End Semantics.
 (*
 (*******************************************************************************
