@@ -643,4 +643,22 @@ Section Security.
     tobs_sec_level L (overlap tr1 tobs) = tobs_sec_level L (overlap tr2 tobs).
       
 End Security.
-*)
+ *)
+
+(*******************************************************************************
+*
+* ADEQUACY
+*
+*******************************************************************************)
+Section Adequacy.
+  
+  (* XXX this theorem statement doesn't work because the projection functions return back
+     the xxx2 types for ImpE2 where we need the types for IMPE... *)
+Lemma impe2_sound : forall md d c r m K r' m' K' t,
+    cstep2 md d (c, r, m, K) (r', m', K') t ->
+    (cstep md d (c, project_reg r true, project_mem m true, project_kill K true)
+           (project_reg r' true, project_mem m' true, project_kill K' true) project_trace t true) /\
+    (cstep md d (c, project_reg r false, project_mem m false, project_kill K false)
+           (project_reg r' false, project_mem m' true, project_kill K' false) project_trace t false) *)
+  
+End Adequacy.
