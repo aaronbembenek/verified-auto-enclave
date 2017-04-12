@@ -24,10 +24,8 @@ Require Import ImpE.
 
 Section Syntax.
   Inductive val2 : Type :=
-  | Vlambda2 : mode -> com -> val2
-  | Vnat2 : nat -> val2
-  | Vloc2 : location -> val2
-  | Vpair2 : val2 -> val2 -> val2.
+  | VSingle: val -> val2
+  | VPair: val -> val -> val2.
 End Syntax.
 
 (*******************************************************************************
@@ -38,11 +36,11 @@ End Syntax.
 
 Section Semantics.
   Definition reg2 : Type := register val2.
-  Definition reg_init2 : reg2 := fun x => Vnat2 0.
+  Definition reg_init2 : reg2 := fun x => VSingle (Vnat 0).
   Definition mem2 : Type := memory val2.
   Inductive kill2 : Type :=
   | KSingle: set enclave -> kill2
-  | KPair: kill2 -> kill2 -> kill2.
+  | KPair: set enclave -> set enclave -> kill2.
 
   Inductive event2 : Type :=
   | Emp2 : event2
@@ -51,8 +49,9 @@ Section Semantics.
   | Out2 : sec_level -> val2 -> event2
   | ANonEnc2 : com -> event2
   | AEnc2 : forall c c' : com, enc_equiv c c' -> event2
-  | EPair2 : event2 -> event2 -> event2.
+  | EPair : event2 -> event2 -> event2.
   Definition trace2 : Type := list event2.
+
 
   (* Mode is only alive if it is alive in both of the kill sets in a pair *)
   (* XXX: not sure if this definition is right but it seems reasonable *)
@@ -63,7 +62,7 @@ Section Semantics.
     | Encl i =>
       match k with
       | KSingle ks => ~set_In i ks
-      | KPair ks1 ks2 => mode_alive2 md ks1 /\ mode_alive2 md ks2
+      | KPair ks1 ks2 => mode_alive md ks1 /\ mode_alive md ks2
       end
     end.
   
@@ -73,22 +72,16 @@ Section Semantics.
     | Normal => True
     | Encl _ => md = lmd /\ mode_alive2 lmd k
     end.
-
-  Definition val_to_val2 (v: val) : val2 :=
-    match v with
-    | Vnat n => Vnat2 n
-    | Vlambda md c => Vlambda2 md c
-    | Vloc l => Vloc2 l
-    end.
+  Definition val_to_val2 (v: val) : val2 := VSingle v.
   Definition mem_to_mem2 (m: mem) : mem2 := fun x => val_to_val2 (m x).
   Inductive merge_reg (r1 r2: reg) : reg2 -> Prop :=
   | rmerge : forall r,
-      (forall x, r1 x <> r2 x -> r x = Vpair2 (val_to_val2 (r1 x)) (val_to_val2 (r2 x)))
+      (forall x, r1 x <> r2 x -> r x = VPair (r1 x) (r2 x))
       -> (forall y, r1 y = r2 y -> r y = val_to_val2 (r1 y))
       -> merge_reg r1 r2 r.
   Inductive merge_mem (m1 m2: mem) : mem2 -> Prop :=
   | mmerge : forall m,
-      (forall x, m1 x <> m2 x -> m x = Vpair2 (val_to_val2 (m1 x)) (val_to_val2 (m2 x)))
+      (forall x, m1 x <> m2 x -> m x = VPair (m1 x) (m2 x))
       -> (forall y, m1 y = m2 y -> m y = val_to_val2 (m1 y))
       -> merge_mem m1 m2 m.
   Definition event_to_event2 (e: event) : event2 :=
@@ -103,40 +96,34 @@ Section Semantics.
   Definition tracepair_len (t: trace * trace) := length (fst t) + length (snd t).
   Function merge_trace (t: trace * trace) {measure tracepair_len t} : trace2 :=
     match fst t, snd t with
-    | a1::tl1, a2::tl2 => EPair2 (event_to_event2 a1)
+    | a1::tl1, a2::tl2 => EPair (event_to_event2 a1)
                                  (event_to_event2 a2) :: (merge_trace (tl1, tl2))
-    | a1::tl1, [] => EPair2 (event_to_event2 a1) Emp2 :: merge_trace (tl1, [])
-    | [], a2::tl2 => EPair2 Emp2 (event_to_event2 a2) :: merge_trace ([], tl2)
+    | a1::tl1, [] => EPair (event_to_event2 a1) Emp2 :: merge_trace (tl1, [])
+    | [], a2::tl2 => EPair Emp2 (event_to_event2 a2) :: merge_trace ([], tl2)
     | _, _ => []
     end.
   Proof. all: intros; unfold tracepair_len; rewrite teq, teq0; simpl; omega. Qed.
-  Definition merge_kill (k1 k2: set enclave) := KPair (KSingle k1) (KSingle k2).
+  Definition merge_kill (k1 k2: set enclave) := KPair k1 k2.
   
   Function project_value (v: val2) (is_left: bool): val :=
     match v with
       (* XXX pretty sure we can't have nested value pairs *)
-    | Vpair2 v1 v2 => if is_left then (project_value v1 is_left) else (project_value v2 is_left)
-    | Vnat2 v => Vnat v 
-    | Vlambda2 md c => Vlambda md c
-    | Vloc2 v => Vloc v
+    | VPair v1 v2 => if is_left then v1 else v2
+    | VSingle v => v
     end.
   Definition project_reg (r: reg2) (is_left : bool): reg :=
     fun x => match r x with
-             | Vpair2 v1 v2 => if is_left then project_value v1 is_left
-                               else project_value v2 is_left
-             | _ => project_value (r x) is_left
+             | VPair v1 v2 => if is_left then v1 else v2
+             | VSingle v => v
           end.
   Definition project_mem (m: mem2) (is_left : bool): mem :=
     fun x => match m x with
-             | Vpair2 v1 v2 => if is_left then project_value v1 is_left
-                               else project_value v2 is_left
-             | _ => project_value (m x) is_left
+             | VPair v1 v2 => if is_left then v1 else v2
+             | VSingle v => v
           end.
-  (* XXX again need to show that kill pairs are never nested *)
   Function project_kill (k: kill2) (is_left : bool) : set enclave :=
     match k with
-    | KPair ks1 ks2 => if is_left then project_kill ks1 is_left
-                       else project_kill ks2 is_left
+    | KPair ks1 ks2 => if is_left then ks1 else ks2
     | KSingle k => k
     end.
   (* XXX show event pairs are never nested *)
@@ -147,7 +134,7 @@ Section Semantics.
       | Out2 l v => Out l (project_value v is_left)
       | ANonEnc2 c => ANonEnc c
       | AEnc2 c1 c2 enc_equiv => AEnc c1 c2 enc_equiv
-      | EPair2 e1 e2 => if is_left then event2_to_event e1 is_left
+      | EPair e1 e2 => if is_left then event2_to_event e1 is_left
                         else event2_to_event e2 is_left
       | Emp2 => Emp
      end.
@@ -175,37 +162,38 @@ Section Semantics.
   Inductive estep2 : esemantics2 :=
   | Estep2_nat : forall md d ecfg n,
       ecfg_exp2 ecfg = Enat n ->
-      estep2 md d ecfg (Vnat2 n)
+      estep2 md d ecfg (VSingle (Vnat n))
   | Estep2_loc : forall md d ecfg l,
       ecfg_exp2 ecfg = Eloc l ->
-      estep2 md d ecfg (Vloc2 l)
+      estep2 md d ecfg (VSingle (Vloc l))
   | Estep2_lambda : forall md d ecfg c,
       ecfg_exp2 ecfg = Elambda md c ->
-      estep2 md d ecfg (Vlambda2 md c)
+      estep2 md d ecfg (VSingle (Vlambda md c))
   | Estep2_var : forall md d ecfg x v,
       ecfg_exp2 ecfg = Evar x ->
       ecfg_reg2 ecfg x = v ->
       estep2 md d ecfg v
   | Estep2_plus : forall md d ecfg e1 e2 n1 n2,
       ecfg_exp2 ecfg = Eplus e1 e2 ->
-      estep2 md d (ecfg_update_exp2 ecfg e1) (Vnat2 n1) ->
-      estep2 md d (ecfg_update_exp2 ecfg e2) (Vnat2 n2) ->
-      estep2 md d ecfg (Vnat2 (n1 + n2))
+      estep2 md d (ecfg_update_exp2 ecfg e1) (VSingle (Vnat n1)) ->
+      estep2 md d (ecfg_update_exp2 ecfg e2) (VSingle (Vnat n2)) ->
+      estep2 md d ecfg (VSingle (Vnat (n1 + n2)))
   | Estep2_mult : forall md d ecfg e1 e2 n1 n2,
       ecfg_exp2 ecfg = Emult e1 e2 ->
-      estep2 md d (ecfg_update_exp2 ecfg e1) (Vnat2 n1) ->
-      estep2 md d (ecfg_update_exp2 ecfg e2) (Vnat2 n2) ->
-      estep2 md d ecfg (Vnat2 (n1 * n2))
+      estep2 md d (ecfg_update_exp2 ecfg e1) (VSingle (Vnat n1)) ->
+      estep2 md d (ecfg_update_exp2 ecfg e2) (VSingle (Vnat n2)) ->
+      estep2 md d ecfg (VSingle (Vnat (n1 * n2)))
   | Estep2_deref : forall md d ecfg e r m k l v,
       ecfg = (Ederef e, r, m, k) ->
-      estep2 md d (e, r, m, k) (Vloc2 l) ->
+      estep2 md d (e, r, m, k) (VSingle (Vloc l)) ->
       m l = v ->
       mode_access_ok2 md d l k ->
       estep2 md d ecfg v
   | Estep2_isunset : forall md d ecfg cnd v res,
       ecfg_exp2 ecfg = Eisunset cnd ->
       estep2 md d (ecfg_update_exp2 ecfg (Ederef (Eloc (Cnd cnd)))) v ->
-      (v = Vnat2 0 /\ res = Vnat2 1) \/ (v <> Vnat2 0 /\ res = Vnat2 0) ->
+      (v = VSingle (Vnat 0) /\ res = VSingle (Vnat 1))
+      \/ (v <> VSingle (Vnat 0) /\ res = VSingle (Vnat 0)) ->
       estep2 md d ecfg res.
 
   (* Semantics for commands. *)
@@ -249,7 +237,7 @@ Section Semantics.
       cstep2 md d ccfg (r', ccfg_mem2 ccfg, ccfg_kill2 ccfg) [Decl2 e (ccfg_mem2 ccfg)]
   | Cstep2_update : forall md d ccfg e1 e2 l v m',
       ccfg_com2 ccfg = Cupdate e1 e2 ->
-      estep2 md d (ccfg_to_ecfg2 e1 ccfg) (Vloc2 l) ->
+      estep2 md d (ccfg_to_ecfg2 e1 ccfg) (VSingle (Vloc l)) ->
       estep2 md d (ccfg_to_ecfg2 e2 ccfg) v ->
       mode_alive2 md (ccfg_kill2 ccfg) ->
       mode_access_ok2 md d l (ccfg_kill2 ccfg) ->
@@ -265,13 +253,13 @@ Section Semantics.
             [Mem2 (ccfg_mem2 ccfg); Out2 sl v]
   | Cstep2_call : forall md d ccfg e c r' m' k' tr,
       ccfg_com2 ccfg = Ccall e ->
-      estep2 md d (ccfg_to_ecfg2 e ccfg) (Vlambda2 md c) ->
+      estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vlambda md c)) ->
       cstep2 md d (ccfg_update_com2 c ccfg) (r', m', k') tr ->
       cstep2 md d ccfg (r', m', k') tr
   | Cstep2_cset : forall md d ccfg c m',
       ccfg_com2 ccfg = Cset c ->
       mode_access_ok2 md d (Cnd c) (ccfg_kill2 ccfg) ->
-      m' = ccfg_update_mem2 ccfg (Cnd c) (Vnat2 1) ->
+      m' = ccfg_update_mem2 ccfg (Cnd c) (VSingle (Vnat 1)) ->
       mode_alive2 md (ccfg_kill2 ccfg) ->
       cstep2 md d ccfg (ccfg_reg2 ccfg, m', ccfg_kill2 ccfg) [Mem2 m']
   | Cstep2_enclave : forall md d ccfg enc c r' m' k' tr,
@@ -289,19 +277,19 @@ Section Semantics.
       cstep2 md d ccfg (r', m', k') (tr++tr')
   | Cstep2_if : forall md d ccfg e c1 c2 n r' m' k' tr,
       ccfg_com2 ccfg = Cif e c1 c2 ->
-      estep2 md d (ccfg_to_ecfg2 e ccfg) (Vnat2 n) ->
+      estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vnat n)) ->
       ~(n = 0) ->
       cstep2 md d (ccfg_update_com2 c1 ccfg) (r', m', k') tr ->
       cstep2 md d ccfg (r', m', k') tr
   | Cstep2_else : forall md d ccfg e c1 c2 n r' m' k' tr,
       ccfg_com2 ccfg = Cif e c1 c2 ->
-      estep2 md d (ccfg_to_ecfg2 e ccfg) (Vnat2 n) ->
+      estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vnat n)) ->
       (n = 0) ->
       cstep2 md d (ccfg_update_com2 c2 ccfg) (r', m', k') tr ->
       cstep2 md d ccfg (r', m', k') tr
   | Cstep2_if_div : forall md d ccfg e c1 c2 n1 n2 r1 m1 k1 t1 r2 m2 k2 t2 rmerge mmerge,
       ccfg_com2 ccfg = Cif e c1 c2 ->
-      estep2 md d (ccfg_to_ecfg2 e ccfg) (Vpair2 (Vnat2 n1) (Vnat2 n2)) ->
+      estep2 md d (ccfg_to_ecfg2 e ccfg) (VPair (Vnat n1) (Vnat n2)) ->
       let cleft := (match n1 with
                     | 0 => c2
                     | _ => c1 end) in
@@ -322,24 +310,24 @@ Section Semantics.
   | Cstep_while_t : forall md d ccfg e c v r m k tr r' m' k' tr',
       ccfg_com2 ccfg = Cwhile e c ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) v ->
-      ~(v = (Vnat2 0)) ->
+      ~(v = (VSingle (Vnat 0))) ->
       cstep2 md d (ccfg_update_com2 c ccfg) (r, m, k) tr ->
       cstep2 md d (ccfg_update_com2 (Cwhile e c) ccfg) (r', m', k') tr' ->
       cstep2 md d ccfg (r', m', k') (tr++tr')
   | Cstep_while_f : forall md d ccfg e c,
       ccfg_com2 ccfg = Cwhile e c ->
-      estep2 md d (ccfg_to_ecfg2 e ccfg) (Vnat2 0) ->
+      estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vnat 0)) ->
       mode_alive2 md (ccfg_kill2 ccfg) ->
-      cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, ccfg_kill2 ccfg) []
+      cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, ccfg_kill2 ccfg) [].
   (* XXX add in while-div and call-div *)
   (* XXX: add in set add for pairs
   | Cstep_kill : forall md d ccfg enc,
       md = Normal ->
       ccfg_com2 ccfg = Ckill enc ->
       mode_alive2 (Encl enc) (ccfg_kill2 ccfg) ->
-      cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, set_add Nat.eq_dec enc (ccfg_kill2 ccfg)) []*).
+      cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, set_add Nat.eq_dec enc (ccfg_kill2 ccfg)) []*)
 End Semantics.
-(*
+
 (*******************************************************************************
 *
 * TYPING
@@ -347,40 +335,33 @@ End Semantics.
 *******************************************************************************)
 
 Section Typing.
-  Inductive ref_type : Set :=
-  | Mut
-  | Immut.
-
   (* FIXME: we might want to change contexts to be defined in terms of
      finite maps instead of functions. *)
-  Inductive base_type : Type :=
-  | Tnat : base_type
-  | Tcond : mode -> base_type
-  | Tref : type -> mode -> ref_type -> base_type
-  | Tlambda (G: context) (k:set enclave) (u:set condition) (p: sec_policy)
-            (md: mode) (G': context) (k':set enclave) : base_type
+  Inductive base_type2 : Type :=
+  | TSingle : base_type -> base_type2
+  | TPair : base_type -> base_type -> base_type2
                            
-  with type : Type :=
-  | Typ : base_type -> sec_policy -> type
+  with type2 : Type :=
+  | Typ2 : base_type2 -> sec_policy -> type2
                                             
-  with context : Type :=
-  | Cntxt (var_cntxt: var -> option type)
-          (loc_cntxt: location -> option (type * ref_type)) : context.
+  with context2 : Type :=
+  | Cntxt (var_cntxt: var -> option type2)
+          (loc_cntxt: location -> option (type2 * ref_type)) : context2.
                                       
-  Definition var_context (G: context) : var -> option type :=
+  Definition var_context2 (G: context2) : var -> option type2 :=
     match G with Cntxt vc _ => vc end.
   
-  Definition loc_context (G: context) : location -> option (type * ref_type) :=
+  Definition loc_context2 (G: context2) : location -> option (type2 * ref_type) :=
     match G with Cntxt _ lc => lc end.
-
-  Inductive var_in_dom (G: context) : var -> type -> Prop :=
+(*
+  Inductive var_in_dom2 (G: context2) : var -> type -> Prop :=
   | Var_in_dom : forall x t,
-      var_context G x = Some t ->
+      var_contex2t G x = Some t ->
       var_in_dom G x t.
 
   Inductive loc_in_dom (G: context) : location -> type -> ref_type -> Prop :=
   | Loc_in_dom : forall l t rt,
-      loc_context G l = Some (t, rt) ->
+      loc_context2 G l = Some (t, rt) ->
       loc_in_dom G l t rt.
 
   Definition forall_var (G: context) (P: var -> type -> Prop) : Prop :=
@@ -579,7 +560,7 @@ Section Typing.
                     (forall t' rt', ~loc_in_dom Gp l t' rt') ->
                     loc_in_dom Gout l t rt) ->
       com2_type pc md G km u d (Ccall e) Gout kp.
-  
+  *)
 End Typing.
 
 Section Security.
@@ -590,7 +571,7 @@ Section Security.
       protected (ErasureP H cnd sl pf) S
   | erase_low: forall cnd S sl pf,
       set_In cnd S -> protected (ErasureP L cnd sl pf) S.
-      
+(*      
   Definition overlap (tr tobs: trace) :=
   | tobs is entirely contained in tr => tobs
   | tobs is after tr => empty
@@ -601,9 +582,9 @@ Section Security.
     cstep md d (c, reg_init, m1, k) (r', m', k') tr1 ->
     cstep md d (c, reg_init, m2, k) (r', m', k') tr2 ->
     tobs_sec_level L (overlap tr1 tobs) = tobs_sec_level L (overlap tr2 tobs).
-      
+  *)    
 End Security.
- *)
+
 
 (*******************************************************************************
 *
@@ -614,16 +595,18 @@ Section Adequacy.
 
   Definition not_pair_val (v : val2) : Prop :=
     match v with
-    | Vpair2 _ _ => False
+    | VPair _ _ => False
     | _ => True
     end.
-  
+  (* XXX This doesn't make sense any more? because vpairs are constructed only with vals and not val2s now*)
+  (*
   Definition no_nest_val (v : val2) : Prop :=
     match v with
-    | Vpair2 v1 v2 => (not_pair_val v1) /\ (not_pair_val v2)
+    | VPair v1 v2 => (not_pair_val v1) /\ (not_pair_val v2)
     | _ => True
     end.
 
+  (* XXX same with this? *)
   Definition kill_wf (k : kill2) : Prop :=
     match k with
     | KPair (KSingle _) (KSingle _) => True
@@ -631,12 +614,13 @@ Section Adequacy.
     | _ => False
     end.
 
+
   Definition reg_wf (r : reg2) : Prop :=
     forall x, no_nest_val (r x).
 
   Definition mem_wf (m : mem2) : Prop :=
     forall x, no_nest_val (m x).
-
+*)
   (* XXX: thought I needed this for exp_output_wf, didn't use it. Might still be useful...? *)
   Lemma estep2_deterministic : forall md d e r m k v1 v2,
     estep2 md d (e, r, m, k) v1 ->
@@ -662,7 +646,8 @@ Section Adequacy.
        apply IHestep2 in H4.
        destruct H1; destruct H5; destruct_conjs; subst; auto; congruence.
   Qed.      
-  
+
+  (*
   Lemma impe2_exp_output_wf : forall md d ecfg v,
       estep2 md d ecfg v ->
       mem_wf (ecfg_mem2 ecfg) ->
@@ -675,7 +660,7 @@ Section Adequacy.
     - rewrite H in H0; unfold mem_wf in H0; simpl in *; now rewrite <- H3.
     - destruct H3; destruct_conjs; subst; now simpl.
   Qed.
-      
+
   Lemma impe2_output_wf : forall md d ccfg r' m' K' t,
           reg_wf (ccfg_reg2 ccfg) ->
           mem_wf (ccfg_mem2 ccfg) ->
@@ -683,9 +668,7 @@ Section Adequacy.
           reg_wf r' /\ mem_wf m' /\ kill_wf K'.
   Proof.
   Admitted.
-
-  (* XXX this theorem statement doesn't work because the projection functions return back
-     the xxx2 types for ImpE2 where we need the types for IMPE... *)
+*)
   
   Lemma impe2_sound : forall md d c r m K r' m' K' t,
     cstep2 md d (c, r, m, K) (r', m', K') t ->
