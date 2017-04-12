@@ -146,6 +146,12 @@ Section Semantics.
   Proof. all: intros; unfold tracepair_len; rewrite teq, teq0; simpl; omega. Qed.
   Definition merge_kill (k1 k2: kill2) := KPair k1 k2.
 
+  Definition project_reg (r: reg2) : reg2 :=
+    fun x => match r x with
+             | Vpair2 v1 v2 => v1
+             | _ => r x
+             end.
+              
   Definition econfig2 : Type := exp2 * reg2 * mem2 * kill2.
   Definition ecfg_exp2 (ecfg: econfig2) : exp2 :=
     match ecfg with (e, _, _, _) => e end.
