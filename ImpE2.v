@@ -221,6 +221,7 @@ Section Semantics.
 
   Inductive cstep2 : csemantics2 := 
   | Cstep2_skip : forall md d ccfg,
+      ccfg_com2 ccfg = Cskip ->
       cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, ccfg_kill2 ccfg) []
   | Cstep2_assign : forall md d ccfg x e v r',
       ccfg_com2 ccfg = Cassign x e ->
@@ -326,6 +327,7 @@ Section Semantics.
       ccfg_com2 ccfg = Ckill enc ->
       mode_alive2 (Encl enc) (ccfg_kill2 ccfg) ->
       cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, set_add Nat.eq_dec enc (ccfg_kill2 ccfg)) []*)
+  Hint Constructors cstep2.
 End Semantics.
 
 (*******************************************************************************
@@ -679,6 +681,12 @@ Section Adequacy.
            (project_reg r' false, project_mem m' true, project_kill K' false)
            (project_trace t false)).
   Proof.
+    intros. split.
+    remember (c, r, m, K) as ccfg.
+    remember (r', m', K') as cterm.
+    induction H.
+    rewrite Heqccfg in H, Heqcterm. simpl in *. inversion Heqcterm; subst.
+    apply Cstep_skip.
   Admitted.
   
   
