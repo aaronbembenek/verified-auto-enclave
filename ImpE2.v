@@ -320,6 +320,30 @@ Section Semantics.
       mode_alive2 (Encl enc) (ccfg_kill2 ccfg) ->
       cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, set_add Nat.eq_dec enc (ccfg_kill2 ccfg)) []*)
   Hint Constructors cstep2.
+
+  Inductive imm_premise : Prop -> Prop -> Prop :=
+  | IPcall: forall md d e r m k r' m' k' tr c,
+      estep2 md d (e, r, m, k) (VSingle (Vlambda md c)) ->
+      cstep2 md d (c, r, m, k) (r', m', k') tr ->
+      imm_premise (cstep2 md d (c, r, m, k) (r', m', k') tr)
+                  (cstep2 md d (Ccall e, r, m, k) (r', m', k') tr)
+  | IPencl: forall d encl c r m k r' m' k' tr,
+      cstep2 (Encl encl) d (c, r, m, k) (r', m', k') tr ->
+      imm_premise (cstep2 (Encl encl) d (c, r, m, k) (r', m', k') tr)
+                  (cstep2 Normal d (Cenclave encl c, r, m, k) (r', m', k') tr)
+  | IPseq1: forall md d c rest r m k r' m' k' r'' m'' k'' tr tr',
+      cstep2 md d (c, r, m, k) (r', m', k') tr' ->
+      cstep2 md d (Cseq rest, r', m', k') (r'', m'', k'') tr ->
+      imm_premise (cstep2 md d (c, r, m, k) (r', m', k') tr)
+                  (cstep2 md d (Cseq (c :: rest), r, m, k) (r'', m'', k'')
+                          (tr' ++ tr))
+  | IPseq2: forall md d c rest r m k r' m' k' r'' m'' k'' tr tr',
+      cstep2 md d (c, r, m, k) (r', m', k') tr' ->
+      cstep2 md d (Cseq rest, r', m', k') (r'', m'', k'') tr ->
+      imm_premise (cstep2 md d (Cseq rest, r', m', k') (r'', m'', k'') tr)
+                  (cstep2 md d (Cseq (c :: rest), r, m, k) (r'', m'', k'')
+                          (tr' ++ tr))
+  (* TODO: IPif, IPelse, IPwhile_t, IPwhile_f *).
 End Semantics.
 
 (*******************************************************************************
