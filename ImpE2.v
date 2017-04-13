@@ -631,7 +631,29 @@ constructed only with vals and not val2s now*)
           reg_wf r' /\ mem_wf m' /\ kill_wf K'.
   Proof.
   Admitted.
-*)
+   *)
+
+  Lemma project_comm : forall r b x,
+      (project_reg r b) x = project_value (r x) b.
+  Proof.
+    intros; unfold project_reg; destruct (r x); auto.
+  Qed.
+
+  Lemma impe2_exp_sound : forall md d e r m K v,
+      estep2 md d (e, r, m, K) v ->
+      estep md d (e, project_reg r true, project_mem m true, project_kill K true)
+            (project_value v true) /\
+      estep md d (e, project_reg r false, project_mem m false, project_kill K false)
+            (project_value v false).
+  Proof.
+    intros.
+    remember (e, r, m, K) as ecfg in H.
+    induction H; try rewrite Heqecfg in H; simpl in *; try rewrite H.
+    1-3: split; constructor; simpl; auto.
+    - split; apply Estep_var with (x:=x); auto; subst; apply project_comm.
+    (* Inductive cases getting stuck *)
+    - split. apply Estep_plus with (e1:=e1) (e2:=e2); simpl; auto.
+      
   
   Lemma impe2_sound : forall md d c r m K r' m' K' t,
     cstep2 md d (c, r, m, K) (r', m', K') t ->
@@ -639,17 +661,16 @@ constructed only with vals and not val2s now*)
            (project_reg r' true, project_mem m' true, project_kill K' true)
            (project_trace t true)) /\
     (cstep md d (c, project_reg r false, project_mem m false, project_kill K false)
-           (project_reg r' false, project_mem m' true, project_kill K' false)
+           (project_reg r' false, project_mem m' false, project_kill K' false)
            (project_trace t false)).
   Proof.
-    intros. split.
+    intros.
     remember (c, r, m, K) as ccfg.
     remember (r', m', K') as cterm.
-    induction H.
-    rewrite Heqccfg in H, Heqcterm; simpl in *; inversion Heqcterm; subst.
-    apply Cstep_skip.
-    rewrite Heqccfg in H, Heqcterm; simpl in *; inversion Heqcterm; subst.
-    apply Cstep_assign.
+    induction H; try rewrite Heqccfg in H, Heqcterm; simpl in *.
+    - inversion Heqcterm; subst; split; constructor.
+    - inversion Heqcterm; subst. split. 
+    - rewrite Heqccfg in H.
   Admitted.
   
   
