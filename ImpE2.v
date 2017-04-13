@@ -509,8 +509,9 @@ constructed only with vals and not val2s now*)
             (project_value v false).
   Proof.
     intros.
-    remember (e, r, m, K) as ecfg in H.
-    induction H; try rewrite Heqecfg in H; simpl in *; try rewrite H.
+    remember (e, r, m, K) as ecfg.
+    generalize dependent e.
+    induction H; intros; try rewrite Heqecfg in H; simpl in *; try rewrite H.
     1-3: split; constructor; simpl; auto.
     - split; apply Estep_var with (x:=x); auto; subst; apply project_comm.
     (* Inductive cases getting stuck *)
