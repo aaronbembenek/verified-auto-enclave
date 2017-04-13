@@ -515,9 +515,29 @@ constructed only with vals and not val2s now*)
     1-3: split; constructor; simpl; auto.
     - split; apply Estep_var with (x:=x); auto; subst; apply project_comm.
     (* Inductive cases getting stuck *)
-    - split. apply Estep_plus with (e1:=e1) (e2:=e2); simpl; auto.
-  Admitted.
-  
+    - split; apply Estep_plus with (e1:=e1) (e2:=e2); simpl; auto; 
+        [apply (IHestep2_1 e1) | apply (IHestep2_2 e2) |
+        apply (IHestep2_1 e1) | apply (IHestep2_2 e2)];
+        rewrite Heqecfg; unfold ecfg_update_exp2; auto.
+    - split; apply Estep_mult with (e1:=e1) (e2:=e2); simpl; auto;
+        [apply (IHestep2_1 e1) | apply (IHestep2_2 e2) |
+        apply (IHestep2_1 e1) | apply (IHestep2_2 e2)];
+        rewrite Heqecfg; unfold ecfg_update_exp2; auto.
+    - inversion H; subst. split; 
+      [apply Estep_deref with (e:=e) (l:=l) (m:=project_mem m0 true)
+                                    (r:=project_reg r0 true)
+                                    (k:=project_kill k true); simpl; auto
+      |
+        apply Estep_deref with (e:=e) (l:=l) (m:=project_mem m0 false)
+                                    (r:=project_reg r0 false)
+                                    (k:=project_kill k false); simpl; auto].
+      1,3: apply (IHestep2 e); auto.
+      1,2: unfold mode_access_ok2 in H2; unfold mode_access_ok;
+           destruct (d l); auto; destruct H2; split; auto;
+             unfold mode_alive2 in H2; destruct k; auto; destruct H2; unfold project_kill; auto.
+
+  Admitted
+       
   Lemma impe2_sound : forall md d c r m K r' m' K' t,
     cstep2 md d (c, r, m, K) (r', m', K') t ->
     (cstep md d (c, project_reg r true, project_mem m true, project_kill K true)
