@@ -332,42 +332,43 @@ Section Preservation.
              (m0: mem2) (r: reg2) (m: mem2) (K: kill2) : Prop :=
     forall md,
       (forall x v1 v2 bt p,
-          (r x = VPair v1 v2 /\ (var_context G) x = Some (Typ bt p)) -> protected p S) /\
-      (forall l v1 v2 bt p rt,
+          (r x = VPair v1 v2 /\ (var_context G) x = Some (Typ bt p)) -> protected p S) 
+      /\ (forall l v1 v2 bt p rt,
           (m (Not_cnd l) = VPair v1 v2 /\ (loc_context G) (Not_cnd l) = Some (Typ bt p, rt))
-          -> protected p S) /\
-      (forall e v, set_In e H ->
+          -> protected p S)
+      /\ (forall e v, set_In e H ->
                  (estep2 md d (e, reg_init2, m0, K) v ->
-                  estep2 md d (e, r, m, K) v)) /\
-      project_kill K true = project_kill K false.
+                  estep2 md d (e, r, m, K) v))
+      /\ project_kill K true = project_kill K false.
 
   Definition cconfig2_ok (pc: sec_policy) (md: mode) (G: context) (U: set condition)
              (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2)
              (ccfg2: cconfig2) (G': context) (K': kill2) : Prop :=
-    (forall i, set_In i U -> (ccfg_mem2 ccfg2) (Cnd i) = VSingle (Vnat 0)) ->
+    (forall i, set_In i U -> (ccfg_mem2 ccfg2) (Cnd i) = VSingle (Vnat 0))
     (* unsure about this kill set thing.. pretty sure we can assume this from lemma 3 *)
-      com_type pc md G (project_kill (ccfg_kill2 ccfg2) true) U d
-               (ccfg_com2 ccfg2) G' (project_kill K' true) ->
-      (forall x v1 v2 bt p,
-          ((ccfg_reg2 ccfg2) x = VPair v1 v2
-          /\ (var_context G) x = Some (Typ bt p)) -> protected p S) ->
-      (forall l v1 v2 bt p rt,
-          ((ccfg_mem2 ccfg2) (Not_cnd l) = VPair v1 v2
-          /\ (loc_context G) (Not_cnd l) = Some (Typ bt p, rt)) -> protected p S) ->
-      (forall e v, set_In e H ->
+    /\  com_type pc md G (project_kill (ccfg_kill2 ccfg2) true) U d
+               (ccfg_com2 ccfg2) G' (project_kill K' true)
+    /\ (forall x v1 v2 bt p,
+           ((ccfg_reg2 ccfg2) x = VPair v1 v2
+            /\ (var_context G) x = Some (Typ bt p))
+           -> protected p S)
+      /\ (forall l v1 v2 bt p rt,
+             ((ccfg_mem2 ccfg2) (Not_cnd l) = VPair v1 v2
+              /\ (loc_context G) (Not_cnd l) = Some (Typ bt p, rt))
+             -> protected p S)
+      /\ (forall e v, set_In e H ->
                  (estep2 md d  (e, reg_init2, m0, ccfg_kill2 ccfg2) v ->
-                  estep2 md d (e, ccfg_reg2 ccfg2, ccfg_mem2 ccfg2, ccfg_kill2 ccfg2) v)) ->
-      project_kill (ccfg_kill2 ccfg2) true = project_kill (ccfg_kill2 ccfg2) false ->
-      True.
+                  estep2 md d (e, ccfg_reg2 ccfg2, ccfg_mem2 ccfg2, ccfg_kill2 ccfg2) v))
+      /\ project_kill (ccfg_kill2 ccfg2) true = project_kill (ccfg_kill2 ccfg2) false.
 
   Lemma impe2_final_config_preservation 
         (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2) :
       forall G' K' ccfg2 pc md U r' m' t,
-        (forall l e v, loc_in_exp e G l -> m0 l = VSingle v) -> *)
+        (forall l e v, loc_in_exp e G l -> m0 l = VSingle v) -> 
         context_wt G d ->
         cconfig2_ok pc md G U d S H m0 ccfg2 G' K' ->
         cstep2 md d ccfg2 (r', m', K') t ->
-        cterm2_ok G' S H m0 r' m' K'.
+        cterm2_ok G' d S H m0 r' m' K'.
   Proof.
   Admitted.
 
@@ -376,14 +377,14 @@ Section Preservation.
     forall pc md U c r m K G' K',
       context_wt G d ->
       cconfig2_ok pc md G U d S H m0 (c, r, m, K) G' K' ->
-      forall md' c' r' m' rfin' mfin' kfin' tfin' rfin mfin kfin tfin,
-        (* XXX not really sure how to express "is an intermediate premise" *)
-        (cstep2 md' d (c', r', m', K') (rfin', mfin', kfin') tfin' ->
-         cstep2 md d (c, r, m, K) (rfin, mfin, kfin) tfin) ->
+      forall mdmid cmid rmid mmid rmid' mmid' kmid' tmid rfin mfin kfin tfin,
+        imm_premise
+          (cstep2 mdmid d (cmid, rmid, mmid, K') (rfin', mfin', kmid') tmid)
+          (cstep2 md d (c, r, m, K) (rfin, mfin, kfin) tfin) ->
         (exists pcmid Gmid Gmid' Umid,
           policy_le pc pcmid ->
           Umid = [] \/ (forall i, In i U -> In i Umid) ->
-          cconfig2_ok pcmid md' Gmid Umid d S H m0 (c', r', m', K') Gmid' K').
+          cconfig2_ok pcmid mdmid Gmid Umid d S H m0 (cmid, rmid, mmid, K') Gmid' K').
   Proof.
   Admitted.
   
