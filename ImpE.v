@@ -29,8 +29,7 @@ Section Syntax.
   Inductive exp : Type :=
   | Enat : nat -> exp
   | Evar : var -> exp
-  | Eplus : exp -> exp -> exp
-  | Emult : exp -> exp -> exp
+  | Ebinop : exp -> exp -> (nat -> nat -> nat) -> exp
   | Eloc : location -> exp
   | Ederef : exp -> exp
   | Eisunset : condition -> exp
@@ -58,8 +57,7 @@ Section Syntax.
   Function forall_subexp (e: exp) (P: exp -> Prop) : Prop :=
     P e /\
     match e with
-    | Eplus e1 e2 => forall_subexp e1 P /\ forall_subexp e2 P
-    | Emult e1 e2 => forall_subexp e1 P /\ forall_subexp e2 P
+    | Ebinop e1 e2 _ => forall_subexp e1 P /\ forall_subexp e2 P
     | Ederef e' => forall_subexp e' P
     | Elambda _ c => forall_subexp' c P
     | _ => True
@@ -94,7 +92,7 @@ Section Syntax.
     end; [left; now subst | right; congruence].
 
   Lemma exp_decidable : forall e1 e2 : exp, {e1 = e2} + {e1 <> e2}.
-  Proof.
+  Proof. (*
     Print exp_ind.
     intro; induction e1; destruct e2; try (right; discriminate).
     1-2: auto_decide.
@@ -103,7 +101,7 @@ Section Syntax.
     destruct l, l0; try (right; discriminate); auto_decide.
     destruct IHe1 with (e2:=e2); [left; now subst | right; congruence].
     auto_decide.
-    (* Lambdas require that commands are decidable... :( *)
+    (* Lambdas require that commands are decidable... :( *)*)
     Admitted.
 
   (*FIXME: Ezra needs to come back and figure out how to prove that expressions
@@ -154,7 +152,7 @@ Section Enclave_Equiv.
   let chi_exp :=
       (fix chi_exp (e : exp) : set (mode * (com + exp)) :=
          match e with
-         | Eplus e1 e2 | Emult e1 e2 => set_union mode_prog_decidable (chi_exp e1) (chi_exp e2)
+         | Ebinop e1 e2 _ => set_union mode_prog_decidable (chi_exp e1) (chi_exp e2)
          | Ederef e1 => chi_exp e1
          | Elambda Normal c => chi c
          | Elambda m _ => set_add mode_prog_decidable (m, inr e) nil
@@ -236,16 +234,11 @@ Section Semantics.
       ecfg_exp ecfg = Evar x ->
       ecfg_reg ecfg x = v ->
       estep md d ecfg v
-  | Estep_plus : forall md d ecfg e1 e2 n1 n2,
-      ecfg_exp ecfg = Eplus e1 e2 ->
+  | Estep_binop : forall md d ecfg e1 e2 op n1 n2,
+      ecfg_exp ecfg = Ebinop e1 e2 op ->
       estep md d (ecfg_update_exp ecfg e1) (Vnat n1) ->
       estep md d (ecfg_update_exp ecfg e2) (Vnat n2) ->
-      estep md d ecfg (Vnat (n1 + n2))
-  | Estep_mult : forall md d ecfg e1 e2 n1 n2,
-      ecfg_exp ecfg = Emult e1 e2 ->
-      estep md d (ecfg_update_exp ecfg e1) (Vnat n1) ->
-      estep md d (ecfg_update_exp ecfg e2) (Vnat n2) ->
-      estep md d ecfg (Vnat (n1 * n2))
+      estep md d ecfg (Vnat (op n1 n2))
   | Estep_deref : forall md d ecfg e r m k l v,
       ecfg = (Ederef e, r, m, k) ->
       estep md d (e, r, m, k) (Vloc l) ->
@@ -516,14 +509,10 @@ Section Typing.
   | ETlambda : forall md g d c p k u g' k',
       com_type p md g k u d c g' k' ->
       exp_type md g d (Elambda md c) (Typ (Tlambda g k u p md g' k') (LevelP L))
-  | ETplus : forall md g d e1 e2 p q,
+  | ETbinop : forall md g d e1 e2 p q f,
       exp_type md g d e1 (Typ Tnat p) ->
       exp_type md g d e2 (Typ Tnat q) ->
-      exp_type md g d (Eplus e1 e2) (Typ Tnat (policy_join p q))
-  | ETmult : forall md g d e1 e2 p q,
-      exp_type md g d e1 (Typ Tnat p) ->
-      exp_type md g d e2 (Typ Tnat q) ->
-      exp_type md g d (Emult e1 e2) (Typ Tnat (policy_join p q))
+      exp_type md g d (Ebinop e1 e2 f) (Typ Tnat (policy_join p q))
 
   with com_type : sec_policy -> mode -> context -> set enclave ->
                   set condition -> loc_mode -> com ->

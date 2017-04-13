@@ -170,16 +170,11 @@ Section Semantics.
       ecfg_exp2 ecfg = Evar x ->
       ecfg_reg2 ecfg x = v ->
       estep2 md d ecfg v
-  | Estep2_plus : forall md d ecfg e1 e2 n1 n2,
-      ecfg_exp2 ecfg = Eplus e1 e2 ->
+  | Estep2_binop : forall md d ecfg e1 e2 n1 n2 op,
+      ecfg_exp2 ecfg = Ebinop e1 e2 op ->
       estep2 md d (ecfg_update_exp2 ecfg e1) (VSingle (Vnat n1)) ->
       estep2 md d (ecfg_update_exp2 ecfg e2) (VSingle (Vnat n2)) ->
-      estep2 md d ecfg (VSingle (Vnat (n1 + n2)))
-  | Estep2_mult : forall md d ecfg e1 e2 n1 n2,
-      ecfg_exp2 ecfg = Emult e1 e2 ->
-      estep2 md d (ecfg_update_exp2 ecfg e1) (VSingle (Vnat n1)) ->
-      estep2 md d (ecfg_update_exp2 ecfg e2) (VSingle (Vnat n2)) ->
-      estep2 md d ecfg (VSingle (Vnat (n1 * n2)))
+      estep2 md d ecfg (VSingle (Vnat (op n1 n2)))
   | Estep2_deref : forall md d ecfg e r m k l v,
       ecfg = (Ederef e, r, m, k) ->
       estep2 md d (e, r, m, k) (VSingle (Vloc l)) ->
@@ -456,20 +451,19 @@ constructed only with vals and not val2s now*)
     induction H; intros; destruct ecfg as [[[e' r'] m'] k']; simpl in *; try rewrite H in H0.
     1-3: inversion H0; subst; try discriminate; simpl in H1; congruence.
     inversion H1; subst; try discriminate; simpl in *; congruence.
-    1-2: rewrite H in H2; inversion H2; try discriminate; simpl in *;
-      assert (e1 = e0) by congruence; assert (e2 = e3) by congruence;
-        subst; apply IHestep2_1 in H4; apply IHestep2_2 in H5;
-          assert (n1 = n0) by congruence; assert (n2 = n3) by congruence; now subst.
+    - rewrite H in H2; inversion H2; try discriminate; simpl in *;
+        assert (e1 = e0) by congruence; assert (e2 = e3) by congruence;
+          subst; apply IHestep2_1 in H4; apply IHestep2_2 in H5; congruence.
     - rewrite H in H3; inversion H3; subst; try discriminate; simpl in *.
       assert (e0 = e1) by congruence.
       assert (r0 = r1) by congruence.
       assert (m0 = m1) by congruence.
       assert (k0 = k1) by congruence.
       subst. apply IHestep2 in H5. assert (l = l0) by congruence; now subst.
-    -  rewrite H in H2; inversion H2; subst; try discriminate; simpl in *.
-       assert (cnd = cnd0) by congruence; subst.
-       apply IHestep2 in H4.
-       destruct H1; destruct H5; destruct_conjs; subst; auto; congruence.
+    - rewrite H in H2; inversion H2; subst; try discriminate; simpl in *.
+      assert (cnd = cnd0) by congruence; subst.
+      apply IHestep2 in H4.
+      destruct H1; destruct H5; destruct_conjs; subst; auto; congruence.
   Qed.      
 
   (*
@@ -515,7 +509,7 @@ constructed only with vals and not val2s now*)
     1-3: split; constructor; simpl; auto.
     - split; apply Estep_var with (x:=x); auto; subst; apply project_comm.
     (* Inductive cases getting stuck *)
-    - split. apply Estep_plus with (e1:=e1) (e2:=e2); simpl; auto.
+    - split. apply Estep_binop with (e1:=e1) (e2:=e2); simpl; auto.
   Admitted.
   
   Lemma impe2_sound : forall md d c r m K r' m' K' t,
@@ -534,6 +528,5 @@ constructed only with vals and not val2s now*)
     - inversion Heqcterm; subst; split; constructor.
     - inversion Heqcterm; subst. split; admit.
   Admitted.
-  
   
 End Adequacy.
