@@ -483,6 +483,13 @@ Section Typing.
                        | _ => True
                        end).
 
+  Definition loc_in_exp (e: exp) (G: context) (l: location) : Prop :=
+    forall_subexp e (fun e =>
+                       match e with
+                       | Eloc l => True
+                       | _ => False
+                       end).
+
   (* FIXME: don't have subsumption rule *)
   Inductive exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
   | ETnat : forall md g d n,
