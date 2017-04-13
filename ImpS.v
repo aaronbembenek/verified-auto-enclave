@@ -16,8 +16,7 @@ Section Syntax.
   Inductive exp : Type :=
   | Enat : nat -> exp
   | Evar : var -> exp
-  | Eplus : exp -> exp -> exp
-  | Emult : exp -> exp -> exp
+  | Ebinop : exp -> exp -> (nat -> nat -> nat) -> exp
   | Eloc : location -> exp
   | Ederef : exp -> exp
   | Eisunset : condition -> exp
@@ -43,8 +42,7 @@ Section Syntax.
   Function exp_novars (e : exp) : Prop :=
     match e with
     | Evar _ => False
-    | Eplus e1 e2 => exp_novars e1 /\ exp_novars e2
-    | Emult e1 e2 => exp_novars e1 /\ exp_novars e2
+    | Ebinop e1 e2 _ => exp_novars e1 /\ exp_novars e2
     | Ederef e => exp_novars e
     | Elambda c => com_novars c
     | _ => True
@@ -94,16 +92,11 @@ Section Semantics.
       ecfg_exp ecfg = Elambda c -> estep ecfg (Vlambda c)
   | Estep_var : forall x v,
       ecfg_exp ecfg = Evar x -> ecfg_reg ecfg x = v -> estep ecfg v
-  | Estep_plus : forall e1 e2 n1 n2,
-      ecfg_exp ecfg = Eplus e1 e2 ->
+  | Estep_binop : forall e1 e2 n1 n2 op,
+      ecfg_exp ecfg = Ebinop e1 e2 op ->
       estep (ecfg_update_exp ecfg e1) (Vnat n1) ->
       estep (ecfg_update_exp ecfg e2) (Vnat n2) ->
-      estep ecfg (Vnat (n1 + n2))
-  | Estep_mult : forall e1 e2 n1 n2,
-      ecfg_exp ecfg = Emult e1 e2 ->
-      estep (ecfg_update_exp ecfg e1) (Vnat n1) ->
-      estep (ecfg_update_exp ecfg e2) (Vnat n2) ->
-      estep ecfg (Vnat (n1 * n2))
+      estep ecfg (Vnat (op n1 n2))
   | Estep_deref : forall e r m l v,
       ecfg = (Ederef e, r, m) ->
       estep (e, r, m) (Vloc l) ->
