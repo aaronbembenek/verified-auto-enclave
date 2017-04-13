@@ -329,180 +329,11 @@ End Semantics.
 
 (*******************************************************************************
 *
-* TYPING
+* Preservation
 *
 *******************************************************************************)
-
-Section Typing.
-
-  (* XXX: I *think* that we probably don't need to redefine all types. 
-we can use the same typing rules, but need to add the well-formed configs for 
-commands and values (in section Security below). There is some unfortunate business
-with kill sets inside functions needing to be kill2... will need to think
-about this a bit more *)
-  (* FIXME: don't have subsumption rule *)
-  Inductive exp_type2 : mode -> context -> loc_mode -> exp -> type -> Prop :=
-  | ETnat2 : forall md g d n,
-      exp_type2 md g d (Enat n) (Typ Tnat (LevelP L))
-  | ETvar2 : forall md g d x t,
-      var_context g x = Some t -> exp_type2 md g d (Evar x) t
-  | ETcnd2 : forall md g d a md',
-      let l := Cnd a in
-      d l = md' ->
-      exp_type2 md g d (Eloc l) (Typ (Tcond md') (LevelP L))
-  | ETloc2 : forall md g d a md' t rt,
-      let l := Not_cnd a in
-      d l = md' ->
-      loc_context g l = Some (t, rt) ->
-      exp_type2 md g d (Eloc l) (Typ (Tref t md' rt) (LevelP L))
-  | ETderef2 : forall md g d e md' s p rt q,
-      exp_type md g d e (Typ (Tref (Typ s p) md' rt) q) ->
-      md' = Normal \/ md' = md ->
-      exp_type2 md g d (Ederef e) (Typ s (policy_join p q))
-  | ETunset2 : forall md g d cnd md',
-      md' = d (Cnd cnd) ->
-      md' = Normal \/ md' = md ->
-      exp_type2 md g d (Eisunset cnd) (Typ Tnat (LevelP L))
-  (* kill2 problem here too *)
-                (*
-  | ETlambda2 : forall md g d c p k u g' k',
-      com_type2 p md g k u d c g' k' ->
-      exp_type2 md g d (Elambda md c) (Typ (Tlambda g k u p md g' k') (LevelP L)) *)
-  | ETplus2 : forall md g d e1 e2 p q,
-      exp_type2 md g d e1 (Typ Tnat p) ->
-      exp_type2 md g d e2 (Typ Tnat q) ->
-      exp_type2 md g d (Eplus e1 e2) (Typ Tnat (policy_join p q))
-  | ETmult2 : forall md g d e1 e2 p q,
-      exp_type2 md g d e1 (Typ Tnat p) ->
-      exp_type2 md g d e2 (Typ Tnat q) ->
-      exp_type2 md g d (Emult e1 e2) (Typ Tnat (policy_join p q))
-
-  with com_type2 : sec_policy -> mode -> context -> kill2 ->
-                  set condition -> loc_mode -> com ->
-                  context -> kill2 -> Prop :=
-  | CTskip2 : forall pc md g d k u,
-      mode_alive2 md k ->
-      com_type2 pc md g k u d Cskip g k
-  | CTkillsingle2 : forall i g d k u,
-      mode_alive2 (Encl i) (KSingle k) ->
-      com_type2 (LevelP L) Normal g (KSingle k) u d (Ckill i) g (KSingle (set_add Nat.eq_dec i k))
-  | CTkillpair2 : forall i g d k1 k2 u,
-      mode_alive2 (Encl i) (KPair k1 k2) ->
-      com_type2 (LevelP L) Normal g (KPair k1 k2) u d (Ckill i) g
-                (KPair (set_add Nat.eq_dec i k1) (set_add Nat.eq_dec i k2))
-  | CTassign2 : forall pc md g k u d x e s p q vc lc vc',
-      exp_type md g d e (Typ s p) ->
-      q = policy_join p pc ->
-      q <> LevelP T ->
-      policy_le q (LevelP L) \/ md <> Normal ->
-      mode_alive2 md k ->
-      g = Cntxt vc lc ->
-      vc' = (fun y => if y =? x then Some (Typ s q) else vc y) ->
-      com_type2 pc md g k u d (Cassign x e) (Cntxt vc' lc) k
-  | CTdeclassify2 : forall md g k u d x e s p vc lc vc',
-      exp_type2 md g d e (Typ s p) ->
-      p <> LevelP T ->
-      mode_alive2 md k ->
-      exp_novars e ->
-      all_loc_immutable e g ->
-      vc' = (fun y => if y =? x then Some (Typ s (LevelP L)) else vc y) ->
-      com_type2 (LevelP L) md g k u d (Cdeclassify x e) (Cntxt vc' lc) k
-  | CToutput2 : forall pc md g k u d e l s p,
-      exp_type md g d e (Typ s p) ->
-      mode_alive2 md k ->
-      p <> LevelP T ->
-      sec_level_le (sec_level_join (cur p u) (cur pc u)) l ->
-      com_type2 pc md g k u d (Coutput e l) g k
-  | CTupdate2 : forall pc md g k u d e1 e2 s p md' q p',
-      exp_type md g d e1 (Typ (Tref (Typ s p) md' Mut) q) ->
-      exp_type md g d e2 (Typ s p') ->
-      policy_le (policy_join (policy_join p' q) pc) p ->
-      md' = Normal \/ md' = md ->
-      mode_alive2 md k ->
-      p <> LevelP T ->
-      p' <> LevelP T ->
-      q <> LevelP T ->
-      com_type2 pc md g k u d (Cupdate e1 e2) g k
-  | Tset2 : forall md g k u d cnd md',
-      md' = d (Cnd cnd) ->
-      ~set_In cnd u ->
-      md' = Normal \/ md' = md ->
-      mode_alive2 md k ->
-      com_type2 (LevelP L) md g k u d (Cset cnd) g k
-  | Tifunset2 : forall pc md g k u d cnd c1 c2 g' k',
-      exp_type md g d (Eisunset cnd) (Typ Tnat (LevelP L)) ->
-      com_type2 pc md g k (set_add Nat.eq_dec cnd u) d c1 g' k' ->
-      com_type2 pc md g k u d c2 g' k' ->
-      com_type2 pc md g k u d (Cif (Eisunset cnd) c1 c2) g' k'
-  | Tifelse2 : forall pc md g k u d e c1 c2 pc' p g' k',
-      ~(exists cnd, e = Eisunset cnd) ->
-      com_type2 pc' md g k u d c1 g' k' ->
-      com_type2 pc' md g k u d c2 g' k' ->
-      exp_type2 md g d e (Typ Tnat p) ->
-      policy_le (policy_join pc p) pc' ->
-      policy_le p (LevelP L) \/ md <> Normal ->
-      p <> LevelP T ->
-      com_type2 pc md g k u d (Cif e c1 c2) g' k'
-  | Tenclave2 : forall pc g k u d c i c' g' k',
-      c = Cenclave i c' ->
-      com_type2 pc (Encl i) g k nil d c' g' k' ->
-      is_var_low_context g' ->
-      com_type2 pc Normal g k u d c g' k'
-  | Twhile2 : forall pc md g k u d c e p pc',
-      exp_type2 md g d e (Typ Tnat p) ->
-      com_type2 pc' md g k u d c g k ->
-      policy_le (policy_join pc p) pc' ->
-      policy_le p (LevelP L) \/ md <> Normal ->
-      p <> LevelP T ->
-      com_type2 pc md g k u d (Cwhile e c) g k
-  | Tseq2 : forall pc md g k u d c rest g' k' gn kn,
-      com_type2 pc md g k u d c g' k' ->
-      com_type2 pc md g' k' u d (Cseq rest) gn kn ->
-      com_type2 pc md g k u d (Cseq (c :: rest)) gn kn
-  | Tseqnil2 : forall pc md g k u d,
-      com_type2 pc md g k u d (Cseq []) g k.
-  (* XXX km and kp need to be kill2, not set enclave... *)
-                (*
-  | Tcall2 : forall pc md G u d e Gm km Gp kp Gout q p,
-      exp_type2 md G d e (Typ (Tlambda Gm km u p md Gp kp) q) ->
-      policy_le (policy_join pc q) p ->
-      q <> LevelP T ->
-      u = nil \/ md <> Normal ->
-      forall_dom Gm
-                 (fun x t => exists t', var_in_dom G x t' /\ type_le t' t)
-                 (fun l t rt => exists t',
-                      loc_in_dom G l t' rt /\ type_le t' t) ->
-      forall_dom Gp
-                 (fun x t => exists t', var_in_dom Gout x t' /\ type_le t' t)
-                 (fun l t rt => exists t',
-                      loc_in_dom Gout l t' rt /\ type_le t' t) ->
-      forall_dom G
-                 (fun x t =>
-                    (forall t', ~var_in_dom Gp x t') ->
-                    var_in_dom Gout x t)
-                 (fun l t rt =>
-                    (forall t' rt', ~loc_in_dom Gp l t' rt') ->
-                    loc_in_dom Gout l t rt) ->
-      com_type2 pc md G km u d (Ccall e) Gout kp.*)
-  
-End Typing.
-
-
-(*******************************************************************************
-*
-* Security
-*
-*******************************************************************************)
-Section Security.
-  Inductive protected : sec_policy -> set condition -> Prop :=
-  | level_high: forall S, protected (LevelP H) S
-  | level_top: forall S, protected (LevelP T) S
-  | erase_high: forall cnd S sl pf,
-      protected (ErasureP H cnd sl pf) S
-  | erase_low: forall cnd S sl pf,
-      set_In cnd S -> protected (ErasureP L cnd sl pf) S.
-
-  Definition val2config_wt (G: context) (S: set condition) (H: set esc_hatch) (m0: mem2)
+Section Preservation.
+  Definition cterm2_ok (G: context) (S: set condition) (H: set esc_hatch) (m0: mem2) 
              (r: reg2) (m: mem2) (K: kill2) : Prop :=
     forall md d,
       (forall x v1 v2 bt p,
@@ -516,11 +347,13 @@ Section Security.
       project_kill K true = project_kill K false ->
       True.
 
-  Definition cconfig2_wt (pc: sec_policy) (md: mode) (G: context) (U: set condition)
+  Definition cconfig2_ok (pc: sec_policy) (md: mode) (G: context) (U: set condition)
              (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2)
              (ccfg2: cconfig2) (G': context) (K': kill2) : Prop :=
-      (forall i, set_In i U -> (ccfg_mem2 ccfg2) (Cnd i) = VSingle (Vnat 0)) ->
-      com_type2 pc md G (ccfg_kill2 ccfg2) U d (ccfg_com2 ccfg2) G' K' ->
+    (forall i, set_In i U -> (ccfg_mem2 ccfg2) (Cnd i) = VSingle (Vnat 0)) ->
+    (* unsure about this kill set thing.. pretty sure we can assume this from lemma 3 *)
+      com_type pc md G (project_kill (ccfg_kill2 ccfg2) true) U d
+               (ccfg_com2 ccfg2) G' (project_kill K' true) ->
       (forall x v1 v2 bt p,
           ((ccfg_reg2 ccfg2) x = VPair v1 v2
           /\ (var_context G) x = Some (Typ bt p)) -> protected p S) ->
@@ -532,7 +365,36 @@ Section Security.
                   estep2 md d (e, ccfg_reg2 ccfg2, ccfg_mem2 ccfg2, ccfg_kill2 ccfg2) v)) ->
       project_kill (ccfg_kill2 ccfg2) true = project_kill (ccfg_kill2 ccfg2) false ->
       True.
-              
+
+  Lemma impe2_final_config_preservation 
+        (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2) :
+      forall G' K' ccfg2 pc md U r' m' t,
+        (* XXX ...what does "locations(e)" mean?? 
+        (forall l e v, loc_in_exp l e -> m0 l = VSingle v) -> *)
+        context_wt G d ->
+        cconfig2_ok pc md G U d S H m0 ccfg2 G' K' ->
+        cstep2 md d ccfg2 (r', m', K') t ->
+        cterm2_ok G' S H m0 r' m' K'.
+  Proof.
+  Admitted.
+
+  Lemma impe2_type_preservation
+        (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2) :
+    forall pc md U c r m K G' K',
+      context_wt G d ->
+      cconfig2_ok pc md G U d S H m0 (c, r, m, K) G' K' ->
+      forall md' c' r' m' rfin' mfin' kfin' tfin' rfin mfin kfin tfin,
+        (* XXX not really sure how to express "is an intermediate premise" *)
+        (cstep2 md' d (c', r', m', K') (rfin', mfin', kfin') tfin' ->
+         cstep2 md d (c, r, m, K) (rfin, mfin, kfin) tfin) ->
+        (exists pcmid Gmid Gmid' Umid,
+          policy_le pc pcmid ->
+          Umid = [] \/ (forall i, In i U -> In i Umid) ->
+          cconfig2_ok pcmid md' Gmid Umid d S H m0 (c', r', m', K') Gmid' K').
+  Proof.
+  Admitted.
+  
+ 
 (*      
   Definition overlap (tr tobs: trace) :=
   | tobs is entirely contained in tr => tobs
@@ -545,7 +407,7 @@ Section Security.
     cstep md d (c, reg_init, m2, k) (r', m', k') tr2 ->
     tobs_sec_level L (overlap tr1 tobs) = tobs_sec_level L (overlap tr2 tobs).
   *)    
-End Security.
+End Preservation.
 
 
 (*******************************************************************************
@@ -653,7 +515,7 @@ constructed only with vals and not val2s now*)
     - split; apply Estep_var with (x:=x); auto; subst; apply project_comm.
     (* Inductive cases getting stuck *)
     - split. apply Estep_plus with (e1:=e1) (e2:=e2); simpl; auto.
-      
+  Admitted.
   
   Lemma impe2_sound : forall md d c r m K r' m' K' t,
     cstep2 md d (c, r, m, K) (r', m', K') t ->
@@ -669,8 +531,7 @@ constructed only with vals and not val2s now*)
     remember (r', m', K') as cterm.
     induction H; try rewrite Heqccfg in H, Heqcterm; simpl in *.
     - inversion Heqcterm; subst; split; constructor.
-    - inversion Heqcterm; subst. split. 
-    - rewrite Heqccfg in H.
+    - inversion Heqcterm; subst. split; admit.
   Admitted.
   
   
