@@ -328,19 +328,18 @@ End Semantics.
 *
 *******************************************************************************)
 Section Preservation.
-  Definition cterm2_ok (G: context) (S: set condition) (H: set esc_hatch) (m0: mem2) 
-             (r: reg2) (m: mem2) (K: kill2) : Prop :=
-    forall md d,
+  Definition cterm2_ok (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch)
+             (m0: mem2) (r: reg2) (m: mem2) (K: kill2) : Prop :=
+    forall md,
       (forall x v1 v2 bt p,
-          (r x = VPair v1 v2 /\ (var_context G) x = Some (Typ bt p)) -> protected p S) ->
+          (r x = VPair v1 v2 /\ (var_context G) x = Some (Typ bt p)) -> protected p S) /\
       (forall l v1 v2 bt p rt,
           (m (Not_cnd l) = VPair v1 v2 /\ (loc_context G) (Not_cnd l) = Some (Typ bt p, rt))
-          -> protected p S) ->
+          -> protected p S) /\
       (forall e v, set_In e H ->
                  (estep2 md d (e, reg_init2, m0, K) v ->
-                  estep2 md d (e, r, m, K) v)) ->
-      project_kill K true = project_kill K false ->
-      True.
+                  estep2 md d (e, r, m, K) v)) /\
+      project_kill K true = project_kill K false.
 
   Definition cconfig2_ok (pc: sec_policy) (md: mode) (G: context) (U: set condition)
              (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2)
