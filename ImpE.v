@@ -257,6 +257,7 @@ Section Semantics.
       estep md d (ecfg_update_exp ecfg (Ederef (Eloc (Cnd cnd)))) v ->
       (v = Vnat 0 /\ res = Vnat 1) \/ (v <> Vnat 0 /\ res = Vnat 0) ->
       estep md d ecfg res.
+  Hint Constructors estep.
 
   (* Semantics for commands. *)
   Definition cconfig : Type := com * reg * mem * set enclave.
@@ -365,6 +366,7 @@ Section Semantics.
       ccfg_com ccfg = Ckill enc ->
       mode_alive (Encl enc) (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
+  Hint Constructors cstep.
 
   Inductive cstep_n_chaos : csemantics :=
   | Nchaos_cstep : forall md d ccfg cterm t,
