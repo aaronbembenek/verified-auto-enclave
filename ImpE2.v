@@ -363,8 +363,7 @@ Section Preservation.
   Lemma impe2_final_config_preservation 
         (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2) :
       forall G' K' ccfg2 pc md U r' m' t,
-        (* XXX ...what does "locations(e)" mean?? 
-        (forall l e v, loc_in_exp l e -> m0 l = VSingle v) -> *)
+        (forall l e v, loc_in_exp e G l -> m0 l = VSingle v) -> *)
         context_wt G d ->
         cconfig2_ok pc md G U d S H m0 ccfg2 G' K' ->
         cstep2 md d ccfg2 (r', m', K') t ->
