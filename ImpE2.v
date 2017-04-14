@@ -334,7 +334,7 @@ Section Semantics.
   | IPseq1: forall md d c rest r m k r' m' k' r'' m'' k'' tr tr',
       cstep2 md d (c, r, m, k) (r', m', k') tr' ->
       cstep2 md d (Cseq rest, r', m', k') (r'', m'', k'') tr ->
-      imm_premise (cstep2 md d (c, r, m, k) (r', m', k') tr)
+      imm_premise (cstep2 md d (c, r, m, k) (r', m', k') tr')
                   (cstep2 md d (Cseq (c :: rest), r, m, k) (r'', m'', k'')
                           (tr' ++ tr))
   | IPseq2: forall md d c rest r m k r' m' k' r'' m'' k'' tr tr',
@@ -343,15 +343,62 @@ Section Semantics.
       imm_premise (cstep2 md d (Cseq rest, r', m', k') (r'', m'', k'') tr)
                   (cstep2 md d (Cseq (c :: rest), r, m, k) (r'', m'', k'')
                           (tr' ++ tr))
-  (* TODO: IPif, IPelse, IPwhile_t, IPwhile_f *).
-End Semantics.
-
-(*******************************************************************************
-*
-* Preservation
-*
-*******************************************************************************)
-Section Preservation.
+  | IPif: forall md d c1 c2 e r m k r' m' k' tr tr',
+      estep2 md d (e, r, m, k) (VSingle (Vnat 1)) ->
+      cstep2 md d (c1, r, m, k) (r', m', k') tr' ->
+      cstep2 md d (Cif e c1 c2, r, m, k) (r', m', k') tr ->
+      imm_premise (cstep2 md d (c1, r, m, k) (r', m', k') tr)
+                  (cstep2 md d (Cif e c1 c2, r, m, k) (r', m', k')
+                          (tr' ++ tr))
+  | IPelse: forall md d c1 c2 e r m k r' m' k' tr tr',
+      estep2 md d (e, r, m, k) (VSingle (Vnat 0)) ->
+      cstep2 md d (c2, r, m, k) (r', m', k') tr' ->
+      cstep2 md d (Cif e c1 c2, r, m, k) (r', m', k') tr ->
+      imm_premise (cstep2 md d (c2, r, m, k) (r', m', k') tr)
+                  (cstep2 md d (Cif e c1 c2, r, m, k) (r', m', k')
+                          (tr' ++ tr))
+  | IPwhilet1: forall md d c e r m k r' m' k' r'' m'' k'' tr tr',
+      estep2 md d (e, r, m, k) (VSingle (Vnat 1)) ->
+      cstep2 md d (c, r, m, k) (r', m', k') tr' ->
+      cstep2 md d (Cwhile e c, r', m', k') (r'', m'', k'') tr ->
+      imm_premise (cstep2 md d (c, r, m, k) (r'', m'', k'') tr')
+                  (cstep2 md d (Cwhile e c, r, m, k) (r'', m'', k'')
+                          (tr' ++ tr))
+  | IPwhilet2: forall md d c e r m k r' m' k' r'' m'' k'' tr tr',
+      estep2 md d (e, r, m, k) (VSingle (Vnat 1)) ->
+      cstep2 md d (c, r, m, k) (r', m', k') tr' ->
+      cstep2 md d (Cwhile e c, r', m', k') (r'', m'', k'') tr ->
+      imm_premise (cstep2 md d (Cwhile e c, r', m', k') (r'', m'', k'') tr)
+                  (cstep2 md d (Cwhile e c, r, m, k) (r'', m'', k'')
+                          (tr' ++ tr))
+  | IPif_div: forall md d e c1 c2 n1 n2 r m k r1 m1 k1 t1 r2 m2 k2 t2 rmerge mmerge,
+      estep2 md d (e, r, m, k) (VPair (Vnat 0) (Vnat n2)) ->
+      let cleft := (match n1 with
+                    | 0 => c2
+                    | _ => c1 end) in
+      cstep md d (cleft, project_reg r true,
+                  project_mem m true,
+                  project_kill k true)
+             (r1, m1, k1) t1 ->
+      let cright := (match n2 with
+                     | 0 => c2
+                     | _ => c1 end) in
+      cstep md d (cright, project_reg r false,
+                  project_mem m false,
+                  project_kill k false)
+            (r2, m2, k2) t2 ->
+      merge_reg r1 r2 rmerge ->
+      merge_mem m1 m2 mmerge ->
+      imm_premise (cstep md d (cleft, project_reg r true,
+                  project_mem m true,
+                  project_kill k true)
+                         (r1, m1, k1) t1)
+                  (cstep2 md d (Cif e c1 c2, r, m, k) (rmerge, mmerge, merge_kill k1 k2)
+                          (merge_trace (t1, t2)))
+  (* XXX TODO while-div, call-div *)
+  .
+  Hint Constructors imm_premise.
+  
   Definition cterm2_ok (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch)
              (m0: mem2) (r: reg2) (m: mem2) (K: kill2) : Prop :=
     forall md,
@@ -376,14 +423,14 @@ Section Preservation.
            ((ccfg_reg2 ccfg2) x = VPair v1 v2
             /\ (var_context G) x = Some (Typ bt p))
            -> protected p S)
-      /\ (forall l v1 v2 bt p rt,
-             ((ccfg_mem2 ccfg2) (Not_cnd l) = VPair v1 v2
-              /\ (loc_context G) (Not_cnd l) = Some (Typ bt p, rt))
-             -> protected p S)
-      /\ (forall e v, set_In e H ->
-                 (estep2 md d  (e, reg_init2, m0, ccfg_kill2 ccfg2) v ->
-                  estep2 md d (e, ccfg_reg2 ccfg2, ccfg_mem2 ccfg2, ccfg_kill2 ccfg2) v))
-      /\ project_kill (ccfg_kill2 ccfg2) true = project_kill (ccfg_kill2 ccfg2) false.
+    /\ (forall l v1 v2 bt p rt,
+           ((ccfg_mem2 ccfg2) (Not_cnd l) = VPair v1 v2
+            /\ (loc_context G) (Not_cnd l) = Some (Typ bt p, rt))    
+           -> protected p S)
+    /\ (forall e v, set_In e H ->
+                    (estep2 md d  (e, reg_init2, m0, ccfg_kill2 ccfg2) v ->
+                     estep2 md d (e, ccfg_reg2 ccfg2, ccfg_mem2 ccfg2, ccfg_kill2 ccfg2) v))
+    /\ project_kill (ccfg_kill2 ccfg2) true = project_kill (ccfg_kill2 ccfg2) false.
 
   Lemma impe2_final_config_preservation 
         (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2) :
@@ -440,30 +487,7 @@ Section Adequacy.
     | VPair _ _ => False
     | _ => True
     end.
-  (* XXX This doesn't make sense any more? because vpairs are 
-constructed only with vals and not val2s now*)
-  (*
-  Definition no_nest_val (v : val2) : Prop :=
-    match v with
-    | VPair v1 v2 => (not_pair_val v1) /\ (not_pair_val v2)
-    | _ => True
-    end.
 
-  (* XXX same with this? *)
-  Definition kill_wf (k : kill2) : Prop :=
-    match k with
-    | KPair (KSingle _) (KSingle _) => True
-    | KSingle _ => True
-    | _ => False
-    end.
-
-
-  Definition reg_wf (r : reg2) : Prop :=
-    forall x, no_nest_val (r x).
-
-  Definition mem_wf (m : mem2) : Prop :=
-    forall x, no_nest_val (m x).
-*)
   (* XXX: thought I needed this for exp_output_wf, didn't use it. Might still be useful...? *)
   Lemma estep2_deterministic : forall md d e r m k v1 v2,
     estep2 md d (e, r, m, k) v1 ->
@@ -488,29 +512,6 @@ constructed only with vals and not val2s now*)
       apply IHestep2 in H4.
       destruct H1; destruct H5; destruct_conjs; subst; auto; congruence.
   Qed.      
-
-  (*
-  Lemma impe2_exp_output_wf : forall md d ecfg v,
-      estep2 md d ecfg v ->
-      mem_wf (ecfg_mem2 ecfg) ->
-      reg_wf (ecfg_reg2 ecfg) ->
-      no_nest_val v.
-  Proof.
-    intros.
-    induction H; simpl; auto.
-    - unfold reg_wf in H1; now rewrite <- H2.
-    - rewrite H in H0; unfold mem_wf in H0; simpl in *; now rewrite <- H3.
-    - destruct H3; destruct_conjs; subst; now simpl.
-  Qed.
-
-  Lemma impe2_output_wf : forall md d ccfg r' m' K' t,
-          reg_wf (ccfg_reg2 ccfg) ->
-          mem_wf (ccfg_mem2 ccfg) ->
-          cstep2 md d ccfg (r', m', K') t ->
-          reg_wf r' /\ mem_wf m' /\ kill_wf K'.
-  Proof.
-  Admitted.
-   *)
 
   Lemma project_comm : forall r b x,
       (project_reg r b) x = project_value (r x) b.
