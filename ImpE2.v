@@ -398,7 +398,9 @@ Section Semantics.
   (* XXX TODO while-div, call-div *)
   .
   Hint Constructors imm_premise.
+End Semantics.
   
+Section Preservation.
   Definition cterm2_ok (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch)
              (m0: mem2) (r: reg2) (m: mem2) (K: kill2) : Prop :=
     forall md,
@@ -450,7 +452,7 @@ Section Semantics.
       cconfig2_ok pc md G U d S H m0 (c, r, m, K) G' K' ->
       forall mdmid cmid rmid mmid rmid' mmid' kmid' tmid rfin mfin kfin tfin,
         imm_premise
-          (cstep2 mdmid d (cmid, rmid, mmid, K') (rfin', mfin', kmid') tmid)
+          (cstep2 mdmid d (cmid, rmid, mmid, K') (rmid', mmid', kmid') tmid)
           (cstep2 md d (c, r, m, K) (rfin, mfin, kfin) tfin) ->
         (exists pcmid Gmid Gmid' Umid,
           policy_le pc pcmid ->
@@ -458,7 +460,6 @@ Section Semantics.
           cconfig2_ok pcmid mdmid Gmid Umid d S H m0 (cmid, rmid, mmid, K') Gmid' K').
   Proof.
   Admitted.
-  
  
 (*      
   Definition overlap (tr tobs: trace) :=
