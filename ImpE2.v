@@ -409,31 +409,6 @@ Section Semantics.
       imm_premise (cstep2 md d (Cwhile e c, r', m', k') (r'', m'', k'') tr)
                   (cstep2 md d (Cwhile e c, r, m, k) (r'', m'', k'')
                           (tr' ++ tr))
-  | IPif_div: forall md d e c1 c2 n1 n2 r m k r1 m1 k1 t1 r2 m2 k2 t2 rmerge mmerge,
-      estep2 md d (e, r, m, k) (VPair (Vnat 0) (Vnat n2)) ->
-      let cleft := (match n1 with
-                    | 0 => c2
-                    | _ => c1 end) in
-      cstep md d (cleft, project_reg r true,
-                  project_mem m true,
-                  project_kill k true)
-             (r1, m1, k1) t1 ->
-      let cright := (match n2 with
-                     | 0 => c2
-                     | _ => c1 end) in
-      cstep md d (cright, project_reg r false,
-                  project_mem m false,
-                  project_kill k false)
-            (r2, m2, k2) t2 ->
-      merge_reg r1 r2 rmerge ->
-      merge_mem m1 m2 mmerge ->
-      imm_premise (cstep md d (cleft, project_reg r true,
-                  project_mem m true,
-                  project_kill k true)
-                         (r1, m1, k1) t1)
-                  (cstep2 md d (Cif e c1 c2, r, m, k) (rmerge, mmerge, merge_kill k1 k2)
-                          (merge_trace (t1, t2)))
-  (* XXX TODO while-div, call-div *)
   .
   Hint Constructors imm_premise.
 End Semantics.
