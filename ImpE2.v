@@ -129,6 +129,28 @@ Section Semantics.
     | KPair ks1 ks2 => if is_left then ks1 else ks2
     | KSingle k => k
     end.
+  
+  Lemma mode_alive_project_alive : forall md k is_left,
+      mode_alive2 md k -> mode_alive md (project_kill k is_left).
+  Proof.
+    intros.
+    destruct k; simpl; auto.
+    destruct md; simpl; auto; unfold mode_alive2 in H; destruct_conjs.
+    destruct is_left; unfold mode_alive in *; auto.
+  Qed.
+
+  Lemma mode_access_ok_project_ok : forall md d l k is_left,
+      mode_access_ok2 md d l k -> mode_access_ok md d l (project_kill k is_left).
+    intros.
+    destruct k; simpl; auto.
+    assert ((if is_left then s else s0) = project_kill (KPair s s0) is_left) by
+        (destruct is_left; auto);
+    destruct md; simpl; auto; unfold mode_access_ok2 in H; destruct_conjs;
+    remember (d l) as mem_mode; destruct mem_mode; unfold mode_access_ok;
+      rewrite <- Heqmem_mode; auto; destruct_conjs; split; auto;
+    rewrite H0; apply mode_alive_project_alive; auto.
+  Qed.
+  
   (* XXX show event pairs are never nested *)
   Function event2_to_event (e: event2) (is_left: bool): event :=
      match e with
@@ -217,6 +239,10 @@ Section Semantics.
     (c, (ccfg_reg2 ccfg), (ccfg_mem2 ccfg), (ccfg_kill2 ccfg)).
   Definition csemantics2 : Type := mode -> loc_mode -> cconfig2 -> cterm2 -> trace2 -> Prop.  
 
+  Definition project_ccfg (ccfg : cconfig2) (is_left : bool) : cconfig :=
+    (ccfg_com2 ccfg, project_reg (ccfg_reg2 ccfg) is_left,
+     project_mem (ccfg_mem2 ccfg) is_left, project_kill (ccfg_kill2 ccfg) is_left).
+  
   Inductive cstep2 : csemantics2 := 
   | Cstep2_skip : forall md d ccfg,
       ccfg_com2 ccfg = Cskip ->
@@ -288,16 +314,14 @@ Section Semantics.
       cstep2 md d (ccfg_update_com2 hd ccfg) (r, m, k) tr ->
       cstep2 md d (Cseq tl, r, m, k) (r', m', k') tr' ->
       cstep2 md d ccfg (r', m', k') (tr++tr')
-  | Cstep2_if : forall md d ccfg e c1 c2 n r' m' k' tr,
+  | Cstep2_if : forall md d ccfg e c1 c2 r' m' k' tr,
       ccfg_com2 ccfg = Cif e c1 c2 ->
-      estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vnat n)) ->
-      ~(n = 0) ->
+      estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vnat 1)) ->
       cstep2 md d (ccfg_update_com2 c1 ccfg) (r', m', k') tr ->
       cstep2 md d ccfg (r', m', k') tr
-  | Cstep2_else : forall md d ccfg e c1 c2 n r' m' k' tr,
+  | Cstep2_else : forall md d ccfg e c1 c2 r' m' k' tr,
       ccfg_com2 ccfg = Cif e c1 c2 ->
-      estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vnat n)) ->
-      (n = 0) ->
+      estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vnat 0)) ->
       cstep2 md d (ccfg_update_com2 c2 ccfg) (r', m', k') tr ->
       cstep2 md d ccfg (r', m', k') tr
   | Cstep2_if_div : forall md d ccfg e c1 c2 n1 n2 r1 m1 k1 t1 r2 m2 k2 t2 rmerge mmerge,
@@ -532,65 +556,145 @@ Section Adequacy.
       destruct H1; destruct H5; destruct_conjs; subst; auto; congruence.
   Qed.      
 
-  Lemma project_comm : forall r b x,
+  Lemma project_comm_reg : forall r b x,
       (project_reg r b) x = project_value (r x) b.
   Proof.
     intros; unfold project_reg; destruct (r x); auto.
   Qed.
 
-  Lemma impe2_exp_sound : forall md d e r m K v,
+  (* XXX: this might be a pain to prove with registers as functions. Used below in soundness. *)
+  Lemma project_update_comm_reg : forall ccfg x v is_left,
+      project_reg (ccfg_update_reg2 ccfg x v) is_left = 
+      ccfg_update_reg (project_ccfg ccfg is_left) x (project_value v is_left).
+  Proof.
+  Admitted.
+
+  Lemma project_update_comm_mem : forall ccfg l v is_left,
+      project_mem (ccfg_update_mem2 ccfg l v) is_left = 
+      ccfg_update_mem (project_ccfg ccfg is_left) l (project_value v is_left).
+  Proof.
+  Admitted.
+
+  Lemma project_merge_inv_reg : forall r1 r2 r,
+      merge_reg r1 r2 r -> (project_reg r true = r1) /\ (project_reg r false = r2).
+  Proof.
+  Admitted.
+
+  Lemma project_merge_inv_mem : forall m1 m2 m,
+      merge_mem m1 m2 m -> (project_mem m true = m1) /\ (project_mem m false = m2).
+  Proof.
+  Admitted.
+
+  Lemma project_merge_inv_trace : forall t1 t2 is_left,
+      project_trace (merge_trace (t1, t2)) is_left = (if is_left then t1 else t2).
+  Proof.
+  Admitted.
+
+  Lemma impe2_exp_sound : forall md d e r m K v is_left,
       estep2 md d (e, r, m, K) v ->
-      estep md d (e, project_reg r true, project_mem m true, project_kill K true)
-            (project_value v true) /\
-      estep md d (e, project_reg r false, project_mem m false, project_kill K false)
-            (project_value v false).
+      estep md d (e, project_reg r is_left, project_mem m is_left, project_kill K is_left)
+            (project_value v is_left).
   Proof.
     intros.
     remember (e, r, m, K) as ecfg.
     generalize dependent e.
     induction H; intros; try rewrite Heqecfg in H; simpl in *; try rewrite H.
-    1-3: split; constructor; simpl; auto.
-    - split; apply Estep_var with (x:=x); auto; subst; apply project_comm.
-    (* Inductive cases getting stuck *)
-    - split; apply Estep_binop with (e1:=e1) (e2:=e2); simpl; auto; 
-        [apply (IHestep2_1 e1) | apply (IHestep2_2 e2) |
-        apply (IHestep2_1 e1) | apply (IHestep2_2 e2)];
+    1-3: constructor; simpl; auto.
+    - apply Estep_var with (x:=x); auto; subst; apply project_comm_reg.
+    - apply Estep_binop with (e1:=e1) (e2:=e2); simpl; auto; 
+        [apply (IHestep2_1 e1) | apply (IHestep2_2 e2)];
         rewrite Heqecfg; unfold ecfg_update_exp2; auto.
-    - inversion H; subst. split; 
-      [apply Estep_deref with (e:=e) (l:=l) (m:=project_mem m0 true)
-                                    (r:=project_reg r0 true)
-                                    (k:=project_kill k true); simpl; auto
-      |
-        apply Estep_deref with (e:=e) (l:=l) (m:=project_mem m0 false)
-                                    (r:=project_reg r0 false)
-                                    (k:=project_kill k false); simpl; auto].
-      1,3: apply (IHestep2 e); auto.
-      1,2: unfold mode_access_ok2 in H2; unfold mode_access_ok;
-           destruct (d l); auto; destruct H2; split; auto;
-             unfold mode_alive2 in H2; destruct k; auto; destruct H2; unfold project_kill; auto.
-    - split;
-        [apply Estep_isunset with (cnd := cnd) (v := (project_value v true)) |
-         apply Estep_isunset with (cnd := cnd) (v := (project_value v false))]; simpl; auto.
-      1,3: apply IHestep2; subst; auto.
-      1,2: destruct H1; destruct_conjs; [left | right];
+    - inversion H; subst.
+      apply Estep_deref with (e:=e) (l:=l) (m:=project_mem m0 is_left)
+                                    (r:=project_reg r0 is_left)
+                                    (k:=project_kill k is_left); simpl; auto.
+      now apply mode_access_ok_project_ok.
+    - apply Estep_isunset with (cnd := cnd) (v := (project_value v is_left)); simpl; auto.
+      apply IHestep2; subst; auto.
+      destruct H1; destruct_conjs; [left | right];
         simpl; split; try (now rewrite H1); try (now rewrite H2).
   Qed.
        
-  Lemma impe2_sound : forall md d c r m K r' m' K' t,
+  Lemma impe2_sound : forall md d c r m K r' m' K' t is_left,
     cstep2 md d (c, r, m, K) (r', m', K') t ->
-    (cstep md d (c, project_reg r true, project_mem m true, project_kill K true)
-           (project_reg r' true, project_mem m' true, project_kill K' true)
-           (project_trace t true)) /\
-    (cstep md d (c, project_reg r false, project_mem m false, project_kill K false)
-           (project_reg r' false, project_mem m' false, project_kill K' false)
-           (project_trace t false)).
+    cstep md d (project_ccfg (c, r, m, K) is_left)
+          (project_reg r' is_left, project_mem m' is_left, project_kill K' is_left)
+          (project_trace t is_left).
   Proof.
     intros.
     remember (c, r, m, K) as ccfg.
     remember (r', m', K') as cterm.
-    induction H; try rewrite Heqccfg in H, Heqcterm; simpl in *.
-    - inversion Heqcterm; subst; split; constructor.
-    - inversion Heqcterm; subst. split; admit.
+    generalize dependent r'.
+    generalize dependent m'.
+    generalize dependent K'.
+    generalize dependent c.
+    induction H; intros; try rewrite Heqccfg in H, Heqcterm; simpl in *; inversion Heqcterm; subst.
+    - constructor.
+    - apply impe2_exp_sound with (is_left:=is_left) in H0.
+      apply Cstep_assign with (x:=x) (e:=e) (v := project_value v is_left); auto.
+      unfold ccfg_to_ecfg; simpl in *; auto.
+      apply project_update_comm_reg.
+      simpl in *; apply mode_alive_project_alive; auto.
+    - apply impe2_exp_sound with (is_left:=is_left) in H1.
+      apply Cstep_declassify with (x:=x) (e:=e) (v :=(project_value v is_left)); auto.
+      apply project_update_comm_reg.
+      now apply mode_alive_project_alive.
+    - apply impe2_exp_sound with (is_left:=is_left) in H0.
+      apply impe2_exp_sound with (is_left:=is_left) in H1.
+      apply Cstep_update with (e1 := e1) (e2 := e2) (l := l) (v := project_value v is_left); auto.
+      now apply mode_alive_project_alive.
+      now apply mode_access_ok_project_ok.
+      now apply project_update_comm_mem.
+    - apply impe2_exp_sound with (is_left:=is_left) in H0; simpl in *.
+      apply Cstep_output with (e := e); auto.
+      now apply mode_alive_project_alive.
+    - apply impe2_exp_sound with (is_left:=is_left) in H0; simpl in *.
+      apply Cstep_call with (e := e) (c := c); auto.
+      apply IHcstep2 with (c1 := c); auto.
+    - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
+        apply project_merge_inv_reg in H3; apply project_merge_inv_mem in H4.
+      destruct_conjs; subst.
+      destruct is_left;
+        [apply Cstep_call with (e:=e) (c:=c1) | apply Cstep_call with (e:=e) (c:=c2)]; auto;
+      unfold ccfg_update_com; simpl; rewrite project_merge_inv_trace; auto.
+    - apply Cstep_cset with (c := c); auto.
+      now apply mode_access_ok_project_ok.
+      now apply project_update_comm_mem.
+      now apply mode_alive_project_alive.
+    - apply Cstep_enclave with (enc := enc) (c := c); auto.
+      apply IHcstep2 with (c1 := c); auto.
+    - constructor.
+    - apply Cstep_seq_hd with (hd:=hd) (tl:=tl)
+                                       (r:=(project_reg r0 is_left))
+                                       (m:=(project_mem m0 is_left))
+                                       (k:=(project_kill k is_left))
+                                       (tr:=(project_trace tr is_left))
+                                       (tr':=(project_trace tr' is_left)); auto.
+      apply IHcstep2_1 with (c0 := hd); auto.
+      (* XXX *)
+      admit. admit.      
+    - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *.
+      apply Cstep_if with (e:=e) (c1:=c1) (c2:=c2) (v := (Vnat 1)); auto. discriminate.
+      apply IHcstep2 with (c0 := c1); auto.
+    - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *.
+      apply Cstep_else with (e:=e) (c1:=c1) (c2:=c2) (v := (Vnat 0)); auto.
+      apply IHcstep2 with (c0 := c2); auto.
+    - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
+        apply project_merge_inv_reg in H3; apply project_merge_inv_mem in H4;
+          destruct_conjs; subst.
+      destruct is_left; [destruct n1 | destruct n2].
+      1,3: apply Cstep_else with (e := e) (c1 := c1) (c2 := c2) (v := Vnat 0); auto;
+        rewrite project_merge_inv_trace; auto.
+      apply Cstep_if with (e := e) (c1 := c1) (c2 := c2) (v := Vnat (S n1)); auto.
+      discriminate.
+      rewrite project_merge_inv_trace; auto.
+      apply Cstep_if with (e := e) (c1 := c1) (c2 := c2) (v := Vnat (S n2)); auto.
+      discriminate.
+      rewrite project_merge_inv_trace; auto.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
   Admitted.
   
 End Adequacy.
