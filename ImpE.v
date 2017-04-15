@@ -325,11 +325,12 @@ Section Semantics.
   | Cstep_seq_nil : forall md d ccfg,
       ccfg_com ccfg = Cseq [] ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
-  | Cstep_seq_hd : forall md d ccfg hd tl r m k tr r' m' k' tr',
+  | Cstep_seq_hd : forall md d ccfg hd tl r m k tr r' m' k' tr' t,
       ccfg_com ccfg = Cseq (hd::tl) ->
       cstep md d (ccfg_update_com hd ccfg) (r, m, k) tr ->
       cstep md d (Cseq tl, r, m, k) (r', m', k') tr' ->
-      cstep md d ccfg (r', m', k') (tr++tr')
+      t = tr ++ tr' ->
+      cstep md d ccfg (r', m', k') t
   | Cstep_if : forall md d ccfg e c1 c2 v r' m' k' tr,
       ccfg_com ccfg = Cif e c1 c2 ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
