@@ -443,7 +443,12 @@ Section Preservation.
         cstep2 md d ccfg2 (r', m', K') t ->
         cterm2_ok G' d S H m0 r' m' K'.
   Proof.
-  Admitted.
+    intros.
+    unfold cterm2_ok.
+    split; intros.
+    destruct H4.
+    
+  Admitted
 
   Lemma impe2_type_preservation
         (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2) :
