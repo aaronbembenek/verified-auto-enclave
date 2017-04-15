@@ -101,6 +101,12 @@ Section Semantics.
     end.
   Proof. all: intros; unfold tracepair_len; rewrite teq, teq0; simpl; omega. Qed.
   Definition merge_kill (k1 k2: set enclave) := KPair k1 k2.
+
+  Definition add_to_kill2 (e : enclave) (k : kill2) : kill2 :=
+    match k with
+    | KSingle ks => KSingle (set_add Nat.eq_dec e ks)
+    | KPair ks1 ks2 => KPair (set_add Nat.eq_dec e ks1) (set_add Nat.eq_dec e ks2)
+    end.
   
   Function project_value (v: val2) (is_left: bool): val :=
     match v with
@@ -185,7 +191,7 @@ Section Semantics.
       ecfg_exp2 ecfg = Eisunset cnd ->
       estep2 md d (ecfg_update_exp2 ecfg (Ederef (Eloc (Cnd cnd)))) v ->
       (v = VSingle (Vnat 0) /\ res = VSingle (Vnat 1))
-      \/ (v <> VSingle (Vnat 0) /\ res = VSingle (Vnat 0)) ->
+      \/ (v = VSingle (Vnat 1) /\ res = VSingle (Vnat 0)) ->
       estep2 md d ecfg res.
 
   (* Semantics for commands. *)
@@ -311,14 +317,13 @@ Section Semantics.
       ccfg_com2 ccfg = Cwhile e c ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vnat 0)) ->
       mode_alive2 md (ccfg_kill2 ccfg) ->
-      cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, ccfg_kill2 ccfg) [].
-  (* XXX add in while-div and call-div *)
-  (* XXX: add in set add for pairs
+      cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, ccfg_kill2 ccfg) []
   | Cstep_kill : forall md d ccfg enc,
       md = Normal ->
       ccfg_com2 ccfg = Ckill enc ->
       mode_alive2 (Encl enc) (ccfg_kill2 ccfg) ->
-      cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, set_add Nat.eq_dec enc (ccfg_kill2 ccfg)) []*)
+      cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, add_to_kill2 enc (ccfg_kill2 ccfg)) [].
+  
   Hint Constructors cstep2.
 
   Inductive imm_premise : Prop -> Prop -> Prop :=
