@@ -248,7 +248,7 @@ Section Semantics.
   | Estep_isunset : forall md d ecfg cnd v res,
       ecfg_exp ecfg = Eisunset cnd ->
       estep md d (ecfg_update_exp ecfg (Ederef (Eloc (Cnd cnd)))) v ->
-      (v = Vnat 0 /\ res = Vnat 1) \/ (v <> Vnat 0 /\ res = Vnat 0) ->
+      (v = Vnat 0 /\ res = Vnat 1) \/ (v = Vnat 1 /\ res = Vnat 0) ->
       estep md d ecfg res.
   Hint Constructors estep.
 
