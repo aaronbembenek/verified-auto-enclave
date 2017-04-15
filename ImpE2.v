@@ -588,8 +588,13 @@ Section Adequacy.
       1,2: unfold mode_access_ok2 in H2; unfold mode_access_ok;
            destruct (d l); auto; destruct H2; split; auto;
              unfold mode_alive2 in H2; destruct k; auto; destruct H2; unfold project_kill; auto.
-
-  Admitted.
+    - split;
+        [apply Estep_isunset with (cnd := cnd) (v := (project_value v true)) |
+         apply Estep_isunset with (cnd := cnd) (v := (project_value v false))]; simpl; auto.
+      1,3: apply IHestep2; subst; auto.
+      1,2: destruct H1; destruct_conjs; [left | right];
+        simpl; split; try (now rewrite H1); try (now rewrite H2).
+  Qed.
        
   Lemma impe2_sound : forall md d c r m K r' m' K' t,
     cstep2 md d (c, r, m, K) (r', m', K') t ->
