@@ -255,6 +255,20 @@ Section Semantics.
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vlambda md c)) ->
       cstep2 md d (ccfg_update_com2 c ccfg) (r', m', k') tr ->
       cstep2 md d ccfg (r', m', k') tr
+  | Cstep_call_div : forall md d ccfg e c1 c2 r1 m1 k1 t1 r2 m2 k2 t2 rmerge mmerge,
+      ccfg_com2 ccfg = Ccall e ->
+      estep2 md d (ccfg_to_ecfg2 e ccfg) (VPair (Vlambda md c1) (Vlambda md c2)) ->
+      cstep md d (c1, project_reg (ccfg_reg2 ccfg) true,
+                  project_mem (ccfg_mem2 ccfg) true,
+                  project_kill (ccfg_kill2 ccfg) true)
+             (r1, m1, k1) t1 ->
+      cstep md d (c2, project_reg (ccfg_reg2 ccfg) false,
+                  project_mem (ccfg_mem2 ccfg) false,
+                  project_kill (ccfg_kill2 ccfg) false)
+            (r2, m2, k2) t2 ->
+      merge_reg r1 r2 rmerge ->
+      merge_mem m1 m2 mmerge ->
+      cstep2 md d ccfg (rmerge, mmerge, merge_kill k1 k2) (merge_trace (t1, t2))
   | Cstep2_cset : forall md d ccfg c m',
       ccfg_com2 ccfg = Cset c ->
       mode_access_ok2 md d (Cnd c) (ccfg_kill2 ccfg) ->
@@ -306,10 +320,9 @@ Section Semantics.
       merge_reg r1 r2 rmerge ->
       merge_mem m1 m2 mmerge ->
       cstep2 md d ccfg (rmerge, mmerge, merge_kill k1 k2) (merge_trace (t1, t2))
-  | Cstep_while_t : forall md d ccfg e c v r m k tr r' m' k' tr',
+  | Cstep_while_t : forall md d ccfg e c r m k tr r' m' k' tr',
       ccfg_com2 ccfg = Cwhile e c ->
-      estep2 md d (ccfg_to_ecfg2 e ccfg) v ->
-      ~(v = (VSingle (Vnat 0))) ->
+      estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vnat 1)) ->
       cstep2 md d (ccfg_update_com2 c ccfg) (r, m, k) tr ->
       cstep2 md d (ccfg_update_com2 (Cwhile e c) ccfg) (r', m', k') tr' ->
       cstep2 md d ccfg (r', m', k') (tr++tr')
@@ -318,6 +331,26 @@ Section Semantics.
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vnat 0)) ->
       mode_alive2 md (ccfg_kill2 ccfg) ->
       cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, ccfg_kill2 ccfg) []
+  | Cstep_while_div : forall md d ccfg e c n1 n2 r1 m1 k1 t1 r2 m2 k2 t2 rmerge mmerge,
+      ccfg_com2 ccfg = Cwhile e c ->
+      estep2 md d (ccfg_to_ecfg2 e ccfg) (VPair (Vnat n1) (Vnat n2)) ->
+      let cleft := (match n1 with
+                    | 0 => Cskip
+                    | _ => c end) in
+      cstep md d (cleft, project_reg (ccfg_reg2 ccfg) true,
+                  project_mem (ccfg_mem2 ccfg) true,
+                  project_kill (ccfg_kill2 ccfg) true)
+             (r1, m1, k1) t1 ->
+      let cright := (match n2 with
+                     | 0 => Cskip
+                     | _ => c end) in
+      cstep md d (cright, project_reg (ccfg_reg2 ccfg) false,
+                  project_mem (ccfg_mem2 ccfg) false,
+                  project_kill (ccfg_kill2 ccfg) false)
+            (r2, m2, k2) t2 ->
+      merge_reg r1 r2 rmerge ->
+      merge_mem m1 m2 mmerge ->
+      cstep2 md d ccfg (rmerge, mmerge, merge_kill k1 k2) (merge_trace (t1, t2))
   | Cstep_kill : forall md d ccfg enc,
       md = Normal ->
       ccfg_com2 ccfg = Ckill enc ->
