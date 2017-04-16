@@ -446,15 +446,14 @@ End Semantics.
 Section Preservation.
   Definition cterm2_ok (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch)
              (m0: mem2) (r: reg2) (m: mem2) (K: kill2) : Prop :=
-    forall md,
       (forall x v1 v2 bt p,
           (r x = VPair v1 v2 /\ (var_context G) x = Some (Typ bt p)) -> protected p S) 
       /\ (forall l v1 v2 bt p rt,
           (m (Not_cnd l) = VPair v1 v2 /\ (loc_context G) (Not_cnd l) = Some (Typ bt p, rt))
           -> protected p S)
-      /\ (forall e v, set_In e H ->
-                 (estep2 md d (e, reg_init2, m0, K) v ->
-                  estep2 md d (e, r, m, K) v))
+      /\ (forall e v md', set_In e H ->
+                 (estep2 md' d (e, reg_init2, m0, K) v ->
+                  estep2 md' d (e, r, m, K) v))
       /\ project_kill K true = project_kill K false.
 
   Definition cconfig2_ok (pc: sec_policy) (md: mode) (G: context) (U: set condition)
@@ -472,9 +471,10 @@ Section Preservation.
            ((ccfg_mem2 ccfg2) (Not_cnd l) = VPair v1 v2
             /\ (loc_context G) (Not_cnd l) = Some (Typ bt p, rt))    
            -> protected p S)
-    /\ (forall e v, set_In e H ->
-                    (estep2 md d  (e, reg_init2, m0, ccfg_kill2 ccfg2) v ->
-                     estep2 md d (e, ccfg_reg2 ccfg2, ccfg_mem2 ccfg2, ccfg_kill2 ccfg2) v))
+         (* XXX not sure if it's ok to put a md' here *)
+    /\ (forall e v md', set_In e H ->
+                    (estep2 md' d  (e, reg_init2, m0, ccfg_kill2 ccfg2) v ->
+                     estep2 md' d (e, ccfg_reg2 ccfg2, ccfg_mem2 ccfg2, ccfg_kill2 ccfg2) v))
     /\ project_kill (ccfg_kill2 ccfg2) true = project_kill (ccfg_kill2 ccfg2) false.
 
   Lemma impe2_final_config_preservation 
@@ -487,15 +487,14 @@ Section Preservation.
         cterm2_ok G' d S H m0 r' m' K'.
   Proof.
     intros; remember (c,r,m,k) as ccfg2; subst.
-    induction c; unfold cconfig2_ok in H2; destruct_pairs.
-    unfold cterm2_ok; intros; split; intros; destruct_pairs; subst.
-    
-    unfold cterm2_ok; split.
-    intros.
-    - destruct H4. subst. induction c.
-      
-      
-    
+    unfold cconfig2_ok in H2; destruct_pairs.
+    induction c; unfold cterm2_ok; intros; subst; simpl in *.
+    - inversion H3; try discriminate; subst;
+        inversion H4; try discriminate; subst.
+      split; [intros | split; intros]; simpl in *; auto.
+      -- apply (H5 x v1 v2 bt p H10).
+      -- apply (H6 l v1 v2 bt p rt H10).
+    - 
   Admitted
 
   Lemma impe2_type_preservation
