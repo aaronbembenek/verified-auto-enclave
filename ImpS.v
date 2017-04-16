@@ -118,6 +118,19 @@ Section Typing.
              (Q: location -> type -> ref_type -> Prop) : Prop :=
     forall_var G P /\ forall_loc G Q.
 
+  Definition all_loc_immutable (e: exp) (G: context) : Prop :=
+    forall_subexp e (fun e =>
+                       match e with
+                       | Eloc (Cnd _) => False
+                       | Eloc (Not_cnd l) => forall t rt,
+                           loc_context G (Not_cnd l) = Some (t, rt) ->
+                           rt = Immut
+                       | _ => True
+                       end).
+
+  (* Need this for using List.nth... maybe better option *)
+  Definition mt := Cntxt (fun _ => None) (fun _ => None).
+  
   Inductive exp_wt : context -> exp -> type -> Prop :=
   | STnat : forall G n,
       exp_wt G (Enat n) (Typ Tnat (LevelP L))
@@ -144,5 +157,40 @@ Section Typing.
 
   with com_wt : sec_policy -> context -> set condition -> com ->
                 context -> Prop :=
+  | STskip : forall pc G U G',
+      com_wt pc G U Cskip G'
+  | STassign : forall pc U x e s p q vc lc vc',
+      vc x = Some (Typ s q) ->
+      exp_wt (Cntxt vc lc) e (Typ s p) ->
+      p <> LevelP T ->
+      vc' = (fun y => if y =? x
+                      then Some (Typ s (policy_join pc p))
+                      else vc y) ->
+      com_wt pc (Cntxt vc lc) U (Cassign x e) (Cntxt vc' lc)
+  | STdeclassify : forall U x e s q p vc lc vc',
+      vc x = Some (Typ s q) ->
+      exp_wt (Cntxt vc lc) e (Typ s p) ->
+      p <> LevelP T ->
+      exp_novars e ->
+      all_loc_immutable e (Cntxt vc lc) ->
+      vc' = (fun y => if y =? x
+                      then Some (Typ s (LevelP L))
+                      else vc y) ->
+      com_wt (LevelP L) (Cntxt vc lc) U (Cdeclassify x e) (Cntxt vc' lc)
+  | STupdate : forall G e1 s p q e2 p' pc U,
+      exp_wt G e1 (Typ (Tref (Typ s p) Mut) q) ->
+      exp_wt G e2 (Typ s p') ->
+      policy_le (policy_join (policy_join p' q) pc) p ->
+      p <> LevelP T ->
+      p' <> LevelP T ->
+      q <> LevelP T ->
+      com_wt pc G U (Cupdate e1 e2) G
+  | STseq : forall pc G U coms (Gs: list context),
+      length Gs = length coms + 1 ->
+      nth 0 Gs mt = G ->
+      (forall (i: nat),
+          i < length coms ->
+          com_wt pc (nth i Gs mt) U (nth i coms Cskip) (nth (i + 1) Gs mt)) ->
+      com_wt pc G U (Cseq coms) (nth (length Gs - 1) Gs mt)
   .
 End Typing.
