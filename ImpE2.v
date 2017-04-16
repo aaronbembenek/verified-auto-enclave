@@ -180,9 +180,15 @@ Section Semantics.
     match ecfg with (_, r, _, _) => r end.
   Definition ecfg_mem2 (ecfg: econfig2) : mem2 :=
     match ecfg with (_, _, m, _) => m end.
+  Definition ecfg_kill2 (ecfg: econfig2) : kill2 :=
+    match ecfg with (_, _, _, k) => k end.
   Definition ecfg_update_exp2 (ecfg: econfig2) (e: exp) : econfig2 :=
     match ecfg with (_, r, m, k) => (e, r, m, k) end.
   Definition esemantics2 : Type := mode -> loc_mode -> econfig2 -> val2 -> Prop.
+
+   Definition project_ecfg (ecfg : econfig2) (is_left : bool) : econfig :=
+    (ecfg_exp2 ecfg, project_reg (ecfg_reg2 ecfg) is_left,
+     project_mem (ecfg_mem2 ecfg) is_left, project_kill (ecfg_kill2 ecfg) is_left).
 
   Inductive estep2 : esemantics2 :=
   | Estep2_nat : forall md d ecfg n,
@@ -281,7 +287,7 @@ Section Semantics.
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vlambda md c)) ->
       cstep2 md d (ccfg_update_com2 c ccfg) (r', m', k') tr ->
       cstep2 md d ccfg (r', m', k') tr
-  | Cstep_call_div : forall md d ccfg e c1 c2 r1 m1 k1 t1 r2 m2 k2 t2 rmerge mmerge,
+  | Cstep2_call_div : forall md d ccfg e c1 c2 r1 m1 k1 t1 r2 m2 k2 t2 rmerge mmerge,
       ccfg_com2 ccfg = Ccall e ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VPair (Vlambda md c1) (Vlambda md c2)) ->
       cstep md d (c1, project_reg (ccfg_reg2 ccfg) true,
@@ -344,18 +350,18 @@ Section Semantics.
       merge_reg r1 r2 rmerge ->
       merge_mem m1 m2 mmerge ->
       cstep2 md d ccfg (rmerge, mmerge, merge_kill k1 k2) (merge_trace (t1, t2))
-  | Cstep_while_t : forall md d ccfg e c r m k tr r' m' k' tr',
+  | Cstep2_while_t : forall md d ccfg e c r m k tr r' m' k' tr',
       ccfg_com2 ccfg = Cwhile e c ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vnat 1)) ->
       cstep2 md d (ccfg_update_com2 c ccfg) (r, m, k) tr ->
       cstep2 md d (ccfg_update_com2 (Cwhile e c) ccfg) (r', m', k') tr' ->
       cstep2 md d ccfg (r', m', k') (tr++tr')
-  | Cstep_while_f : forall md d ccfg e c,
+  | Cstep2_while_f : forall md d ccfg e c,
       ccfg_com2 ccfg = Cwhile e c ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vnat 0)) ->
       mode_alive2 md (ccfg_kill2 ccfg) ->
       cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, ccfg_kill2 ccfg) []
-  | Cstep_while_div : forall md d ccfg e c n1 n2 r1 m1 k1 t1 r2 m2 k2 t2 rmerge mmerge,
+  | Cstep2_while_div : forall md d ccfg e c n1 n2 r1 m1 k1 t1 r2 m2 k2 t2 rmerge mmerge,
       ccfg_com2 ccfg = Cwhile e c ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VPair (Vnat n1) (Vnat n2)) ->
       let cleft := (match n1 with
@@ -375,7 +381,7 @@ Section Semantics.
       merge_reg r1 r2 rmerge ->
       merge_mem m1 m2 mmerge ->
       cstep2 md d ccfg (rmerge, mmerge, merge_kill k1 k2) (merge_trace (t1, t2))
-  | Cstep_kill : forall md d ccfg enc,
+  | Cstep2_kill : forall md d ccfg enc,
       md = Normal ->
       ccfg_com2 ccfg = Ckill enc ->
       mode_alive2 (Encl enc) (ccfg_kill2 ccfg) ->
@@ -595,6 +601,12 @@ Section Adequacy.
   Proof.
   Admitted.
 
+  Lemma project_app_trace : forall t1 t2 is_left,
+      project_trace (t1 ++ t2) is_left =
+      (project_trace t1 is_left) ++ (project_trace t2 is_left).
+  Proof.
+  Admitted.
+
   Lemma impe2_exp_sound : forall md d e r m K v is_left,
       estep2 md d (e, r, m, K) v ->
       estep md d (e, project_reg r is_left, project_mem m is_left, project_kill K is_left)
@@ -677,7 +689,8 @@ Section Adequacy.
                                        (tr':=(project_trace tr' is_left)); auto.
       apply IHcstep2_1 with (c0 := hd); auto.
       (* XXX *)
-      admit. admit.      
+      admit.
+      now apply project_app_trace.
     - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *.
       apply Cstep_if with (e:=e) (c1:=c1) (c2:=c2) (v := (Vnat 1)); auto. discriminate.
       apply IHcstep2 with (c0 := c1); auto.
@@ -696,10 +709,32 @@ Section Adequacy.
       apply Cstep_if with (e := e) (c1 := c1) (c2 := c2) (v := Vnat (S n2)); auto.
       discriminate.
       rewrite project_merge_inv_trace; auto.
-    - admit.
-    - admit.
+    - rewrite project_app_trace.
+      admit.
+    - apply Cstep_while_f with (e := e) (c := c); auto.
+      now apply impe2_exp_sound with (is_left := is_left) in H0.
+      now apply mode_alive_project_alive.
     - admit.
     - admit.
   Admitted.
+
+  (* XXX: I don't think this is the right phrasing because this would imply
+     that if IMP steps to v1 then IMPE takes steps to the pair (v1 | _) *)
+ (* Lemma impe2_exp_complete : forall md d e r m K v is_left,
+      estep md d (project_ecfg (e, r, m, K) is_left)
+            (project_value v is_left) -> estep2 md d (e, r, m, K) v.
+  Proof.
+    intros.
+    remember (project_ecfg (e, r, m, K) is_left) as ecfg.
+    remember (project_value v is_left) as v'.
+    generalize dependent e.
+    induction H; intros; subst.
+    - unfold project_ecfg in H; simpl in *; subst.
+      destruct v.
+      admit.
+     
+
+  Qed.*)
+       
   
 End Adequacy.
