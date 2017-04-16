@@ -462,16 +462,17 @@ Section Preservation.
     (forall i, set_In i U -> (ccfg_mem2 ccfg2) (Cnd i) = VSingle (Vnat 0))
     (* unsure about this kill set thing.. pretty sure we can assume this from lemma 3 *)
     /\  com_type pc md G (project_kill (ccfg_kill2 ccfg2) true) U d
-               (ccfg_com2 ccfg2) G' (project_kill K' true)
-    /\ (forall x v1 v2 bt p,
-           ((ccfg_reg2 ccfg2) x = VPair v1 v2
+                 (ccfg_com2 ccfg2) G' (project_kill K' true)
+    (* XXX quantifying the following over all reg and all memories... not sure if correct *)
+    /\ (forall x v1 v2 bt p r,
+           (r x = VPair v1 v2
             /\ (var_context G) x = Some (Typ bt p))
            -> protected p S)
-    /\ (forall l v1 v2 bt p rt,
-           ((ccfg_mem2 ccfg2) (Not_cnd l) = VPair v1 v2
+    /\ (forall l v1 v2 bt p rt m,
+           (m (Not_cnd l) = VPair v1 v2
             /\ (loc_context G) (Not_cnd l) = Some (Typ bt p, rt))    
            -> protected p S)
-         (* XXX not sure if it's ok to put a md' here *)
+    (* XXX not sure if it's ok to put a md' here. needed for final config preservation pf*)
     /\ (forall e v md', set_In e H ->
                     (estep2 md' d  (e, reg_init2, m0, ccfg_kill2 ccfg2) v ->
                      estep2 md' d (e, ccfg_reg2 ccfg2, ccfg_mem2 ccfg2, ccfg_kill2 ccfg2) v))
@@ -492,10 +493,16 @@ Section Preservation.
     - inversion H3; try discriminate; subst;
         inversion H4; try discriminate; subst.
       split; [intros | split; intros]; simpl in *; auto.
-      -- apply (H5 x v1 v2 bt p H10).
-      -- apply (H6 l v1 v2 bt p rt H10).
-    - 
-  Admitted
+      -- apply (H5 x v1 v2 bt p _ H10).
+      -- apply (H6 _ _ _ _ _ _ _ H10).
+    - inversion H3; try discriminate; subst;
+        inversion H4; try discriminate; subst.
+      split; [intros | split; intros]; simpl in *; auto.
+      -- unfold ccfg_update_reg2 in *.
+         unfold ccfg_reg2 in *.
+         remember (fun x0 => if x0 =? x then v0 else r x0) as r'.
+         destruct (x0 =? x).
+         
 
   Lemma impe2_type_preservation
         (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2) :
