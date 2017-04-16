@@ -180,9 +180,15 @@ Section Semantics.
     match ecfg with (_, r, _, _) => r end.
   Definition ecfg_mem2 (ecfg: econfig2) : mem2 :=
     match ecfg with (_, _, m, _) => m end.
+  Definition ecfg_kill2 (ecfg: econfig2) : kill2 :=
+    match ecfg with (_, _, _, k) => k end.
   Definition ecfg_update_exp2 (ecfg: econfig2) (e: exp) : econfig2 :=
     match ecfg with (_, r, m, k) => (e, r, m, k) end.
   Definition esemantics2 : Type := mode -> loc_mode -> econfig2 -> val2 -> Prop.
+
+   Definition project_ecfg (ecfg : econfig2) (is_left : bool) : econfig :=
+    (ecfg_exp2 ecfg, project_reg (ecfg_reg2 ecfg) is_left,
+     project_mem (ecfg_mem2 ecfg) is_left, project_kill (ecfg_kill2 ecfg) is_left).
 
   Inductive estep2 : esemantics2 :=
   | Estep2_nat : forall md d ecfg n,
@@ -716,5 +722,24 @@ Section Adequacy.
     - admit.
     - admit.
   Admitted.
+
+  (* XXX: I don't think this is the right phrasing because this would imply
+     that if IMP steps to v1 then IMPE takes steps to the pair (v1 | _) *)
+ (* Lemma impe2_exp_complete : forall md d e r m K v is_left,
+      estep md d (project_ecfg (e, r, m, K) is_left)
+            (project_value v is_left) -> estep2 md d (e, r, m, K) v.
+  Proof.
+    intros.
+    remember (project_ecfg (e, r, m, K) is_left) as ecfg.
+    remember (project_value v is_left) as v'.
+    generalize dependent e.
+    induction H; intros; subst.
+    - unfold project_ecfg in H; simpl in *; subst.
+      destruct v.
+      admit.
+     
+
+  Qed.*)
+       
   
 End Adequacy.
