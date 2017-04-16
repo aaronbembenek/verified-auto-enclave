@@ -39,159 +39,110 @@ Section Syntax.
   | Vnat : nat -> val
   | Vloc : location -> val.
 
-  Function exp_novars (e : exp) : Prop :=
+  Function forall_subexp (e: exp) (P: exp -> Prop) : Prop :=
+    P e /\
     match e with
-    | Evar _ => False
-    | Ebinop e1 e2 _ => exp_novars e1 /\ exp_novars e2
-    | Ederef e => exp_novars e
-    | Elambda c => com_novars c
+    | Ebinop e1 e2 _ => forall_subexp e1 P /\ forall_subexp e2 P
+    | Ederef e' => forall_subexp e' P
+    | Elambda c => forall_subexp' c P
     | _ => True
     end
-  with com_novars (c : com) : Prop :=
+  with forall_subexp' (c: com) (P: exp -> Prop) : Prop :=
     match c with
-    | Cassign _ e => exp_novars e
-    | Cdeclassify _ e => exp_novars e
-    | Cupdate e1 e2 => exp_novars e1 /\ exp_novars e2
-    | Coutput e _ => exp_novars e
-    | Cif e c1 c2 => exp_novars e /\ com_novars c1 /\ com_novars c2
-    | Cwhile e c => exp_novars e /\ com_novars c
-    | Ccall e => exp_novars e
-    | Cseq ls => fold_left (fun acc c => (com_novars c) /\ acc) ls True                           
+    | Cassign _ e => forall_subexp e P
+    | Cdeclassify _ e => forall_subexp e P
+    | Cupdate e1 e2 => forall_subexp e1 P /\ forall_subexp e2 P
+    | Ccall e => forall_subexp e P
+    | Cseq cs => fold_left (fun acc c => forall_subexp' c P /\ acc) cs True
+    | Cif e c1 c2 =>
+      forall_subexp e P /\ forall_subexp' c1 P /\ forall_subexp' c2 P
+    | Cwhile e c' => forall_subexp e P /\ forall_subexp' c' P
     | _ => True
     end.
   
+  Definition exp_novars (e: exp) : Prop :=
+    forall_subexp e (fun e =>
+                       match e with
+                       | Evar _ => False
+                       | _ => True
+                       end).
 End Syntax.
 
-Section Semantics.
-  Definition reg : Type := register val.
-  Definition init_regfile : reg := fun x => Vnat 0.
-  Definition mem : Type := memory val.
+Section Typing.
+  Inductive ref_type : Set :=
+  | Mut
+  | Immut.
 
-  (* FIXME: what to do about attackers? don't need to model, I'm guessing *)
-  Inductive event : Type :=
-  | Decl : exp -> mem -> event
-  | Mem : mem -> event
-  | Out : sec_level -> val -> event.
-  Definition trace : Type := list event.
-
-  Definition econfig : Type := exp * reg * mem.
-  Definition ecfg_exp (ecfg: econfig) : exp :=
-    match ecfg with (e, _, _) => e end.
-  Definition ecfg_reg (ecfg: econfig) : reg :=
-    match ecfg with (_, r, _) => r end.
-  Definition ecfg_mem (ecfg: econfig) : mem :=
-    match ecfg with (_, _, m) => m end.
-  Definition ecfg_update_exp (ecfg: econfig) (e: exp) : econfig :=
-    match ecfg with (_, r, m) => (e, r, m) end.
-
+  (* FIXME: we might want to change contexts to be defined in terms of
+     finite maps instead of functions. *)
+  Inductive base_type : Type :=
+  | Tnat : base_type
+  | Tcond : base_type
+  | Tref : type -> ref_type -> base_type
+  | Tlambda (G: context) (U: set condition) (p: sec_policy)
+            (G': context) : base_type
+                           
+  with type : Type :=
+  | Typ : base_type -> sec_policy -> type
+                                            
+  with context : Type :=
+  | Cntxt (var_cntxt: var -> option type)
+           (loc_cntxt: location -> option (type * ref_type)) : context.
+                                      
+  Definition var_context (G: context) : var -> option type :=
+    match G with Cntxt vc _ => vc end.
   
-  Inductive estep (ecfg: econfig) : val -> Prop :=
-  | Estep_nat : forall n, ecfg_exp ecfg = Enat n -> estep ecfg (Vnat n)
-  | Estep_loc : forall l, ecfg_exp ecfg = Eloc l -> estep ecfg (Vloc l)
-  | Estep_lambda : forall c,
-      ecfg_exp ecfg = Elambda c -> estep ecfg (Vlambda c)
-  | Estep_var : forall x v,
-      ecfg_exp ecfg = Evar x -> ecfg_reg ecfg x = v -> estep ecfg v
-  | Estep_binop : forall e1 e2 n1 n2 op,
-      ecfg_exp ecfg = Ebinop e1 e2 op ->
-      estep (ecfg_update_exp ecfg e1) (Vnat n1) ->
-      estep (ecfg_update_exp ecfg e2) (Vnat n2) ->
-      estep ecfg (Vnat (op n1 n2))
-  | Estep_deref : forall e r m l v,
-      ecfg = (Ederef e, r, m) ->
-      estep (e, r, m) (Vloc l) ->
-      m l = v ->
-      estep ecfg v
-  | Estep_isunset : forall cnd v res,
-      ecfg_exp ecfg = Eisunset cnd ->
-      estep (ecfg_update_exp ecfg (Ederef (Eloc (Cnd cnd)))) v ->
-      (v = Vnat 0 /\ res = Vnat 1) \/ (v <> Vnat 0 /\ res = Vnat 0) ->
-      estep ecfg res.
+  Definition loc_context (G: context) : location -> option (type * ref_type) :=
+    match G with Cntxt _ lc => lc end.
 
-  (* Semantics for commands. *)
-  Definition cconfig : Type := com * reg * mem.
-  Definition cterm : Type := reg * mem.
-  Definition ccfg_com (ccfg: cconfig) : com :=
-    match ccfg with (c, _, _) => c end.
-  Definition ccfg_reg (ccfg: cconfig) : reg :=
-    match ccfg with (_, r, _) => r end.
-  Definition ccfg_mem (ccfg: cconfig) : mem :=
-    match ccfg with (_, _, m) => m end.
-  Definition ccfg_update_mem (ccfg: cconfig) (l: location) (v: val) : mem := 
-    fun loc => if locations_eq loc l then v
-               else (ccfg_mem ccfg) loc.
-  Definition ccfg_update_reg (ccfg: cconfig) (x: var) (v: val) : reg :=
-    fun var => if var =? x then v
-               else (ccfg_reg ccfg) var.
-  Definition ccfg_to_ecfg (e: exp) (ccfg : cconfig) : econfig :=
-    (e, (ccfg_reg ccfg), (ccfg_mem ccfg)).
-  Definition ccfg_update_com (c: com) (ccfg : cconfig) : cconfig :=
-    (c, (ccfg_reg ccfg), (ccfg_mem ccfg)).
+  Inductive var_in_dom (G: context) : var -> type -> Prop :=
+  | Var_in_dom : forall x t,
+      var_context G x = Some t ->
+      var_in_dom G x t.
 
-  Inductive cstep (ccfg: cconfig) : cterm -> trace -> Prop :=
-  | Cstep_skip : cstep ccfg (ccfg_reg ccfg, ccfg_mem ccfg) []
-  | Cstep_assign : forall x e v r',
-      ccfg_com ccfg = Cassign x e ->
-      estep (ccfg_to_ecfg e ccfg) v ->
-      r' = ccfg_update_reg ccfg x v ->
-      cstep ccfg (r', ccfg_mem ccfg) []
-  | Cstep_declassify : forall x e v r',
-      ccfg_com ccfg = Cdeclassify x e ->
-      exp_novars e ->
-      estep (ccfg_to_ecfg e ccfg) v ->
-      r' = ccfg_update_reg ccfg x v ->
-      cstep ccfg (r', ccfg_mem ccfg) [Decl e (ccfg_mem ccfg)]
-  | Cstep_update : forall e1 e2 l v m',
-      ccfg_com ccfg = Cupdate e1 e2 ->
-      estep (ccfg_to_ecfg e1 ccfg) (Vloc l) ->
-      estep (ccfg_to_ecfg e2 ccfg) v ->
-      is_Not_cnd l ->
-      m' = ccfg_update_mem ccfg l v ->
-      cstep ccfg (ccfg_reg ccfg, m') []
-  | Cstep_output : forall e sl v,
-      ccfg_com ccfg = Coutput e sl ->
-      estep (ccfg_to_ecfg e ccfg) v ->
-      sl = L \/ sl = H ->
-      cstep ccfg (ccfg_reg ccfg, ccfg_mem ccfg) [Mem (ccfg_mem ccfg); Out sl v]
-  | Cstep_call : forall e c r' m' tr,
-      ccfg_com ccfg = Ccall e ->
-      estep (ccfg_to_ecfg e ccfg) (Vlambda c) ->
-      cstep (ccfg_update_com c ccfg) (r', m') tr ->
-      cstep ccfg (r', m') tr
-  | Cstep_cset : forall c m',
-      ccfg_com ccfg = Cset c ->
-      m' = ccfg_update_mem ccfg (Cnd c) (Vnat 1) ->
-      cstep ccfg (ccfg_reg ccfg, m') [Mem m']
-  | Cstep_seq_nil :
-      ccfg_com ccfg = Cseq [] ->
-      cstep ccfg (ccfg_reg ccfg, ccfg_mem ccfg) []
-  | Cstep_seq_hd : forall hd tl r m tr r' m' tr',
-      ccfg_com ccfg = Cseq (hd::tl) ->
-      cstep (ccfg_update_com hd ccfg) (r, m) tr ->
-      cstep (Cseq tl, r, m) (r', m') tr' ->
-      cstep ccfg (r', m') (tr++tr')
-  | Cstep_if : forall e c1 c2 v r' m' tr,
-      ccfg_com ccfg = Cif e c1 c2 ->
-      estep (ccfg_to_ecfg e ccfg) v ->
-      ~(v = (Vnat 0)) ->
-      cstep (ccfg_update_com c1 ccfg) (r', m') tr ->
-      cstep ccfg (r', m') tr
-  | Cstep_else : forall e c1 c2 v r' m' tr,
-      ccfg_com ccfg = Cif e c1 c2 ->
-      estep (ccfg_to_ecfg e ccfg) v ->
-      v = (Vnat 0) ->
-      cstep (ccfg_update_com c2 ccfg) (r', m') tr ->
-      cstep ccfg (r', m') tr
-  | Cstep_while_t : forall e c v r m tr r' m' tr',
-      ccfg_com ccfg = Cwhile e c ->
-      estep (ccfg_to_ecfg e ccfg) v ->
-      ~(v = (Vnat 0)) ->
-      cstep (ccfg_update_com c ccfg) (r, m) tr ->
-      cstep (ccfg_update_com (Cwhile e c) ccfg) (r', m') tr' ->
-      cstep ccfg (r', m') (tr++tr')
-  | Cstep_while_f : forall e c,
-      ccfg_com ccfg = Cwhile e c ->
-      estep (ccfg_to_ecfg e ccfg) (Vnat 0) ->
-      cstep ccfg (ccfg_reg ccfg, ccfg_mem ccfg) [].
+  Inductive loc_in_dom (G: context) : location -> type -> ref_type -> Prop :=
+  | Loc_in_dom : forall l t rt,
+      loc_context G l = Some (t, rt) ->
+      loc_in_dom G l t rt.
 
-End Semantics.
+  Definition forall_var (G: context) (P: var -> type -> Prop) : Prop :=
+    forall x t, var_in_dom G x t -> P x t.
+
+  Definition forall_loc (G: context)
+             (P: location -> type -> ref_type -> Prop) : Prop :=
+    forall l t rt,
+      loc_in_dom G l t rt -> P l t rt.
+
+  Definition forall_dom (G: context)
+             (P: var -> type -> Prop)
+             (Q: location -> type -> ref_type -> Prop) : Prop :=
+    forall_var G P /\ forall_loc G Q.
+
+  Inductive exp_wt : context -> exp -> type -> Prop :=
+  | STnat : forall G n,
+      exp_wt G (Enat n) (Typ Tnat (LevelP L))
+  | STcond : forall G x,
+      exp_wt G (Eloc (Cnd x)) (Typ Tcond (LevelP L))
+  | STvar : forall G x t,
+      var_context G x = Some t ->
+      exp_wt G (Evar x) t
+  | STloc : forall G x t rt,
+      loc_context G (Not_cnd x) = Some (t, rt) ->
+      exp_wt G (Eloc (Not_cnd x)) (Typ (Tref t rt) (LevelP L))
+  | STderef : forall G e s p q rt,
+      exp_wt G e (Typ (Tref (Typ s p) rt) q) ->
+      exp_wt G (Ederef e) (Typ s (policy_join p q))
+  | STisunset : forall G x,
+      exp_wt G (Eisunset x) (Typ Tnat (LevelP L))
+  | STlambda : forall p G U c G' G'',
+      com_wt p G' U c G'' ->
+      exp_wt G (Elambda c) (Typ (Tlambda G' U p G'') (LevelP L))
+  | STbinop : forall G e1 e2 p q op,
+      exp_wt G e1 (Typ Tnat p) ->
+      exp_wt G e1 (Typ Tnat q) ->
+      exp_wt G (Ebinop e1 e2 op) (Typ Tnat (policy_join p q))
+
+  with com_wt : sec_policy -> context -> set condition -> com ->
+                context -> Prop :=
+  .
+End Typing.
