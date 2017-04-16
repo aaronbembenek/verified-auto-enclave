@@ -473,17 +473,22 @@ Section Preservation.
 
   Lemma impe2_final_config_preservation 
         (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2) :
-      forall G' K' ccfg2 pc md U r' m' t,
+      forall G' K' c r m k pc md U r' m' t,
         (forall l e v, loc_in_exp e G l -> m0 l = VSingle v) -> 
         context_wt G d ->
-        cconfig2_ok pc md G U d S H m0 ccfg2 G' K' ->
-        cstep2 md d ccfg2 (r', m', K') t ->
+        cconfig2_ok pc md G U d S H m0 (c,r,m,k) G' K' ->
+        cstep2 md d (c,r,m,k) (r', m', K') t ->
         cterm2_ok G' d S H m0 r' m' K'.
   Proof.
+    intros; remember (c,r,m,k) as ccfg2; subst.
+    induction c; unfold cconfig2_ok in H2; destruct_pairs.
+    unfold cterm2_ok; intros; split; intros; destruct_pairs; subst.
+    
+    unfold cterm2_ok; split.
     intros.
-    unfold cterm2_ok.
-    split; intros.
-    destruct H4.
+    - destruct H4. subst. induction c.
+      
+      
     
   Admitted
 
