@@ -521,8 +521,6 @@ Section Preservation.
       v = VPair v1 v2 ->
       exp_type md G d e (Typ bt p) ->
       estep2 md d (e,r,m,k) v ->
-      (forall l, (m l) = v ->
-                 (exists n, l = Not_cnd n)) ->
       (* XXX assume that if the value is a location, then the policy on the location *)
       (* is protected by S. This should be fine because we're assuming this for *)
       (* memories that are indistinguishable *)
@@ -535,15 +533,14 @@ Section Preservation.
     remember (e,r,m,k) as ecfg.
     generalize dependent e.
     induction H2; intros; subst; try discriminate; unfold_cfgs;
-    unfold cterm2_ok in H5; destruct_pairs; subst.
-    - inversion H6; subst.
+    unfold cterm2_ok in H4; destruct_pairs; subst.
+    - inversion H5; subst.
       apply (H0 x v1 v2 bt p); split; auto. 
     - inversion Heqecfg; subst.
-      clear IHestep2.
-      inversion H8; subst.
-      destruct (H4 bt p0 q md' rt).
+      inversion H7; subst.
+      destruct (H3 bt p0 q md' rt).
       apply (join_protected_r S p0 q); auto.
-    - destruct H6; destruct_pairs; try discriminate.
+    - destruct H5; destruct_pairs; try discriminate.
   Qed.
 
   Lemma impe2_final_config_preservation 
