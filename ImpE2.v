@@ -453,6 +453,7 @@ Section Preservation.
     unfold ccfg_kill2 in *;
     unfold ccfg_com2 in *;
     unfold ecfg_exp2 in *;
+    unfold ecfg_reg2 in *;
     unfold ecfg_update_exp2 in *.                      
 
   Definition cterm2_ok (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch)
@@ -514,14 +515,35 @@ Section Preservation.
       assert (exp_novars (Ederef (Eloc (Cnd cnd)))). unfold exp_novars. simpl; auto.
       apply IHestep2 in H; auto.
   Qed.
-    
-  Lemma econfig2_pair_protected : forall md G d e p r m k v v1 v2 S bt,
-    v = VPair v1 v2 ->
-    exp_type md G d e (Typ bt p) ->
-    estep2 md d (e,r,m,k) v ->
-    protected p S.
+
+  Lemma econfig2_pair_protected : forall md G d e p r m k v v1 v2 S bt H m0,
+      v = VPair v1 v2 ->
+      exp_type md G d e (Typ bt p) ->
+      estep2 md d (e,r,m,k) v ->
+      (forall l, (m l) = v ->
+                 (exists n, l = Not_cnd n)) ->
+      (* XXX assume that if the value is a location, then the policy on the location *)
+      (* is protected by S. This should be fine because we're assuming this for *)
+      (* memories that are indistinguishable *)
+      (forall bt' (p' q: sec_policy) md' rt,
+          (Typ bt p = Typ (Tref (Typ bt' p') md' rt) q) /\ protected q S) ->
+      cterm2_ok G d S H m0 r m k ->
+      protected p S.
   Proof.
-  Admitted.
+    intros.
+    remember (e,r,m,k) as ecfg.
+    generalize dependent e.
+    induction H2; intros; subst; try discriminate; unfold_cfgs;
+    unfold cterm2_ok in H5; destruct_pairs; subst.
+    - inversion H6; subst.
+      apply (H0 x v1 v2 bt p); split; auto. 
+    - inversion Heqecfg; subst.
+      clear IHestep2.
+      inversion H8; subst.
+      destruct (H4 bt p0 q md' rt).
+      apply (join_protected_r S p0 q); auto.
+    - destruct H6; destruct_pairs; try discriminate.
+  Qed.
 
   Lemma impe2_final_config_preservation 
         (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2) :
@@ -551,10 +573,10 @@ Section Preservation.
              destruct_pairs.
              assert (protected p S).
              apply (econfig2_pair_protected
-                      md (Cntxt vc lc) d e0 p r m' K' v0 v1 v2 S s
+                      md (Cntxt vc lc) d e0 p r m' K' v0 v1 v2 S s H m0 _
                       H9 H11 H16).
              inversion H10; subst.
-             apply (join S p pc H13).
+             apply (join_protected_l S p pc H13).
          --- rewrite <- (Nat.eqb_neq x0 x) in n. rewrite n in H9.
              apply H5 in H9; auto.
       -- now apply H6 in H9.

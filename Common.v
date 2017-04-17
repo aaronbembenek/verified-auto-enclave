@@ -158,8 +158,11 @@ Section Security.
       protected (ErasureP H cnd sl pf) S
   | erase_low: forall cnd S sl pf,
       set_In cnd S -> protected (ErasureP L cnd sl pf) S
-  | join: forall S p p',
+  | join_protected_l: forall S p p',
       protected p S ->
+      protected (policy_join p p') S
+  | join_protected_r: forall S p p',
+      protected p' S ->
       protected (policy_join p p') S.
 
 End Security.
