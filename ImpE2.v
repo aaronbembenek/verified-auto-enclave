@@ -524,8 +524,10 @@ Section Preservation.
       (* XXX assume that if the value is a location, then the policy on the location *)
       (* is protected by S. This should be fine because we're assuming this for *)
       (* memories that are indistinguishable *)
-      (forall bt' (p' q: sec_policy) md' rt,
-          (Typ bt p = Typ (Tref (Typ bt' p') md' rt) q) /\ protected q S) ->
+      (forall bt' (p' q: sec_policy) md' rt e',
+          e = Ederef e' ->
+          exp_type md G d e' (Typ (Tref (Typ bt' p') md' rt) q)
+          -> protected q S) ->
       cterm2_ok G d S H m0 r m k ->
       protected p S.
   Proof.
@@ -534,13 +536,13 @@ Section Preservation.
     generalize dependent e.
     induction H2; intros; subst; try discriminate; unfold_cfgs;
     unfold cterm2_ok in H4; destruct_pairs; subst.
-    - inversion H5; subst.
+    - inversion H3; subst.
       apply (H0 x v1 v2 bt p); split; auto. 
     - inversion Heqecfg; subst.
-      inversion H7; subst.
-      destruct (H3 bt p0 q md' rt).
+      inversion H6; subst.
+      assert (protected q S). apply (H7 bt p0 q md' rt e); auto.
       apply (join_protected_r S p0 q); auto.
-    - destruct H5; destruct_pairs; try discriminate.
+    - destruct H3; destruct_pairs; try discriminate.
   Qed.
 
   Lemma impe2_final_config_preservation 
@@ -571,10 +573,15 @@ Section Preservation.
              destruct_pairs.
              assert (protected p S).
              apply (econfig2_pair_protected
-                      md (Cntxt vc lc) d e0 p r m' K' v0 v1 v2 S s H m0 _
+                      md (Cntxt vc lc) d e0 p r m' K' v0 v1 v2 S s H m0
                       H9 H11 H16).
-             inversion H10; subst.
-             apply (join_protected_l S p pc H13).
+             (* XXX ergh now we either have to pass in the assumption or *)
+             (* do something weird *)
+             ---- admit.
+             ---- unfold cterm2_ok; split; intros. now apply H5 in H13.
+             ----- split; intros. now apply H6 in H13.
+             ------ split; intros; auto.
+             ---- inversion H10; subst. now apply (join_protected_l S p pc).
          --- rewrite <- (Nat.eqb_neq x0 x) in n. rewrite n in H9.
              apply H5 in H9; auto.
       -- now apply H6 in H9.
@@ -582,6 +589,8 @@ Section Preservation.
          apply (esc_hatch_reg_irrelevance
                   e1 md' d r m' K' v1
                   (fun var : var => if var =? x then v0 else r var)); auto.
+    (* Cdeclassify *)
+    -
   Admitted.
          
   Lemma impe2_type_preservation
