@@ -277,7 +277,10 @@ Section Semantics.
 
   (* XXX couldn't figure out a way to not have to introduce forall md d ccfg everywhere.. *)
   Inductive cstep : csemantics := 
-  | Cstep_skip : forall md d ccfg, cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
+  | Cstep_skip : forall md d ccfg,
+      ccfg_com ccfg = Cskip ->
+      mode_alive md (ccfg_kill ccfg) ->
+      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
   | Cstep_assign : forall md d ccfg x e v r',
       ccfg_com ccfg = Cassign x e ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
@@ -355,11 +358,12 @@ Section Semantics.
       estep md d (ccfg_to_ecfg e ccfg) (Vnat 0) ->
       mode_alive md (ccfg_kill ccfg) ->
       cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
-  | Cstep_kill : forall md d ccfg enc,
+  | Cstep_kill : forall md d ccfg enc k',
       md = Normal ->
       ccfg_com ccfg = Ckill enc ->
       mode_alive (Encl enc) (ccfg_kill ccfg) ->
-      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
+      k' = set_add Nat.eq_dec enc (ccfg_kill ccfg) ->
+      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, k') [].
   Hint Constructors cstep.
 
   Inductive cstep_n_chaos : csemantics :=

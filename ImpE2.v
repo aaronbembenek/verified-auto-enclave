@@ -252,6 +252,7 @@ Section Semantics.
   Inductive cstep2 : csemantics2 := 
   | Cstep2_skip : forall md d ccfg,
       ccfg_com2 ccfg = Cskip ->
+      mode_alive2 md (ccfg_kill2 ccfg) ->
       cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg, ccfg_kill2 ccfg) []
   | Cstep2_assign : forall md d ccfg x e v r',
       ccfg_com2 ccfg = Cassign x e ->
@@ -674,6 +675,12 @@ Section Adequacy.
   Proof.
   Admitted.
 
+  Lemma project_add_comm_kill : forall K is_left enc,
+      project_kill (add_to_kill2 enc K) is_left =
+      set_add Nat.eq_dec enc (project_kill K is_left).
+  Proof.
+  Admitted.
+
   Lemma project_merge_inv_reg : forall r1 r2 r,
       merge_reg r1 r2 r -> (project_reg r true = r1) /\ (project_reg r false = r2).
   Proof.
@@ -734,7 +741,7 @@ Section Adequacy.
     generalize dependent K'.
     generalize dependent c.
     induction H; intros; try rewrite Heqccfg in H, Heqcterm; simpl in *; inversion Heqcterm; subst.
-    - constructor.
+    - constructor; auto. now apply mode_alive_project_alive.
     - apply impe2_exp_sound with (is_left:=is_left) in H0.
       apply Cstep_assign with (x:=x) (e:=e) (v := project_value v is_left); auto.
       unfold ccfg_to_ecfg; simpl in *; auto.
@@ -768,7 +775,7 @@ Section Adequacy.
       now apply mode_alive_project_alive.
     - apply Cstep_enclave with (enc := enc) (c := c); auto.
       apply IHcstep2 with (c1 := c); auto.
-    - constructor.
+    - apply Cstep_seq_nil; auto. 
     - apply Cstep_seq_hd with (hd:=hd) (tl:=tl)
                                        (r:=(project_reg r0 is_left))
                                        (m:=(project_mem m0 is_left))
@@ -776,7 +783,8 @@ Section Adequacy.
                                        (tr:=(project_trace tr is_left))
                                        (tr':=(project_trace tr' is_left)); auto.
       apply IHcstep2_1 with (c0 := hd); auto.
-      (* XXX *)
+      (* XXX: getting stuck with a weird induction hypothesis... maybe generalizing wrong *)
+      apply IHcstep2_2 with (c := (Cseq tl)); auto.
       admit.
       now apply project_app_trace.
     - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *.
@@ -797,13 +805,37 @@ Section Adequacy.
       apply Cstep_if with (e := e) (c1 := c1) (c2 := c2) (v := Vnat (S n2)); auto.
       discriminate.
       rewrite project_merge_inv_trace; auto.
-    - rewrite project_app_trace.
-      admit.
+    - rewrite project_app_trace; simpl in *; subst.
+      apply Cstep_while_t with (e := e) (c := c) (v := (Vnat 1))
+                                        (r := (project_reg r0 is_left))
+                                        (m := (project_mem m0 is_left))
+                                        (k := (project_kill k is_left)); auto.
+      now apply impe2_exp_sound with (is_left := is_left) in H0.
+      now discriminate.
+      now apply IHcstep2_1 with (c0 := c).
+      now apply IHcstep2_2 with (c0 := (Cwhile e c)).
     - apply Cstep_while_f with (e := e) (c := c); auto.
       now apply impe2_exp_sound with (is_left := is_left) in H0.
       now apply mode_alive_project_alive.
-    - admit.
-    - admit.
+    - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
+        apply project_merge_inv_reg in H3; apply project_merge_inv_mem in H4;
+          destruct_conjs; subst.
+      admit.
+     (* XXX: I think there's a typo in the paper's While-div rule that I need to figure out *)
+     (* destruct is_left; [destruct n1 | destruct n2]; rewrite project_merge_inv_trace.
+      +  assert (t1 = [] /\ k1 = (project_kill K true) /\
+                 (project_reg r true) = (project_reg r' true) /\
+                 (project_mem m true) = (project_mem m' true)) by
+            (inversion H1; subst; auto; try discriminate); destruct_conjs; subst.
+         rewrite <- H4; rewrite <- H5.
+         apply Cstep_while_f with (e := e) (c := c); auto.
+         inversion H1; now try discriminate. *)
+
+     
+    - simpl in H0; subst; simpl in *; apply Cstep_kill with (enc := enc); auto.
+      assert (mode_alive2 (Encl enc) K) by (unfold mode_alive2; now simpl).
+      now apply mode_alive_project_alive.
+      now apply project_add_comm_kill.      
   Admitted.
 
   (* XXX: I don't think this is the right phrasing because this would imply
