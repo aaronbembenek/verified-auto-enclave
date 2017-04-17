@@ -654,10 +654,9 @@ Section Security.
      for all the quantified variables *)
   Definition knowledge_attack (c: com) (sl: sec_level) (cstep: csemantics)
              (tobs: trace) (m: mem) : Prop :=
-    forall d r' m' k' t t0 t1 t2,
+    forall d r' m' k' t,
       cstep Normal d (c, reg_init, m, []) (r', m', k') t ->
-      t = t0 ++ t1 ++ t2 ->
-      tobs_sec_level sl tobs = tobs_sec_level sl t1.
+      tobs_sec_level sl tobs = tobs_sec_level sl t.
 
   (* XXX need to enforce that all U are unset? *)
   Definition knowledge_ind (m: mem) (g: sec_spec) (U: set condition)
@@ -679,15 +678,15 @@ Section Security.
    *)
   Definition secure_prog (sl: sec_level) (g: sec_spec)
              (cstep: csemantics) (estep: esemantics) (c: com) : Prop :=
-    forall m0 r m k d t tobs t' mknown,
-      cstep Normal d (c, reg_init, m0, []) (r, m, k) (t ++ tobs ++ t') ->
+    forall m0 r m k d tobs mknown,
+      cstep Normal d (c, reg_init, m0, []) (r, m, k) tobs ->
       (exists m'' t'', tobs = Mem m'' :: t'') ->
       (forall mind U,
           In (Mem mind) tobs ->
           (forall cnd, cnd_unset mind cnd <-> In cnd U) ->
           knowledge_ind m0 g U sl mknown) ->
       (forall mdecl e,
-          In (Decl e mdecl) (t ++ tobs) ->
+          In (Decl e mdecl) tobs ->
           knowledge_esc m0 mdecl estep e mknown) ->
       knowledge_attack c sl cstep tobs mknown.
 End Security.

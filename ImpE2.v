@@ -590,7 +590,15 @@ Section Preservation.
                   e1 md' d r m' K' v1
                   (fun var : var => if var =? x then v0 else r var)); auto.
     (* Cdeclassify *)
-    -
+    - inversion H3; try discriminate; subst;
+        inversion H4; try discriminate; subst.
+      split; [intros | split; intros]; simpl in *; auto; unfold_cfgs.
+      inversion_clear H12; subst.
+      
+      destruct (Nat.eq_dec x0 x).
+      --- rewrite <- (Nat.eqb_eq x0 x) in e; rewrite e in *.
+          
+          inversion H11; try discriminate; subst.
   Admitted.
          
   Lemma impe2_type_preservation
@@ -609,18 +617,6 @@ Section Preservation.
   Proof.
   Admitted.
  
-(*      
-  Definition overlap (tr tobs: trace) :=
-  | tobs is entirely contained in tr => tobs
-  | tobs is after tr => empty
-  | overlap with beginning of tobs => beginning of tobs
-                                                    
-  Lemma eq_overlap_tobs (m1 m2: mem) (tobs: trace) :
-    forall md d c k r' m' k' tr1 tr2,
-    cstep md d (c, reg_init, m1, k) (r', m', k') tr1 ->
-    cstep md d (c, reg_init, m2, k) (r', m', k') tr2 ->
-    tobs_sec_level L (overlap tr1 tobs) = tobs_sec_level L (overlap tr2 tobs).
-  *)    
 End Preservation.
 
 
