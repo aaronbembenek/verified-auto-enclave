@@ -639,6 +639,7 @@ End Typing.
 
 Section Security.
   Definition esc_hatch : Type := exp.
+  Definition is_esc_hatch (e: esc_hatch) := exp_novars e.
   
   Definition tobs_sec_level (sl: sec_level) : trace -> trace :=
     filter (fun event => match event with

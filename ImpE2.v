@@ -248,7 +248,7 @@ Section Semantics.
   Definition project_ccfg (ccfg : cconfig2) (is_left : bool) : cconfig :=
     (ccfg_com2 ccfg, project_reg (ccfg_reg2 ccfg) is_left,
      project_mem (ccfg_mem2 ccfg) is_left, project_kill (ccfg_kill2 ccfg) is_left).
-  
+
   Inductive cstep2 : csemantics2 := 
   | Cstep2_skip : forall md d ccfg,
       ccfg_com2 ccfg = Cskip ->
@@ -445,6 +445,17 @@ Section Semantics.
 End Semantics.
   
 Section Preservation.
+
+  Ltac unfold_cfgs :=
+    unfold ccfg_update_reg2 in *;
+    unfold ccfg_to_ecfg2 in *;
+    unfold ccfg_reg2 in *;
+    unfold ccfg_mem2 in *;
+    unfold ccfg_kill2 in *;
+    unfold ccfg_com2 in *;
+    unfold ecfg_exp2 in *;
+    unfold ecfg_update_exp2 in *.                      
+
   Definition cterm2_ok (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch)
              (m0: mem2) (r: reg2) (m: mem2) (K: kill2) : Prop :=
       (forall x v1 v2 bt p,
@@ -453,8 +464,9 @@ Section Preservation.
           (m (Not_cnd l) = VPair v1 v2 /\ (loc_context G) (Not_cnd l) = Some (Typ bt p, rt))
           -> protected p S)
       /\ (forall e v md', set_In e H ->
-                 (estep2 md' d (e, reg_init2, m0, K) v ->
-                  estep2 md' d (e, r, m, K) v))
+                          is_esc_hatch e ->
+                          (estep2 md' d (e, reg_init2, m0, K) v ->
+                           estep2 md' d (e, r, m, K) v))
       /\ project_kill K true = project_kill K false.
 
   Definition cconfig2_ok (pc: sec_policy) (md: mode) (G: context) (U: set condition)
@@ -464,7 +476,6 @@ Section Preservation.
     (* unsure about this kill set thing.. pretty sure we can assume this from lemma 3 *)
     /\  com_type pc md G (project_kill (ccfg_kill2 ccfg2) true) U d
                  (ccfg_com2 ccfg2) G' (project_kill K' true)
-    (* XXX quantifying the following over all reg and all memories... not sure if correct *)
     /\ (forall x v1 v2 bt p,
            ((ccfg_reg2 ccfg2) x = VPair v1 v2
             /\ (var_context G) x = Some (Typ bt p))
@@ -473,11 +484,45 @@ Section Preservation.
            ((ccfg_mem2 ccfg2) (Not_cnd l) = VPair v1 v2
             /\ (loc_context G) (Not_cnd l) = Some (Typ bt p, rt))    
            -> protected p S)
-    (* XXX not sure if it's ok to put a md' here. needed for final config preservation pf*)
     /\ (forall e v md', set_In e H ->
-                    (estep2 md' d  (e, reg_init2, m0, ccfg_kill2 ccfg2) v ->
-                     estep2 md' d (e, ccfg_reg2 ccfg2, ccfg_mem2 ccfg2, ccfg_kill2 ccfg2) v))
+                        is_esc_hatch e ->
+                        (estep2 md' d  (e, reg_init2, m0, ccfg_kill2 ccfg2) v ->
+                         estep2 md' d (e, ccfg_reg2 ccfg2, ccfg_mem2 ccfg2, ccfg_kill2 ccfg2) v))
     /\ project_kill (ccfg_kill2 ccfg2) true = project_kill (ccfg_kill2 ccfg2) false.
+
+  Lemma esc_hatch_reg_irrelevance (e : esc_hatch) :
+    forall md d r m k v r',
+    is_esc_hatch e -> estep2 md d (e, r, m, k) v ->
+    estep2 md d (e, r', m, k) v.
+  Proof.
+    intros. unfold is_esc_hatch in *.
+    remember (e, r, m, k) as ecfg2.
+    generalize dependent e.
+    induction H0; intros; subst; auto.
+    1-3: constructor; unfold_cfgs; auto.
+    - unfold_cfgs. subst. unfold exp_novars in H1. simpl in H1. omega.
+    - unfold_cfgs; subst.
+      assert (exp_novars e1 /\ exp_novars e2). unfold exp_novars in *;
+                                                 inversion H0; destruct_pairs; auto.
+      destruct_pairs.
+      pose (IHestep2_1 e1 H). pose (IHestep2_2 e2 H1).
+      apply (Estep2_binop md d (Ebinop e1 e2 op,r',m,k) e1 e2 n1 n2); unfold_cfgs; auto.
+    - inversion Heqecfg2; subst.
+      assert (exp_novars e). unfold exp_novars in *. inversion H3; auto.
+      apply (Estep2_deref md d (Ederef e,r',m,k) e r' m k l (m l)); unfold_cfgs; auto.
+    - unfold_cfgs. subst.
+      apply (Estep2_isunset md d (Eisunset cnd,r',m,k) cnd v); unfold_cfgs; auto.
+      assert (exp_novars (Ederef (Eloc (Cnd cnd)))). unfold exp_novars. simpl; auto.
+      apply IHestep2 in H; auto.
+  Qed.
+    
+  Lemma econfig2_pair_protected : forall md G d e p r m k v v1 v2 S bt,
+    v = VPair v1 v2 ->
+    exp_type md G d e (Typ bt p) ->
+    estep2 md d (e,r,m,k) v ->
+    protected p S.
+  Proof.
+  Admitted.
 
   Lemma impe2_final_config_preservation 
         (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2) :
@@ -490,20 +535,36 @@ Section Preservation.
   Proof.
     intros; remember (c,r,m,k) as ccfg2; subst.
     unfold cconfig2_ok in H2; destruct_pairs.
-    induction c; unfold cterm2_ok; intros; subst; simpl in *.
+    induction c; unfold cterm2_ok; intros; subst; simpl in *; unfold_cfgs.
+    (* CSkip *)
     - inversion H3; try discriminate; subst;
         inversion H4; try discriminate; subst.
       split; [intros | split; intros]; simpl in *; auto.
-      -- apply (H5 x v1 v2 bt p H10).
-      -- apply (H6 _ _ _ _ _ _ H10).
+      -- now apply H5 in H10.
+      -- now apply H6 in H10.
+    (* CAssign *)
     - inversion H3; try discriminate; subst;
         inversion H4; try discriminate; subst.
-      split; [intros | split; intros]; simpl in *; auto.
-      -- unfold ccfg_update_reg2 in *.
-         unfold ccfg_reg2 in *.
+      split; [intros | split; intros]; simpl in *; auto; unfold_cfgs.
+      -- inversion H12; subst.
          destruct (Nat.eq_dec x0 x).
+         --- rewrite <- (Nat.eqb_eq x0 x) in e; rewrite e in H9.
+             destruct_pairs.
+             assert (protected p S).
+             apply (econfig2_pair_protected
+                      md (Cntxt vc lc) d e0 p r m' K' v0 v1 v2 S s
+                      H9 H11 H16).
+             inversion H10; subst.
+             apply (join S p pc H13).
+         --- rewrite <- (Nat.eqb_neq x0 x) in n. rewrite n in H9.
+             apply H5 in H9; auto.
+      -- now apply H6 in H9.
+      -- split; intros; auto.
+         apply (esc_hatch_reg_irrelevance
+                  e1 md' d r m' K' v1
+                  (fun var : var => if var =? x then v0 else r var)); auto.
   Admitted.
-  
+         
   Lemma impe2_type_preservation
         (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2) :
     forall pc md U c r m K G' K',
