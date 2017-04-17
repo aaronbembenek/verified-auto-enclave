@@ -128,7 +128,36 @@ Section Typing.
                        | _ => True
                        end).
 
-  (* Need this for using List.nth... maybe better option *)
+  Inductive type_le : type -> type -> Prop :=
+  | Type_le : forall s1 s2 p1 p2,
+      base_type_le s1 s2 ->
+      policy_le p1 p2 ->
+      type_le (Typ s1 p1) (Typ s2 p2)
+
+  with base_type_le : base_type -> base_type -> Prop :=
+  | Base_type_le_refl : forall s, base_type_le s s
+  | Base_type_le_lambda : forall G1 G1' G2 G2' U p1 p2,
+      policy_le p2 p1 ->
+      context_le G2 G1 ->
+      context_le G1' G2' ->
+      base_type_le (Tlambda G1 U p1 G1')
+                   (Tlambda G2 U p2 G2')
+
+  with context_le : context -> context -> Prop :=
+  | Context_le : forall G1 G2,
+      (forall x t,
+          var_in_dom G1 x t -> exists t',
+            var_in_dom G2 x t' /\ type_le t t') ->
+      (forall x t,
+          var_in_dom G2 x t -> exists t', var_in_dom G1 x t') ->
+      (forall l t rt,
+          loc_in_dom G1 l t rt -> exists t',
+            loc_in_dom G2 l t' rt /\ type_le t t') ->
+      (forall l t rt,
+          loc_in_dom G2 l t rt -> exists t', loc_in_dom G1 l t' rt) ->
+      context_le G1 G2.
+
+  (* XXX need this for using List.nth... maybe better option *)
   Definition mt := Cntxt (fun _ => None) (fun _ => None).
   
   Inductive exp_wt : context -> exp -> type -> Prop :=
@@ -186,11 +215,62 @@ Section Typing.
       q <> LevelP T ->
       com_wt pc G U (Cupdate e1 e2) G
   | STseq : forall pc G U coms (Gs: list context),
+      (* There might be a better way to write this with a function
+         that recurses over the list of commands. *)
       length Gs = length coms + 1 ->
       nth 0 Gs mt = G ->
       (forall (i: nat),
           i < length coms ->
           com_wt pc (nth i Gs mt) U (nth i coms Cskip) (nth (i + 1) Gs mt)) ->
-      com_wt pc G U (Cseq coms) (nth (length Gs - 1) Gs mt)
-  .
+      com_wt pc G U (Cseq coms) (nth (length coms) Gs mt)
+  | STsetcnd : forall G U cnd,
+      com_wt (LevelP L) G U (Cset cnd) G
+  | SToutput : forall pc G U e s p l,
+      exp_wt G e (Typ s p) ->
+      p <> LevelP T ->
+      sec_level_le (sec_level_join (cur p U) (cur pc U)) l ->
+      com_wt pc G U (Coutput e l) G
+  | STifunset : forall pc G U cnd c1 c2 G',
+      exp_wt G (Eisunset cnd) (Typ Tnat (LevelP L)) ->
+      com_wt pc G (set_add Nat.eq_dec cnd U) c1 G' ->
+      com_wt pc G U c2 G' ->
+      com_wt pc G U (Cif (Eisunset cnd) c1 c2) G'
+  | STifelse : forall pc G U e c1 c2 pc' G' p,
+      (forall cnd, e <> Eisunset cnd) ->
+      exp_wt G e (Typ Tnat p) ->
+      com_wt pc' G U c1 G' ->
+      com_wt pc' G U c2 G' ->
+      policy_le (policy_join pc p) pc' ->
+      p <> LevelP T ->
+      com_wt pc G U (Cif e c1 c2) G'
+  | STwhile : forall pc G U e c p pc',
+      exp_wt G e (Typ Tnat p) ->
+      com_wt pc' G U c G ->
+      policy_le (policy_join pc p) pc' ->
+      p <> LevelP T ->
+      com_wt pc G U (Cwhile e c) G
+  | STcall : forall pc G U e Gout Gplus Gminus p q,
+      exp_wt G e (Typ (Tlambda Gminus U p Gplus) q) ->
+      policy_le (policy_join pc q) p ->
+      q <> LevelP T ->
+      forall_dom Gminus
+                 (fun x t => exists t', var_in_dom G x t' /\ type_le t' t)
+                 (fun l t rt => exists t',
+                      loc_in_dom G l t' rt /\ type_le t' t) ->
+      forall_dom Gplus
+                 (fun x t => exists t', var_in_dom Gout x t' /\ type_le t' t)
+                 (fun l t rt => exists t',
+                      loc_in_dom Gout l t' rt /\ type_le t' t) ->
+      forall_dom G
+                 (fun x t =>
+                    (forall t', ~var_in_dom Gplus x t') ->
+                    var_in_dom Gout x t)
+                 (fun l t rt =>
+                    (forall t' rt', ~loc_in_dom Gplus l t' rt') ->
+                    loc_in_dom Gout l t rt) ->
+      com_wt pc G U (Ccall e) Gout.
+
+  Scheme exp_wt_mut := Induction for exp_wt Sort Prop
+  with com_wt_mut := Induction for com_wt Sort Prop.
+
 End Typing.
