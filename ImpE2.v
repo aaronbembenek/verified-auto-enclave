@@ -15,6 +15,68 @@ Import ListNotations.
 Require Import Common.
 Require Import ImpE.
 
+
+
+(*******************************************************************************
+*
+* SECURITY
+*
+*******************************************************************************)
+
+Section Security.
+  Definition esc_hatch : Type := exp.
+  Definition is_esc_hatch (e: esc_hatch) (G: context) := exp_novars e /\ all_loc_immutable e G.
+  
+  Definition tobs_sec_level (sl: sec_level) : trace -> trace :=
+    filter (fun event => match event with
+                         | Out sl' v => sec_level_le_compute sl' sl
+                         | AEnc c c' enc_equiv => true
+                         | ANonEnc c => true
+                         | _ => false                           
+                         end).
+   
+  (* XXX I think it might be easier to use definitions instead of inductive
+     types (don't get the error about not being able to find an instance
+     for all the quantified variables *)
+  Definition knowledge_attack (c: com) (sl: sec_level) (cstep: csemantics)
+             (tobs: trace) (m: mem) : Prop :=
+    forall d r' m' k' t,
+      cstep Normal d (c, reg_init, m, []) (r', m', k') t ->
+      tobs_sec_level sl tobs = tobs_sec_level sl t.
+
+  (* XXX need to enforce that all U are unset? *)
+  Definition knowledge_ind (m: mem) (g: sec_spec) (U: set condition)
+             (sl: sec_level) (m': mem) : Prop :=
+    forall l, sec_level_le (cur (g l) U) sl -> m l = m' l.
+
+  Definition knowledge_esc (m0 m: mem) (estep: esemantics) (e: esc_hatch)
+             (m': mem) : Prop :=
+    exists md, forall d v,
+        estep md d (e, reg_init, m0, []) v /\
+        estep md d (e, reg_init, m, []) v ->
+        estep md d (e, reg_init, m', []) v.
+
+  Definition cnd_unset (m: mem) (cnd: condition) : Prop := m (Cnd cnd) = Vnat 0.
+  Definition cnd_set (m: mem) (cnd: condition) : Prop := m (Cnd cnd) = Vnat 1.
+                
+  (* XXX This thing with e and csemantics is a little weird. Probably want to
+     define one that encapsulates both, but I'm not sure how...
+   *)
+  Definition secure_prog (sl: sec_level) (g: sec_spec)
+             (cstep: csemantics) (estep: esemantics) (c: com) : Prop :=
+    forall m0 r m k d tobs mknown,
+      cstep Normal d (c, reg_init, m0, []) (r, m, k) tobs ->
+      (exists m'' t'', tobs = Mem m'' :: t'') ->
+      (forall mind U,
+          In (Mem mind) tobs ->
+          (forall cnd, cnd_unset mind cnd <-> In cnd U) ->
+          knowledge_ind m0 g U sl mknown) ->
+      (forall mdecl e,
+          In (Decl e mdecl) tobs ->
+          knowledge_esc m0 mdecl estep e mknown) ->
+      knowledge_attack c sl cstep tobs mknown.
+End Security.
+
 (*******************************************************************************
 *
 * SYNTAX
@@ -882,3 +944,47 @@ Section Adequacy.
        
   
 End Adequacy.
+
+(***********************************)
+
+Section Guarantees.
+
+  Definition corresponds (G: context) (g: sec_spec) : Prop :=
+    (forall l p bt rt, g l = p -> (loc_context G) l = Some (Typ bt p, rt))
+    /\ (forall x, (var_context G) x = Some (Typ Tnat (LevelP L))).
+  
+  Definition g_prime (d: loc_mode) (g: sec_spec) (I: set enclave) : sec_spec :=
+    fun l => match (d l) with
+             | Encl i => if (set_mem Nat.eq_dec i I) then g l else LevelP L
+             | _ => LevelP L
+             end.
+      
+  Lemma secure_passive : forall g G G' K' d c,
+    well_formed_spec g ->
+    corresponds G g ->
+    context_wt G d ->
+    com_type (LevelP L) Normal G nil nil d c G' K' ->
+    secure_prog L g cstep estep c.
+  Proof.
+  Admitted.
+
+  Lemma secure_n_chaos : forall g G G' K' d c,
+      well_formed_spec g ->
+      corresponds G g ->
+      context_wt G d ->
+      com_type (LevelP L) Normal G nil nil d c G' K' ->
+      secure_prog L g cstep_n_chaos estep c.
+  Proof.
+  Admitted.
+
+  Lemma secure_e_chaos : forall g G G' K' d c I,
+      well_formed_spec g ->
+      corresponds G g ->
+      context_wt G d ->
+      com_type (LevelP L) Normal G nil nil d c G' K' ->
+      secure_prog H (g_prime d g I) (cstep_e_chaos I) estep c.
+  Proof.
+  Admitted.
+       
+End Guarantees.
+
