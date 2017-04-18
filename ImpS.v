@@ -34,6 +34,73 @@ Section Syntax.
   | Cif : exp -> com -> com -> com
   | Cwhile : exp -> com -> com.
 
+  Section com_exp_mut.
+    Variable P : com -> Prop.
+    Variable P0 : exp -> Prop.
+
+    Hypothesis Enat_case : forall n, P0 (Enat n).
+    Hypothesis Evar_case : forall x, P0 (Evar x).
+    Hypothesis Ebinop_case : forall e1 e2 op,
+        P0 e1 -> P0 e2 -> P0 (Ebinop e1 e2 op).
+    Hypothesis Eloc_case : forall l, P0 (Eloc l).
+    Hypothesis Ederef_case : forall e,
+        P0 e -> P0 (Ederef e).
+    Hypothesis Eisunset_case : forall cnd, P0 (Eisunset cnd).
+    Hypothesis Elambda_case : forall c,
+        P c -> P0 (Elambda c).
+    
+    Hypothesis Cskip_case : P Cskip.
+    Hypothesis Cseq_case : forall coms,
+        Forall P coms -> P (Cseq coms).
+    Hypothesis Cassign_case : forall x e,
+        P0 e -> P (Cassign x e).
+    Hypothesis Cdeclassify_case : forall x e,
+        P0 e -> P (Cdeclassify x e).
+    Hypothesis Cupdate_case : forall e1 e2,
+        P0 e1 -> P0 e2 -> P (Cupdate e1 e2).
+    Hypothesis Coutput_case : forall e sl,
+        P0 e -> P (Coutput e sl).
+    Hypothesis Ccall_case : forall e,
+        P0 e -> P (Ccall e).
+    Hypothesis Cset_case : forall cnd, P (Cset cnd).
+    Hypothesis Cif_case : forall e c1 c2,
+        P0 e -> P c1 -> P c2 -> P (Cif e c1 c2).
+    Hypothesis Cwhile_case : forall e c,
+        P0 e -> P c -> P (Cwhile e c).
+
+    Fixpoint com_ind' (c: com) : P c :=
+      match c with
+      | Cskip => Cskip_case
+      | Cassign x e => Cassign_case x e (exp_ind' e)
+      | Cdeclassify x e => Cdeclassify_case x e (exp_ind' e)
+      | Cupdate e1 e2 => Cupdate_case e1 e2 (exp_ind' e1) (exp_ind' e2)
+      | Coutput e sl => Coutput_case e sl (exp_ind' e)
+      | Ccall e => Ccall_case e (exp_ind' e)
+      | Cset cnd => Cset_case cnd
+      | Cif e c1 c2 =>
+        Cif_case e c1 c2 (exp_ind' e) (com_ind' c1) (com_ind' c2)
+      | Cwhile e c => Cwhile_case e c (exp_ind' e) (com_ind' c)
+      | Cseq coms =>
+        Cseq_case coms
+                  ((fix com_list_ind (coms: list com) : Forall P coms :=
+                      match coms with
+                      | [] => Forall_nil P
+                      | h :: t => Forall_cons h (com_ind' h) (com_list_ind t)
+                      end) coms)
+      end
+
+    with exp_ind' (e: exp) : P0 e :=
+      match e with
+      | Enat n => Enat_case n
+      | Evar x => Evar_case x
+      | Ebinop e1 e2 op => Ebinop_case e1 e2 op (exp_ind' e1) (exp_ind' e2)
+      | Eloc l => Eloc_case l
+      | Ederef e => Ederef_case e (exp_ind' e)
+      | Eisunset cnd => Eisunset_case cnd
+      | Elambda c => Elambda_case c (com_ind' c)
+      end.                                                   
+  End com_exp_mut.
+
   Inductive val : Type :=
   | Vlambda : com -> val
   | Vnat : nat -> val
