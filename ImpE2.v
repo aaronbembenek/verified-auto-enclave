@@ -445,8 +445,9 @@ Section Semantics.
 End Semantics.
   
 Section Preservation.
-  Parameter S : set condition.
-  Parameter U : set condition.
+  (* Conditions set and unset at the beginning of execution *)
+  Parameter SC : set condition.
+  Parameter UC : set condition.
   Parameter g: sec_spec.
   Definition cnd_in_S (l: location) (m0 : mem2) : Prop :=
     is_Cnd l /\ m0 l = VSingle (Vnat 1).
@@ -465,34 +466,34 @@ Section Preservation.
   Definition cterm2_ok (G: context) (d: loc_mode) (m0: mem2)
              (r: reg2) (m: mem2) (K: kill2) : Prop :=
       (forall x v1 v2 bt p,
-          (r x = VPair v1 v2 /\ (var_context G) x = Some (Typ bt p)) -> protected p S) 
+          (r x = VPair v1 v2 /\ (var_context G) x = Some (Typ bt p)) -> protected p SC) 
       /\ (forall l v1 v2 bt p rt,
           (m (Not_cnd l) = VPair v1 v2 /\ (loc_context G) (Not_cnd l) = Some (Typ bt p, rt))
-          -> protected p S)
+          -> protected p SC)
       /\ (forall e v md', is_esc_hatch e G ->
                           (estep2 md' d (e, reg_init2, m0, K) v ->
                            estep2 md' d (e, r, m, K) v))
       /\ project_kill K true = project_kill K false
-      /\ knowledge_ind (project_mem m0 true) g U L (project_mem m0 false).
+      /\ knowledge_ind (project_mem m0 true) g UC L (project_mem m0 false).
 
-  Definition cconfig2_ok (pc: sec_policy) (md: mode) (G: context) (U: set condition)
-             (d: loc_mode) (m0: mem2) (ccfg2: cconfig2) (G': context) (K': kill2) : Prop :=
-    (forall i, set_In i U -> (ccfg_mem2 ccfg2) (Cnd i) = VSingle (Vnat 0))
-    /\  com_type pc md G (project_kill (ccfg_kill2 ccfg2) true) U d
+  Definition cconfig2_ok (pc: sec_policy) (md: mode) (G: context) (d: loc_mode)
+             (m0: mem2) (ccfg2: cconfig2) (G': context) (K': kill2) : Prop :=
+    (forall i, set_In i UC -> (ccfg_mem2 ccfg2) (Cnd i) = VSingle (Vnat 0))
+    /\  com_type pc md G (project_kill (ccfg_kill2 ccfg2) true) UC d
                  (ccfg_com2 ccfg2) G' (project_kill K' true)
     /\ (forall x v1 v2 bt p,
            ((ccfg_reg2 ccfg2) x = VPair v1 v2
             /\ (var_context G) x = Some (Typ bt p))
-           -> protected p S)
+           -> protected p SC)
     /\ (forall l v1 v2 bt p rt,
            ((ccfg_mem2 ccfg2) (Not_cnd l) = VPair v1 v2
             /\ (loc_context G) (Not_cnd l) = Some (Typ bt p, rt))    
-           -> protected p S)
+           -> protected p SC)
     /\ (forall e v md', is_esc_hatch e G ->
                         (estep2 md' d  (e, reg_init2, m0, ccfg_kill2 ccfg2) v ->
                          estep2 md' d (e, ccfg_reg2 ccfg2, ccfg_mem2 ccfg2, ccfg_kill2 ccfg2) v))
     /\ project_kill (ccfg_kill2 ccfg2) true = project_kill (ccfg_kill2 ccfg2) false
-    /\ knowledge_ind (project_mem m0 true) g U L (project_mem m0 false).
+    /\ knowledge_ind (project_mem m0 true) g UC L (project_mem m0 false).
 
   Lemma esc_hatch_reg_irrelevance (e : esc_hatch) :
     forall G md d r m k v r',
@@ -527,13 +528,13 @@ Section Preservation.
 
   Lemma econfig2_locs_protected (e: exp) (m0: mem2):
     forall G d r m k v v1 v2 bt bt' p p' q md md' rt e',
-      knowledge_ind (project_mem m0 true) g U L (project_mem m0 false) ->
+      knowledge_ind (project_mem m0 true) g UC L (project_mem m0 false) ->
       v = VPair v1 v2 ->
       exp_type md G d e (Typ bt p) ->
       estep2 md d (e,r,m,k) v ->
       e = Ederef e' ->
       exp_type md G d e' (Typ (Tref (Typ bt' p') md' rt) q) ->
-      protected q S.
+      protected q SC.
   Proof.
   Admitted.
 
@@ -547,9 +548,9 @@ Section Preservation.
       (forall bt' (p' q: sec_policy) md' rt e',
           e = Ederef e' ->
           exp_type md G d e' (Typ (Tref (Typ bt' p') md' rt) q)
-          -> protected q S) ->
+          -> protected q SC) ->
       cterm2_ok G d m0 r m k ->
-      protected p S.
+      protected p SC.
   Proof.
     intros.
     remember (e,r,m,k) as ecfg.
@@ -560,20 +561,20 @@ Section Preservation.
       apply (H x v1 v2 bt p); split; auto. 
     - inversion Heqecfg; subst.
       inversion H5; subst.
-      assert (protected q S). apply (H6 bt p0 q md' rt e); auto.
-      apply (join_protected_r S p0 q); auto.
+      assert (protected q SC). apply (H6 bt p0 q md' rt e); auto.
+      apply (join_protected_r SC p0 q); auto.
     - destruct H2; destruct_pairs; try discriminate.
   Qed.
 
   Lemma impe2_final_config_preservation (G: context) (d: loc_mode) (m0: mem2) :
-      forall G' K' c r m k pc md U r' m' t,
+      forall G' K' c r m k pc md r' m' t,
         (forall l e v, loc_in_exp e G l -> m0 l = VSingle v) -> 
         context_wt G d ->
-        cconfig2_ok pc md G U d m0 (c,r,m,k) G' K' ->
+        cconfig2_ok pc md G d m0 (c,r,m,k) G' K' ->
         cstep2 md d (c,r,m,k) (r', m', K') t ->
         cterm2_ok G' d m0 r' m' K'.
   Proof.
-    intros G' K' c r m k pc md U r' m' t Hlocs Hcwt Hcfgok Hcstep.
+    intros G' K' c r m k pc md r' m' t Hlocs Hcwt Hcfgok Hcstep.
     remember (c,r,m,k) as ccfg2; subst.
     unfold cconfig2_ok in Hcfgok; destruct_pairs.
     induction c; unfold cterm2_ok; intros; subst; simpl in *; unfold_cfgs.
@@ -624,9 +625,9 @@ Section Preservation.
          
   Lemma impe2_type_preservation
         (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2) :
-    forall pc md U c r m K G' K',
+    forall pc md (U: set condition) c r m K G' K',
       context_wt G d ->
-      cconfig2_ok pc md G U d m0 (c, r, m, K) G' K' ->
+      cconfig2_ok pc md G d m0 (c, r, m, K) G' K' ->
       forall mdmid cmid rmid mmid rmid' mmid' kmid' tmid rfin mfin kfin tfin,
         imm_premise
           (cstep2 mdmid d (cmid, rmid, mmid, K') (rmid', mmid', kmid') tmid)
@@ -634,7 +635,7 @@ Section Preservation.
         (exists pcmid Gmid Gmid' Umid,
           policy_le pc pcmid ->
           Umid = [] \/ (forall i, In i U -> In i Umid) ->
-          cconfig2_ok pcmid mdmid Gmid Umid d m0 (cmid, rmid, mmid, K') Gmid' K').
+          cconfig2_ok pcmid mdmid Gmid d m0 (cmid, rmid, mmid, K') Gmid' K').
   Proof.
   Admitted.
  
