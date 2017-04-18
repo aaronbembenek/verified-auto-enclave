@@ -494,24 +494,34 @@ Section Adequacy.
       now apply project_add_comm_kill.      
   Admitted.
 
-  (* XXX: I don't think this is the right phrasing because this would imply
-     that if IMP steps to v1 then IMPE takes steps to the pair (v1 | _) *)
- (* Lemma impe2_exp_complete : forall md d e r m K v is_left,
-      estep md d (project_ecfg (e, r, m, K) is_left)
-            (project_value v is_left) -> estep2 md d (e, r, m, K) v.
+  Lemma impe2_exp_complete : forall md d e r m K v'i is_left,
+      estep md d (e, project_reg r is_left, project_mem m is_left, project_kill K is_left) v'i ->
+      exists v', estep2 md d (e, r, m, K) v' /\ (project_value v' is_left = v'i).
   Proof.
     intros.
-    remember (project_ecfg (e, r, m, K) is_left) as ecfg.
-    remember (project_value v is_left) as v'.
+    remember (e, project_reg r is_left, project_mem m is_left, project_kill K is_left) as ecfg.
     generalize dependent e.
-    induction H; intros; subst.
-    - unfold project_ecfg in H; simpl in *; subst.
-      destruct v.
-      admit.
-     
-
-  Qed.*)
-       
+    induction H; intros; rewrite Heqecfg in H; simpl in *.
+    - exists (VSingle (Vnat n)); subst; split; auto; now constructor.
+    - exists (VSingle (Vloc l)); subst; split; auto; now constructor.
+    - exists (VSingle (Vlambda md c)); subst; split; auto; now constructor.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    Admitted. 
+      
+  Lemma impe2_complete : forall md d c r m K r'i m'i K'i t'i is_left,
+      cstep md d (project_ccfg (c, r, m, K) is_left) (r'i, m'i, K'i) t'i ->
+      exists r' m' K' t', cstep2 md d (c, r, m, K) (r', m', K') t' /\
+                     (project_reg r' is_left) = r'i /\
+                     (project_mem m' is_left) = m'i /\
+                     (project_kill K' is_left) = K'i /\
+                     (project_trace t' is_left) = t'i.
+  Proof.
+    (* Proof is done by straightforward induction *)
+    intros; induction H; intuition.
+  Admitted.
   
 End Adequacy.
 
