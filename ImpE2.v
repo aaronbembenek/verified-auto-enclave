@@ -533,7 +533,7 @@ Section Preservation.
       estep2 md d (e,r,m,k) v ->
       e = Ederef e' ->
       exp_type md G d e' (Typ (Tref (Typ bt' p') md' rt) q) ->
-      protected p S.
+      protected q S.
   Proof.
   Admitted.
 
