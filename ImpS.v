@@ -248,7 +248,7 @@ Section Typing.
       exp_wt G (Elambda c) (Typ (Tlambda G' U p G'') (LevelP L))
   | STbinop : forall G e1 e2 p q op,
       exp_wt G e1 (Typ Tnat p) ->
-      exp_wt G e1 (Typ Tnat q) ->
+      exp_wt G e2 (Typ Tnat q) ->
       exp_wt G (Ebinop e1 e2 op) (Typ Tnat (policy_join p q))
 
   with com_wt : sec_policy -> context -> set condition -> com ->

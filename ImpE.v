@@ -631,6 +631,7 @@ Section Typing.
                     (forall t' rt', ~loc_in_dom Gp l t' rt') ->
                     loc_in_dom Gout l t rt) ->
       com_type pc md G km u d (Ccall e) Gout kp.
+  Hint Constructors exp_type com_type.
   
 End Typing.
 
