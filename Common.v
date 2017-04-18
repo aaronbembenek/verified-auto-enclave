@@ -151,18 +151,16 @@ Section Security.
     | ErasureP l1 cnd l2 _ => if (set_mem Nat.eq_dec cnd U) then l1 else l2
     end.
 
-  Inductive protected : sec_policy -> set condition -> Prop :=
-  | level_high: forall S, protected (LevelP H) S
-  | level_top: forall S, protected (LevelP T) S
-  | erase_high: forall cnd S sl pf,
-      protected (ErasureP H cnd sl pf) S
-  | erase_low: forall cnd S sl pf,
-      set_In cnd S -> protected (ErasureP L cnd sl pf) S
-  | join_protected_l: forall S p p',
-      protected p S ->
-      protected (policy_join p p') S
-  | join_protected_r: forall S p p',
-      protected p' S ->
-      protected (policy_join p p') S.
+  Inductive protected : sec_policy -> Prop :=
+  | level_high: protected (LevelP H)
+  | level_top: protected (LevelP T)
+  | erase_high: forall cnd sl pf,
+      protected (ErasureP H cnd sl pf)
+  | join_protected_l: forall p p',
+      protected p ->
+      protected (policy_join p p')
+  | join_protected_r: forall p p',
+      protected p' ->
+      protected (policy_join p p').
 
 End Security.
