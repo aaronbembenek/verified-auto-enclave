@@ -485,6 +485,7 @@ Section Typing.
                        | Eloc (Not_cnd l) => forall t rt,
                            loc_context G (Not_cnd l) = Some (t, rt) ->
                            rt = Immut
+                       | Eisunset _ => False
                        | _ => True
                        end).
 
@@ -639,7 +640,7 @@ End Typing.
 
 Section Security.
   Definition esc_hatch : Type := exp.
-  Definition is_esc_hatch (e: esc_hatch) := exp_novars e.
+  Definition is_esc_hatch (e: esc_hatch) (G: context) := exp_novars e /\ all_loc_immutable e G.
   
   Definition tobs_sec_level (sl: sec_level) : trace -> trace :=
     filter (fun event => match event with
@@ -710,9 +711,6 @@ Section Guarantees.
     com_type (LevelP L) Normal G nil nil d c G' K' ->
     secure_prog L g cstep estep c.
   Proof.
-    intros. unfold secure_prog. intros.
-    unfold knowledge_attack.
-    intros.
   Admitted.
 
   Lemma secure_n_chaos : forall g G G' K' d c,
