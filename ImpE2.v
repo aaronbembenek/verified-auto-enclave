@@ -445,7 +445,7 @@ Section Semantics.
 End Semantics.
   
 Section Preservation.
-  Parameter S : set condition.
+  Parameter Sc : set condition.
   Parameter U : set condition.
   Parameter g: sec_spec.
   Definition cnd_in_S (l: location) (m0 : mem2) : Prop :=
@@ -465,10 +465,10 @@ Section Preservation.
   Definition cterm2_ok (G: context) (d: loc_mode) (m0: mem2)
              (r: reg2) (m: mem2) (K: kill2) : Prop :=
       (forall x v1 v2 bt p,
-          (r x = VPair v1 v2 /\ (var_context G) x = Some (Typ bt p)) -> protected p S) 
+          (r x = VPair v1 v2 /\ (var_context G) x = Some (Typ bt p)) -> protected p Sc) 
       /\ (forall l v1 v2 bt p rt,
           (m (Not_cnd l) = VPair v1 v2 /\ (loc_context G) (Not_cnd l) = Some (Typ bt p, rt))
-          -> protected p S)
+          -> protected p Sc)
       /\ (forall e v md', is_esc_hatch e G ->
                           (estep2 md' d (e, reg_init2, m0, K) v ->
                            estep2 md' d (e, r, m, K) v))
@@ -483,11 +483,11 @@ Section Preservation.
     /\ (forall x v1 v2 bt p,
            ((ccfg_reg2 ccfg2) x = VPair v1 v2
             /\ (var_context G) x = Some (Typ bt p))
-           -> protected p S)
+           -> protected p Sc)
     /\ (forall l v1 v2 bt p rt,
            ((ccfg_mem2 ccfg2) (Not_cnd l) = VPair v1 v2
             /\ (loc_context G) (Not_cnd l) = Some (Typ bt p, rt))    
-           -> protected p S)
+           -> protected p Sc)
     /\ (forall e v md', is_esc_hatch e G ->
                         (estep2 md' d  (e, reg_init2, m0, ccfg_kill2 ccfg2) v ->
                          estep2 md' d (e, ccfg_reg2 ccfg2, ccfg_mem2 ccfg2, ccfg_kill2 ccfg2) v))
@@ -533,7 +533,7 @@ Section Preservation.
       estep2 md d (e,r,m,k) v ->
       e = Ederef e' ->
       exp_type md G d e' (Typ (Tref (Typ bt' p') md' rt) q) ->
-      protected q S.
+      protected q Sc.
   Proof.
   Admitted.
 
@@ -547,9 +547,9 @@ Section Preservation.
       (forall bt' (p' q: sec_policy) md' rt e',
           e = Ederef e' ->
           exp_type md G d e' (Typ (Tref (Typ bt' p') md' rt) q)
-          -> protected q S) ->
+          -> protected q Sc) ->
       cterm2_ok G d m0 r m k ->
-      protected p S.
+      protected p Sc.
   Proof.
     intros.
     remember (e,r,m,k) as ecfg.
@@ -560,8 +560,8 @@ Section Preservation.
       apply (H x v1 v2 bt p); split; auto. 
     - inversion Heqecfg; subst.
       inversion H5; subst.
-      assert (protected q S). apply (H6 bt p0 q md' rt e); auto.
-      apply (join_protected_r S p0 q); auto.
+      assert (protected q Sc). apply (H6 bt p0 q md' rt e); auto.
+      apply (join_protected_r Sc p0 q); auto.
     - destruct H2; destruct_pairs; try discriminate.
   Qed.
 
@@ -861,23 +861,34 @@ Section Adequacy.
       now apply project_add_comm_kill.      
   Admitted.
 
-  (* XXX: I don't think this is the right phrasing because this would imply
-     that if IMP steps to v1 then IMPE takes steps to the pair (v1 | _) *)
- (* Lemma impe2_exp_complete : forall md d e r m K v is_left,
-      estep md d (project_ecfg (e, r, m, K) is_left)
-            (project_value v is_left) -> estep2 md d (e, r, m, K) v.
+  Lemma impe2_exp_complete : forall md d e r m K v'i is_left,
+      estep md d (e, project_reg r is_left, project_mem m is_left, project_kill K is_left) v'i ->
+      exists v', estep2 md d (e, r, m, K) v' /\ (project_value v' is_left = v'i).
   Proof.
     intros.
-    remember (project_ecfg (e, r, m, K) is_left) as ecfg.
-    remember (project_value v is_left) as v'.
+    remember (e, project_reg r is_left, project_mem m is_left, project_kill K is_left) as ecfg.
     generalize dependent e.
-    induction H; intros; subst.
-    - unfold project_ecfg in H; simpl in *; subst.
-      destruct v.
-      admit.
-     
-
-  Qed.*)
+    induction H; intros; rewrite Heqecfg in H; simpl in *.
+    - exists (VSingle (Vnat n)); subst; split; auto; now constructor.
+    - exists (VSingle (Vloc l)); subst; split; auto; now constructor.
+    - exists (VSingle (Vlambda md c)); subst; split; auto; now constructor.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    Admitted. 
+      
+  Lemma impe2_complete : forall md d c r m K r'i m'i K'i t'i is_left,
+      cstep md d (project_ccfg (c, r, m, K) is_left) (r'i, m'i, K'i) t'i ->
+      exists r' m' K' t', cstep2 md d (c, r, m, K) (r', m', K') t' /\
+                     (project_reg r' is_left) = r'i /\
+                     (project_mem m' is_left) = m'i /\
+                     (project_kill K' is_left) = K'i /\
+                     (project_trace t' is_left) = t'i.
+  Proof.
+    (* Proof is done by straightforward induction *)
+    intros; induction H; intuition.
+  Admitted.
        
   
 End Adequacy.
