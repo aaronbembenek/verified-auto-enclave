@@ -3,6 +3,9 @@ OBJS=$(SRCS:.v=.vo)
 
 all: $(OBJS)
 
+ImpESecureProof.vo: ImpESecureProof.v ImpE2.vo ImpE.vo Common.vo
+	coqc $<
+
 ImpE2.vo: ImpE2.v ImpE.vo Common.vo
 	coqc $<
 
