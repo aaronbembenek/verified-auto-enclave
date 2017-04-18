@@ -3,8 +3,8 @@ OBJS=$(SRCS:.v=.vo)
 
 all: $(OBJS)
 
-#ImpE2.vo: ImpE2.v ImpE.vo Common.vo
-#	coqc $<
+Translation.vo : Translation.v ImpS.vo ImpE.vo
+	coqc $<
 
 ImpS.vo: ImpS.v Common.vo
 	coqc $<
