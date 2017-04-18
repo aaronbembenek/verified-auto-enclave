@@ -491,6 +491,9 @@ Section Typing.
                        | _ => False
                        end).
 
+  (* XXX need this for using List.nth... maybe better option *)
+  Definition mt := Cntxt (fun _ => None) (fun _ => None).
+
   (* FIXME: don't have subsumption rule *)
   Inductive exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
   | ETnat : forall md g d n,
@@ -596,12 +599,17 @@ Section Typing.
       policy_le p (LevelP L) \/ md <> Normal ->
       p <> LevelP T ->
       com_type pc md g k u d (Cwhile e c) g k
-  | Tseq : forall pc md g k u d c rest g' k' gn kn,
-      com_type pc md g k u d c g' k' ->
-      com_type pc md g' k' u d (Cseq rest) gn kn ->
-      com_type pc md g k u d (Cseq (c :: rest)) gn kn
-  | Tseqnil : forall pc md g k u d,
-      com_type pc md g k u d (Cseq []) g k
+  | Tseq : forall pc md G K U d coms Gs Ks,
+      length Gs = length coms + 1 ->
+      length Ks = length coms + 1 ->
+      nth 0 Ks [] = K ->
+      nth 0 Gs mt = G ->
+      (forall (i: nat),
+          i < length coms ->
+          com_type pc md (nth i Gs mt) (nth i Ks []) U d (nth i coms Cskip)
+                 (nth (i + 1) Gs mt) (nth (i + 1) Ks [])) ->
+      com_type pc md G K U d (Cseq coms) (nth (length coms) Gs mt)
+             (nth (length coms) Ks [])
   | Tcall : forall pc md G u d e Gm km Gp kp Gout q p,
       exp_type md G d e (Typ (Tlambda Gm km u p md Gp kp) q) ->
       policy_le (policy_join pc q) p ->
