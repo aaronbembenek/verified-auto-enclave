@@ -254,8 +254,8 @@ Section Typing.
 
   with com_wt : sec_policy -> context -> set condition -> com ->
                 context -> Prop :=
-  | STskip : forall pc G U G',
-      com_wt pc G U Cskip G'
+  | STskip : forall pc G U,
+      com_wt pc G U Cskip G
   | STassign : forall pc U x e s p q vc lc vc',
       vc x = Some (Typ s q) ->
       exp_wt (Cntxt vc lc) e (Typ s p) ->

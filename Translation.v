@@ -109,20 +109,44 @@ Module id_trans.
     - intros. inversion H. subst. simpl.
       apply E.ETunset with (md':=md); intuition.
     - intros. inversion H. subst. simpl. apply IHc in H3. now apply E.ETlambda.
+    - intros. inversion H. subst. simpl. apply E.CTskip. simpl. intuition.
+    - intros. inversion H0. subst. simpl.
+      apply E.Tseq with (Gs:=map cntxt_trans Gs) (Ks:=map (fun _ => []) Gs).
+      + repeat rewrite map_length. auto.
+      + repeat rewrite map_length. auto.
+      + destruct Gs; now simpl.
+      + destruct Gs; now simpl.
+      + intros. rewrite map_length in H1.
+        assert (i < length coms) by auto.
+        apply H7 in H1.
+        assert (In (nth i coms S.Cskip) coms) by (now apply nth_In).
+        rewrite Forall_forall in H.
+        apply (H _ H4) in H1.
+        assert (i < length Gs) by omega.
+        assert (i + 1 < length Gs) by omega.
+        assert (nth i (map cntxt_trans Gs) E.mt = cntxt_trans (nth i Gs S.mt))
+          by (now apply nth_pres_map).
+        assert (nth i (map (fun _: S.context => []) Gs) [] =
+                ([]: set E.enclave)) by (apply nth_map_default).
+        assert (nth i (map id_trans coms) E.Cskip =
+                id_trans (nth i coms S.Cskip)) by (now apply nth_pres_map).
+        assert (nth (i + 1) (map cntxt_trans Gs) E.mt =
+                cntxt_trans (nth (i + 1) Gs S.mt)) by (now apply nth_pres_map).
+        assert (nth (i + 1) (map (fun _ : S.context => []) Gs) [] =
+                ([]: set E.enclave)) by (apply nth_map_default).
+        congruence.
+      + rewrite map_length. symmetry. apply nth_pres_map. omega.
+      + symmetry. apply nth_map_default.
+    - intros. inversion H. subst.
+      replace (id_trans (S.Cassign x e)) with (E.Cassign x (id_trans_e e)).
+      eapply E.CTassign with (s:=typ_trans s) (p:=p); auto.
+      + admit.
+      + right. unfold md. intuition. discriminate.
+      + simpl. auto.
+      + simpl. auto.
+      + simpl. admit.
+      + simpl. auto.
+      + simpl. auto.
       Admitted.
-
-(*
-Lemma id_trans_ind:
-  forall (P: E.mode -> S.com -> E.com -> Prop)
-         (P0: E.mode -> S.exp -> E.exp -> Prop),
-    (forall cs md,
-        Forall (fun c => P md c (id_trans md c)) cs ->
-        P md (S.Cseq cs) (E.Cseq (map (id_trans md) cs))) ->
-    forall c md, P md c (id_trans md c).
-Proof.
-  intros.
-  induction c using S.com_ind' with (P0:=fun e => P0 md e (id_trans_e md e)).
-  Focus 9. simpl. auto.
- *)
 
 End id_trans.

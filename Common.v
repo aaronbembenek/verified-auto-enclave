@@ -160,3 +160,21 @@ Section Security.
       set_In cnd S -> protected (ErasureP L cnd sl pf) S.
 
 End Security.
+
+Lemma nth_pres_map {A B: Type} i (xs: list A) (f: A -> B) y z :
+    i < length xs ->
+    nth i (map f xs) y = f (nth i xs z).
+Proof.
+  revert xs. induction i; intros; destruct xs; simpl in *.
+  - omega.
+  - auto.
+  - inversion H0.
+  - apply lt_S_n in H0. auto.
+Qed.
+
+Lemma nth_map_default {A B: Type}: forall i (xs: list A) (x: B),
+    nth i (map (fun _ => x) xs) x = x.
+Proof.
+  induction i; destruct xs; simpl; auto.
+Qed.
+    

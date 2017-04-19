@@ -536,7 +536,7 @@ Section Typing.
   | CTkill : forall i g d k u,
       mode_alive (Encl i) k ->
       com_type (LevelP L) Normal g k u d (Ckill i) g (set_add Nat.eq_dec i k)
-  | CTassign : forall pc md g k u d x e s p q vc lc vc',
+  | CTassign : forall pc md g k u d x e s p q vc lc vc' g',
       exp_type md g d e (Typ s p) ->
       q = policy_join p pc ->
       q <> LevelP T ->
@@ -544,7 +544,8 @@ Section Typing.
       mode_alive md k ->
       g = Cntxt vc lc ->
       vc' = (fun y => if y =? x then Some (Typ s q) else vc y) ->
-      com_type pc md g k u d (Cassign x e) (Cntxt vc' lc) k
+      g' = Cntxt vc' lc ->
+      com_type pc md g k u d (Cassign x e) g' k
   | CTdeclassify : forall md g k u d x e s p vc lc vc',
       exp_type md g d e (Typ s p) ->
       p <> LevelP T ->
@@ -601,7 +602,7 @@ Section Typing.
       policy_le p (LevelP L) \/ md <> Normal ->
       p <> LevelP T ->
       com_type pc md g k u d (Cwhile e c) g k
-  | Tseq : forall pc md G K U d coms Gs Ks,
+  | Tseq : forall pc md G K U d coms Gs Ks G' K',
       length Gs = length coms + 1 ->
       length Ks = length coms + 1 ->
       nth 0 Ks [] = K ->
@@ -609,9 +610,10 @@ Section Typing.
       (forall (i: nat),
           i < length coms ->
           com_type pc md (nth i Gs mt) (nth i Ks []) U d (nth i coms Cskip)
-                 (nth (i + 1) Gs mt) (nth (i + 1) Ks [])) ->
-      com_type pc md G K U d (Cseq coms) (nth (length coms) Gs mt)
-             (nth (length coms) Ks [])
+                   (nth (i + 1) Gs mt) (nth (i + 1) Ks [])) ->
+      G' = nth (length coms) Gs mt ->
+      K' = nth (length coms) Ks [] ->
+      com_type pc md G K U d (Cseq coms) G' K'
   | Tcall : forall pc md G u d e Gm km Gp kp Gout q p,
       exp_type md G d e (Typ (Tlambda Gm km u p md Gp kp) q) ->
       policy_le (policy_join pc q) p ->
