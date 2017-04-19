@@ -487,17 +487,17 @@ Section Preservation.
   Admitted.
          
   Lemma impe2_type_preservation
-        (G: context) (d: loc_mode) (S: set condition) (H: set esc_hatch) (m0: mem2) :
+        (G: context) (d: loc_mode) (m0: mem2) :
     forall pc md c r m K G' K',
       context_wt G d ->
       cconfig2_ok pc md G d m0 (c, r, m, K) G' K'->
-      forall mdmid cmid rmid mmid rmid' mmid' kmid' tmid rfin mfin kfin tfin,
+      forall mdmid cmid rmid mmid kmid rmid' mmid' kmid' tmid rfin mfin kfin tfin,
         imm_premise
-          (cstep2 mdmid d (cmid, rmid, mmid, K') (rmid', mmid', kmid') tmid)
+          (cstep2 mdmid d (cmid, rmid, mmid, kmid) (rmid', mmid', kmid') tmid)
           (cstep2 md d (c, r, m, K) (rfin, mfin, kfin) tfin) ->
-        (exists pcmid Gmid Gmid',
+        forall pcmid,
           policy_le pc pcmid ->
-          cconfig2_ok pcmid mdmid Gmid d m0 (cmid, rmid, mmid, K') Gmid' K').
+          cconfig2_ok pcmid mdmid G d m0 (cmid, rmid, mmid, kmid) G' K'.
   Proof.
   Admitted.
  
@@ -513,28 +513,41 @@ Section Guarantees.
   Lemma config_ok_implies_obs_equal (m1 m2: mem) (c: com) (tobs: trace) (t: trace2) :
     forall pc md G d m0 r k G' r' m' k' m,
       merge_mem m1 m2 m ->
+      context_wt G d ->
       cconfig2_ok pc md G d m0 (c,r,m,k) G' k' ->
       cstep2 md d (c,r,m,k) (r',m',k') t ->
       tobs = project_trace t true ->
       tobs_sec_level L tobs = tobs_sec_level L (project_trace t false).
   Proof.
-    intros. remember (c,r,m,k) as ccfg.
-    induction H1; subst; simpl in *; auto.
-    - unfold_cfgs.
-      unfold sec_level_le_compute. destruct H4. subst.
+    intros. remember (c,r,m,k) as ccfg. generalize dependent c.
+    pose H2 as Hcstep.
+    induction Hcstep; intros; subst; simpl in *; auto; repeat unfold_cfgs; subst.
+    - unfold sec_level_le_compute. destruct H6. subst.
       destruct v; simpl; auto.
-      inversion H0; destruct_pairs; unfold_cfgs; subst; auto; try discriminate.
-      -- inversion H1; unfold_cfgs; try discriminate; subst; auto.
+      inversion H1; destruct_pairs; unfold_cfgs; subst; auto; try discriminate.
+      -- inversion H3; unfold_cfgs; try discriminate; subst; auto.
          remember (VPair v v0) as vpair.
          assert (cterm2_ok G' d m0 r m k) as Hctermok; unfold cterm2_ok; auto.
-         assert (protected p).
-         apply (econfig2_pair_protected md G' d e p r m k vpair v v0 s m0
-                                        Heqvpair H12 H3 Hctermok).
+         assert (protected p) by apply (econfig2_pair_protected
+                                          md G' d e p r m k vpair v v0 s m0
+                                          Heqvpair H14 H5 Hctermok).
          pose (sec_level_join_ge (cur p []) (cur pc [])); destruct_pairs.
-         apply (sec_level_le_trans (cur p []) (sec_level_join (cur p []) (cur pc [])) L) in H22; auto.
-         rewrite (protected_gt_L p H9) in *; intuition.
+         apply (sec_level_le_trans (cur p [])
+                                   (sec_level_join (cur p []) (cur pc [])) L)
+           in H24; auto.
+         rewrite (protected_gt_L p H11) in *; intuition.
       -- subst; auto.
-    - unfold_cfgs.
+    - assert (cconfig2_ok pc md G d m0 (c, r, m, k) G' k').
+      pose (impe2_type_preservation G d m0 pc md (Ccall e) r m k G' k' H0 H1
+                                    md c r m k r'0 m'0 k'0 tr) as Lemma6.
+      assert (imm_premise (cstep2 md d (c, r, m, k) (r'0, m'0, k'0) tr)
+                          (cstep2 md d (Ccall e, r, m, k) (r'0, m'0, k'0) tr))
+             by now apply IPcall.
+      apply (Lemma6 r'0 m'0 k'0 tr H3 pc).
+      apply policy_le_refl.
+      assert (project_trace tr true = project_trace tr true); auto.
+      apply (IHHcstep H0 H3 Hcstep H4 c); auto.
+   - 
   Admitted.
 
   Lemma com_type_k'_implies_cstep2_k' (c: com) : forall G G' K' md d r m k r' m' k' t,

@@ -109,6 +109,12 @@ Section Security.
   Proof.
     intros; unfold sec_level_le; induction sl, sl', sl''; auto.
   Qed.
+
+  Lemma sec_level_le_refl (sl : sec_level) :
+    sec_level_le sl sl.
+  Proof.
+    intros; unfold sec_level_le; induction sl; auto.
+  Qed.
   
   Inductive sec_policy : Type :=
   | LevelP : sec_level -> sec_policy
@@ -134,7 +140,7 @@ Section Security.
       sec_level_le l1 l2 ->
       sec_level_le l1' l2' ->
       policy_le (ErasureP l1 cnd l1' pf1) (ErasureP l2 cnd l2' pf2).
-(*
+
   Lemma policy_le_refl : reflexive sec_policy policy_le.
   Proof.
     intro x. destruct x.
@@ -157,7 +163,7 @@ Section Security.
     - apply policy_le_transitive.
     - apply policy_le_antisymmetric.
   Qed.  
- *)
+ 
   Parameter policy_join : sec_policy -> sec_policy -> sec_policy.
   Axiom policy_le_join : forall p1 p2,
       policy_le p1 (policy_join p1 p2) /\ policy_le p2 (policy_join p1 p2).
