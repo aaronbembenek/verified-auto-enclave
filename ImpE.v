@@ -185,6 +185,13 @@ Section Semantics.
   | Emp: event.
   Definition trace : Type := list event.
 
+  Definition mode_access_ok (md: mode) (d: loc_mode) (l: location) :=
+    let lmd := d l in
+    match lmd with
+    | Normal => True
+    | Encl _ => md = lmd
+    end.
+  
   Definition econfig : Type := exp * reg * mem.
   Definition ecfg_exp (ecfg: econfig) : exp :=
     match ecfg with (e, _, _) => e end.
@@ -217,6 +224,7 @@ Section Semantics.
       ecfg = (Ederef e, r, m) ->
       estep md d (e, r, m) (Vloc l) ->
       m l = v ->
+      mode_access_ok md d l ->
       estep md d ecfg v.
   Hint Constructors estep.
 
