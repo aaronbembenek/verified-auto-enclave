@@ -32,7 +32,6 @@ Section Syntax.
   | Ebinop : exp -> exp -> (nat -> nat -> nat) -> exp
   | Eloc : location -> exp
   | Ederef : exp -> exp
-  | Eisunset : condition -> exp
   | Elambda : mode -> com -> exp
                                    
   with com : Type :=
@@ -42,9 +41,7 @@ Section Syntax.
   | Cupdate : exp -> exp -> com
   | Coutput : exp -> sec_level -> com
   | Ccall : exp -> com
-  | Cset : condition -> com
   | Cenclave : enclave -> com -> com
-  | Ckill : enclave -> com
   | Cseq : list com -> com
   | Cif : exp -> com -> com -> com
   | Cwhile : exp -> com -> com.
@@ -197,27 +194,14 @@ Section Semantics.
   | AEnc : forall c c' : com, enc_equiv c c'-> event
   | Emp: event.
   Definition trace : Type := list event.
-  
-  Definition mode_alive (md : mode) (k : set enclave) :=
-    match md with
-    | Normal => True
-    | Encl i => ~set_In i k
-    end.
-  Definition mode_access_ok (md : mode) (d : loc_mode) (l : location) (k : set enclave) :=
-    let lmd := d l in
-    match lmd with
-    | Normal => True
-    | Encl _ => md = lmd /\ mode_alive lmd k
-    end.
 
-  Definition econfig : Type := exp * reg * mem * set enclave.
+  Definition econfig : Type := exp * reg * mem.
   Definition ecfg_exp (ecfg: econfig) : exp :=
-    match ecfg with (e, _, _, _) => e end.
+    match ecfg with (e, _, _) => e end.
   Definition ecfg_reg (ecfg: econfig) : reg :=
-    match ecfg with (_, r, _, _) => r end.
+    match ecfg with (_, r, _) => r end.
   Definition ecfg_update_exp (ecfg: econfig) (e: exp) : econfig :=
-    match ecfg with (_, r, m, k) => (e, r, m, k) end.
-  (* XXX I think we need to define semantics for expressions as well for all attackers? *)
+    match ecfg with (_, r, m) => (e, r, m) end.
   Definition esemantics : Type := mode -> loc_mode -> econfig -> val -> Prop.
   
   Inductive estep : esemantics :=
@@ -239,30 +223,22 @@ Section Semantics.
       estep md d (ecfg_update_exp ecfg e1) (Vnat n1) ->
       estep md d (ecfg_update_exp ecfg e2) (Vnat n2) ->
       estep md d ecfg (Vnat (op n1 n2))
-  | Estep_deref : forall md d ecfg e r m k l v,
-      ecfg = (Ederef e, r, m, k) ->
-      estep md d (e, r, m, k) (Vloc l) ->
+  | Estep_deref : forall md d ecfg e r m l v,
+      ecfg = (Ederef e, r, m) ->
+      estep md d (e, r, m) (Vloc l) ->
       m l = v ->
-      mode_access_ok md d l k ->
-      estep md d ecfg v
-  | Estep_isunset : forall md d ecfg cnd v res,
-      ecfg_exp ecfg = Eisunset cnd ->
-      estep md d (ecfg_update_exp ecfg (Ederef (Eloc (Cnd cnd)))) v ->
-      (v = Vnat 0 /\ res = Vnat 1) \/ (v = Vnat 1 /\ res = Vnat 0) ->
-      estep md d ecfg res.
+      estep md d ecfg v.
   Hint Constructors estep.
 
   (* Semantics for commands. *)
-  Definition cconfig : Type := com * reg * mem * set enclave.
-  Definition cterm : Type := reg * mem * set enclave.
+  Definition cconfig : Type := com * reg * mem              .
+  Definition cterm : Type := reg * mem              .
   Definition ccfg_com (ccfg: cconfig) : com :=
-    match ccfg with (c, _, _, _) => c end.
+    match ccfg with (c, _, _) => c end.
   Definition ccfg_reg (ccfg: cconfig) : reg :=
-    match ccfg with (_, r, _, _) => r end.
+    match ccfg with (_, r, _) => r end.
   Definition ccfg_mem (ccfg: cconfig) : mem :=
-    match ccfg with (_, _, m, _) => m end.
-  Definition ccfg_kill (ccfg: cconfig) : set enclave :=
-    match ccfg with (_, _, _, k) => k end.
+    match ccfg with (_, _, m) => m end.
   Definition ccfg_update_mem (ccfg: cconfig) (l: location) (v: val) : mem := 
     fun loc => if locations_eq loc l then v
                else (ccfg_mem ccfg) loc.
@@ -270,119 +246,91 @@ Section Semantics.
     fun var => if var =? x then v
                else (ccfg_reg ccfg) var.
   Definition ccfg_to_ecfg (e: exp) (ccfg : cconfig) : econfig :=
-    (e, (ccfg_reg ccfg), (ccfg_mem ccfg), (ccfg_kill ccfg)).
+    (e, (ccfg_reg ccfg), (ccfg_mem ccfg)).
   Definition ccfg_update_com (c: com) (ccfg : cconfig) : cconfig :=
-    (c, (ccfg_reg ccfg), (ccfg_mem ccfg), (ccfg_kill ccfg)).
+    (c, (ccfg_reg ccfg), (ccfg_mem ccfg)).
   Definition csemantics : Type := mode -> loc_mode -> cconfig -> cterm -> trace -> Prop.  
 
   (* XXX couldn't figure out a way to not have to introduce forall md d ccfg everywhere.. *)
   Inductive cstep : csemantics := 
   | Cstep_skip : forall md d ccfg,
       ccfg_com ccfg = Cskip ->
-      mode_alive md (ccfg_kill ccfg) ->
-      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
+      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg) []
   | Cstep_assign : forall md d ccfg x e v r',
       ccfg_com ccfg = Cassign x e ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       r' = ccfg_update_reg ccfg x v ->
-      mode_alive md (ccfg_kill ccfg) ->
-      cstep md d ccfg (r', ccfg_mem ccfg, ccfg_kill ccfg) []
+      cstep md d ccfg (r', ccfg_mem ccfg) []
   | Cstep_declassify : forall md d ccfg x e v r',
       ccfg_com ccfg = Cdeclassify x e ->
       exp_novars e ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       r' = ccfg_update_reg ccfg x v ->
-      mode_alive md (ccfg_kill ccfg) ->
-      cstep md d ccfg (r', ccfg_mem ccfg, ccfg_kill ccfg) [Decl e (ccfg_mem ccfg)]
+      cstep md d ccfg (r', ccfg_mem ccfg) [Decl e (ccfg_mem ccfg)]
   | Cstep_update : forall md d ccfg e1 e2 l v m',
       ccfg_com ccfg = Cupdate e1 e2 ->
       estep md d (ccfg_to_ecfg e1 ccfg) (Vloc l) ->
       estep md d (ccfg_to_ecfg e2 ccfg) v ->
-      mode_alive md (ccfg_kill ccfg) ->
-      mode_access_ok md d l (ccfg_kill ccfg) ->
       is_Not_cnd l ->
       m' = ccfg_update_mem ccfg l v ->
-      cstep md d ccfg (ccfg_reg ccfg, m', ccfg_kill ccfg) []
+      cstep md d ccfg (ccfg_reg ccfg, m') []
   | Cstep_output : forall md d ccfg e sl v,
       ccfg_com ccfg = Coutput e sl ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       sl = L \/ sl = H ->
-      mode_alive md (ccfg_kill ccfg) ->
-      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) [Mem (ccfg_mem ccfg); Out sl v]
-  | Cstep_call : forall md d ccfg e c r' m' k' tr,
+      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg) [Mem (ccfg_mem ccfg); Out sl v]
+  | Cstep_call : forall md d ccfg e c r' m' tr,
       ccfg_com ccfg = Ccall e ->
       estep md d (ccfg_to_ecfg e ccfg) (Vlambda md c) ->
-      cstep md d (ccfg_update_com c ccfg) (r', m', k') tr ->
-      cstep md d ccfg (r', m', k') tr
-  | Cstep_cset : forall md d ccfg c m',
-      ccfg_com ccfg = Cset c ->
-      mode_access_ok md d (Cnd c) (ccfg_kill ccfg) ->
-      m' = ccfg_update_mem ccfg (Cnd c) (Vnat 1) ->
-      mode_alive md (ccfg_kill ccfg) ->
-      cstep md d ccfg (ccfg_reg ccfg, m', ccfg_kill ccfg) [Mem m']
-  | Cstep_enclave : forall md d ccfg enc c r' m' k' tr,
+      cstep md d (ccfg_update_com c ccfg) (r', m') tr ->
+      cstep md d ccfg (r', m') tr
+  | Cstep_enclave : forall md d ccfg enc c r' m' tr,
     md = Normal ->
     ccfg_com ccfg = Cenclave enc c ->
-    cstep (Encl enc) d (c, ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) (r', m', k') tr ->
-    cstep md d ccfg (r', m', k') tr
+    cstep (Encl enc) d (c, ccfg_reg ccfg, ccfg_mem ccfg) (r', m') tr ->
+    cstep md d ccfg (r', m') tr
   | Cstep_seq_nil : forall md d ccfg,
       ccfg_com ccfg = Cseq [] ->
-      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
-  | Cstep_seq_hd : forall md d ccfg hd tl r m k tr r' m' k' tr' t,
+      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg) []
+  | Cstep_seq_hd : forall md d ccfg hd tl r m tr r' m' tr' t,
       ccfg_com ccfg = Cseq (hd::tl) ->
-      cstep md d (ccfg_update_com hd ccfg) (r, m, k) tr ->
-      cstep md d (Cseq tl, r, m, k) (r', m', k') tr' ->
+      cstep md d (ccfg_update_com hd ccfg) (r, m) tr ->
+      cstep md d (Cseq tl, r, m) (r', m') tr' ->
       t = tr ++ tr' ->
-      cstep md d ccfg (r', m', k') t
-  | Cstep_if : forall md d ccfg e c1 c2 v r' m' k' tr,
+      cstep md d ccfg (r', m') t
+  | Cstep_if : forall md d ccfg e c1 c2 v r' m' tr,
       ccfg_com ccfg = Cif e c1 c2 ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       ~(v = (Vnat 0)) ->
-      cstep md d (ccfg_update_com c1 ccfg) (r', m', k') tr ->
-      cstep md d ccfg (r', m', k') tr
-  | Cstep_else : forall md d ccfg e c1 c2 v r' m' k' tr,
+      cstep md d (ccfg_update_com c1 ccfg) (r', m') tr ->
+      cstep md d ccfg (r', m') tr
+  | Cstep_else : forall md d ccfg e c1 c2 v r' m' tr,
       ccfg_com ccfg = Cif e c1 c2 ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       v = (Vnat 0) ->
-      cstep md d (ccfg_update_com c2 ccfg) (r', m', k') tr ->
-      cstep md d ccfg (r', m', k') tr
-  | Cstep_while_t : forall md d ccfg e c v r m k tr r' m' k' tr',
+      cstep md d (ccfg_update_com c2 ccfg) (r', m') tr ->
+      cstep md d ccfg (r', m') tr
+  | Cstep_while_t : forall md d ccfg e c v r m tr r' m' tr',
       ccfg_com ccfg = Cwhile e c ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       ~(v = (Vnat 0)) ->
-      cstep md d (ccfg_update_com c ccfg) (r, m, k) tr ->
-      cstep md d (Cwhile e c,r,m,k) (r', m', k') tr' ->
-      cstep md d ccfg (r', m', k') (tr++tr')
+      cstep md d (ccfg_update_com c ccfg) (r, m) tr ->
+      cstep md d (Cwhile e c,r,m) (r', m') tr' ->
+      cstep md d ccfg (r', m') (tr++tr')
   | Cstep_while_f : forall md d ccfg e c,
       ccfg_com ccfg = Cwhile e c ->
       estep md d (ccfg_to_ecfg e ccfg) (Vnat 0) ->
-      mode_alive md (ccfg_kill ccfg) ->
-      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) []
-  | Cstep_kill : forall md d ccfg enc k',
-      md = Normal ->
-      ccfg_com ccfg = Ckill enc ->
-      mode_alive (Encl enc) (ccfg_kill ccfg) ->
-      k' = set_add Nat.eq_dec enc (ccfg_kill ccfg) ->
-      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, k') [].
+      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg) []
+  .
   Hint Constructors cstep.
 
   Inductive cstep_n_chaos : csemantics :=
   | Nchaos_cstep : forall md d ccfg cterm t,
       cstep md d ccfg cterm t -> cstep_n_chaos md d ccfg cterm t
   | Nchaos_chaos : forall d ccfg cterm c' t' (HEncEq : enc_equiv (ccfg_com ccfg) c'),
-      cstep Normal d (c', ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) cterm t' ->
+      cstep Normal d (c', ccfg_reg ccfg, ccfg_mem ccfg) cterm t' ->
       cstep_n_chaos Normal d ccfg cterm
                     (Mem (ccfg_mem ccfg) :: AEnc (ccfg_com ccfg) c' HEncEq :: t').
-
-  Inductive cstep_e_chaos : set enclave -> csemantics :=
-  | Echaos_cstep : forall I md d ccfg cterm t,
-      cstep md d ccfg cterm t -> cstep_e_chaos I md d ccfg cterm t
-  | Echaos_chaos : forall I d ccfg cterm c' t',
-      (* XXX: is there really no built-in subset definition? *)
-      (forall e, set_In e I -> set_In e (ccfg_kill ccfg)) ->
-      cstep Normal d (c', ccfg_reg ccfg, ccfg_mem ccfg, ccfg_kill ccfg) cterm t' ->
-      cstep_e_chaos I Normal d ccfg cterm
-                    (Mem (ccfg_mem ccfg) :: ANonEnc c' :: t').
 End Semantics.
 
 (*******************************************************************************
@@ -402,8 +350,8 @@ Section Typing.
   | Tnat : base_type
   | Tcond : mode -> base_type
   | Tref : type -> mode -> ref_type -> base_type
-  | Tlambda (G: context) (k:set enclave) (u:set condition) (p: sec_policy)
-            (md: mode) (G': context) (k':set enclave) : base_type
+  | Tlambda (G: context) (u:set condition) (p: sec_policy)
+            (md: mode) (G': context) : base_type
                            
   with type : Type :=
   | Typ : base_type -> sec_policy -> type
@@ -449,12 +397,12 @@ Section Typing.
 
   with base_type_le : base_type -> base_type -> Prop :=
   | Base_type_le_refl : forall s, base_type_le s s
-  | Base_type_le_lambda : forall G1 G1' G2 G2' k u p1 p2 md k',
+  | Base_type_le_lambda : forall G1 G1' G2 G2' u p1 p2 md,
       policy_le p2 p1 ->
       context_le G2 G1 ->
       context_le G1' G2' ->
-      base_type_le (Tlambda G1 k u p1 md G1' k')
-                   (Tlambda G2 k u p2 md G2' k')
+      base_type_le (Tlambda G1 u p1 md G1')
+                   (Tlambda G2 u p2 md G2')
 
   with context_le : context -> context -> Prop :=
   | Context_le : forall G1 G2,
@@ -485,7 +433,6 @@ Section Typing.
                        | Eloc (Not_cnd l) => forall t rt,
                            loc_context G (Not_cnd l) = Some (t, rt) ->
                            rt = Immut
-                       | Eisunset _ => False
                        | _ => True
                        end).
 
@@ -515,100 +462,76 @@ Section Typing.
       exp_type md g d e (Typ (Tref (Typ s p) md' rt) q) ->
       md' = Normal \/ md' = md ->
       exp_type md g d (Ederef e) (Typ s (policy_join p q))
-  | ETunset : forall md g d cnd md',
-      md' = d (Cnd cnd) ->
-      md' = Normal \/ md' = md ->
-      exp_type md g d (Eisunset cnd) (Typ Tnat (LevelP L))
-  | ETlambda : forall md g d c p k u g' k',
-      com_type p md g k u d c g' k' ->
-      exp_type md g d (Elambda md c) (Typ (Tlambda g k u p md g' k') (LevelP L))
+  | ETlambda : forall md g d c p u g',
+      com_type p md g u d c g'->
+      exp_type md g d (Elambda md c) (Typ (Tlambda g u p md g') (LevelP L))
   | ETbinop : forall md g d e1 e2 p q f,
       exp_type md g d e1 (Typ Tnat p) ->
       exp_type md g d e2 (Typ Tnat q) ->
       exp_type md g d (Ebinop e1 e2 f) (Typ Tnat (policy_join p q))
 
-  with com_type : sec_policy -> mode -> context -> set enclave ->
+  with com_type : sec_policy -> mode -> context ->
                   set condition -> loc_mode -> com ->
-                  context -> set enclave -> Prop :=
-  | CTskip : forall pc md g d k u,
-      mode_alive md k ->
-      com_type pc md g k u d Cskip g k
-  | CTkill : forall i g d k u,
-      mode_alive (Encl i) k ->
-      com_type (LevelP L) Normal g k u d (Ckill i) g (set_add Nat.eq_dec i k)
-  | CTassign : forall pc md g k u d x e s p q vc lc vc',
+                  context -> Prop :=
+  | CTskip : forall pc md g d u,
+      com_type pc md g u d Cskip g
+  | CTassign : forall pc md g u d x e s p q vc lc vc',
       exp_type md g d e (Typ s p) ->
       q = policy_join p pc ->
       q <> LevelP T ->
       policy_le q (LevelP L) \/ md <> Normal ->
-      mode_alive md k ->
       g = Cntxt vc lc ->
       vc' = (fun y => if y =? x then Some (Typ s q) else vc y) ->
-      com_type pc md g k u d (Cassign x e) (Cntxt vc' lc) k
-  | CTdeclassify : forall md g k u d x e s p vc lc vc',
+      com_type pc md g u d (Cassign x e) (Cntxt vc' lc)
+  | CTdeclassify : forall md g u d x e s p vc lc vc',
       exp_type md g d e (Typ s p) ->
       p <> LevelP T ->
-      mode_alive md k ->
       exp_novars e ->
       all_loc_immutable e g ->
       vc' = (fun y => if y =? x then Some (Typ s (LevelP L)) else vc y) ->
-      com_type (LevelP L) md g k u d (Cdeclassify x e) (Cntxt vc' lc) k
-  | CToutput : forall pc md g k u d e l s p,
+      com_type (LevelP L) md g u d (Cdeclassify x e) (Cntxt vc' lc)
+  | CToutput : forall pc md g u d e l s p,
       exp_type md g d e (Typ s p) ->
-      mode_alive md k ->
       p <> LevelP T ->
       sec_level_le (sec_level_join (cur p u) (cur pc u)) l ->
-      com_type pc md g k u d (Coutput e l) g k
-  | CTupdate : forall pc md g k u d e1 e2 s p md' q p',
+      com_type pc md g u d (Coutput e l) g
+  | CTupdate : forall pc md g u d e1 e2 s p md' q p',
       exp_type md g d e1 (Typ (Tref (Typ s p) md' Mut) q) ->
       exp_type md g d e2 (Typ s p') ->
       policy_le (policy_join (policy_join p' q) pc) p ->
       md' = Normal \/ md' = md ->
-      mode_alive md k ->
       p <> LevelP T ->
       p' <> LevelP T ->
       q <> LevelP T ->
-      com_type pc md g k u d (Cupdate e1 e2) g k
-  | Tset : forall md g k u d cnd md',
-      md' = d (Cnd cnd) ->
-      ~set_In cnd u ->
-      md' = Normal \/ md' = md ->
-      mode_alive md k ->
-      com_type (LevelP L) md g k u d (Cset cnd) g k
-  | Tifunset : forall pc md g k u d cnd c1 c2 g' k',
-      exp_type md g d (Eisunset cnd) (Typ Tnat (LevelP L)) ->
-      com_type pc md g k (set_add Nat.eq_dec cnd u) d c1 g' k' ->
-      com_type pc md g k u d c2 g' k' ->
-      com_type pc md g k u d (Cif (Eisunset cnd) c1 c2) g' k'
-  | Tifelse : forall pc md g k u d e c1 c2 pc' p g' k',
-      ~(exists cnd, e = Eisunset cnd) ->
-      com_type pc' md g k u d c1 g' k' ->
-      com_type pc' md g k u d c2 g' k' ->
+      com_type pc md g u d (Cupdate e1 e2) g
+  | Tifelse : forall pc md g u d e c1 c2 pc' p g',
+      com_type pc' md g u d c1 g' ->
+      com_type pc' md g u d c2 g' ->
       exp_type md g d e (Typ Tnat p) ->
       policy_le (policy_join pc p) pc' ->
       policy_le p (LevelP L) \/ md <> Normal ->
       p <> LevelP T ->
-      com_type pc md g k u d (Cif e c1 c2) g' k'
-  | Tenclave : forall pc g k u d c i c' g' k',
+      com_type pc md g u d (Cif e c1 c2) g'
+  | Tenclave : forall pc g u d c i c' g',
       c = Cenclave i c' ->
-      com_type pc (Encl i) g k nil d c' g' k' ->
+      com_type pc (Encl i) g nil d c' g' ->
       is_var_low_context g' ->
-      com_type pc Normal g k u d c g' k'
-  | Twhile : forall pc md g k u d c e p pc',
+      com_type pc Normal g u d c g'
+  | Twhile : forall pc md g u d c e p pc',
       exp_type md g d e (Typ Tnat p) ->
-      com_type pc' md g k u d c g k ->
+      com_type pc' md g u d c g ->
       policy_le (policy_join pc p) pc' ->
       policy_le p (LevelP L) \/ md <> Normal ->
       p <> LevelP T ->
-      com_type pc md g k u d (Cwhile e c) g k
-  | Tseq : forall pc md g k u d c rest g' k' gn kn,
-      com_type pc md g k u d c g' k' ->
-      com_type pc md g' k' u d (Cseq rest) gn kn ->
-      com_type pc md g k u d (Cseq (c :: rest)) gn kn
-  | Tseqnil : forall pc md g k u d,
-      com_type pc md g k u d (Cseq []) g k
-  | Tcall : forall pc md G u d e Gm km Gp kp Gout q p,
-      exp_type md G d e (Typ (Tlambda Gm km u p md Gp kp) q) ->
+      com_type pc md g u d (Cwhile e c) g
+  | Tseq : forall pc md g u d c rest g' gn,
+      com_type pc md g u d c g' ->
+      com_type pc md g' u d (Cseq rest) gn ->
+      com_type pc md g u d (Cseq (c :: rest)) gn
+  | Tseqnil : forall pc md g u d,
+      com_type pc md g u d (Cseq []) g
+  | Tcall : forall pc md G u d e Gm Gp Gout q p,
+      exp_type md G d e (Typ (Tlambda Gm u p md Gp) q) ->
       policy_le (policy_join pc q) p ->
       q <> LevelP T ->
       u = nil \/ md <> Normal ->
@@ -627,6 +550,6 @@ Section Typing.
                  (fun l t rt =>
                     (forall t' rt', ~loc_in_dom Gp l t' rt') ->
                     loc_in_dom Gout l t rt) ->
-      com_type pc md G km u d (Ccall e) Gout kp.
+      com_type pc md G u d (Ccall e) Gout.
   
 End Typing.
