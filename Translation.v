@@ -21,6 +21,7 @@ Module id_trans.
 
   Definition encl0 := 0.
   Definition md := E.Encl encl0.
+  Notation d := (fun (_: location) => md).
 
   Definition rt_trans (rt: S.ref_type) : E.ref_type :=
     match rt with
@@ -28,29 +29,29 @@ Module id_trans.
     | S.Immut => E.Immut
     end.
   
-  Fixpoint typ_trans (d: E.loc_mode) (s: S.base_type) : E.base_type :=
+  Fixpoint typ_trans (s: S.base_type) : E.base_type :=
     match s with
     | S.Tnat => E.Tnat
     | S.Tcond => E.Tcond md
     | S.Tref (S.Typ s' p) rt =>
-      E.Tref (E.Typ (typ_trans d s') p) md (rt_trans rt)
+      E.Tref (E.Typ (typ_trans s') p) md (rt_trans rt)
     | S.Tlambda Gminus U p Gplus =>
-      E.Tlambda (cntxt_trans d Gminus) [] U p md (cntxt_trans d Gplus) []
+      E.Tlambda (cntxt_trans Gminus) [] U p md (cntxt_trans Gplus) []
     end
 
-  with cntxt_trans (d: E.loc_mode) (G: S.context) : E.context :=
+  with cntxt_trans (G: S.context) : E.context :=
     match G with
     | S.Cntxt vc lc =>
       E.Cntxt
         (fun x =>
            match vc x with
            | None => None
-           | Some (S.Typ s p) => Some (E.Typ (typ_trans d s) p)
+           | Some (S.Typ s p) => Some (E.Typ (typ_trans s) p)
            end)
         (fun l =>
            match lc l with
            | None => None
-           | Some (S.Typ s p, rt) => Some (E.Typ (typ_trans d s) p, rt_trans rt)
+           | Some (S.Typ s p, rt) => Some (E.Typ (typ_trans s) p, rt_trans rt)
            end)
     end.
   
@@ -84,23 +85,31 @@ Module id_trans.
 
   Hint Constructors E.exp_type E.com_type.
   
-  Lemma id_trans_sound' (c: S.com) (d: E.loc_mode) :
+  Lemma id_trans_sound' (c: S.com) :
     forall pc G U G',
       S.com_wt pc G U c G' ->
-      E.com_type pc md (cntxt_trans d G) [] U d (id_trans c)
-                 (cntxt_trans d G') [].
+      E.com_type pc md (cntxt_trans G) [] U d (id_trans c) (cntxt_trans G') [].
   Proof.
     induction c using S.com_ind' with
     (P0:=fun e => forall G s p,
              S.exp_wt G e (S.Typ s p) ->
-             E.exp_type md (cntxt_trans d G) d (id_trans_e e)
-                        (E.Typ (typ_trans d s) p)).
+             E.exp_type md (cntxt_trans G) d (id_trans_e e)
+                        (E.Typ (typ_trans s) p)).
     - intros. inversion H. subst. simpl. apply E.ETnat.
     - intros. inversion H. subst. simpl. apply E.ETvar.
       destruct G. simpl in *. now rewrite H2.
     - intros. inversion H. subst. simpl.
       apply E.ETbinop; [apply IHc in H3 | apply IHc0 in H7]; auto.
-    - intros. inversion H. subst. simpl. constructor. Focus 2. subst.
+    - intros. inversion H. subst. simpl. constructor. auto.
+      subst. simpl. destruct t as [s q]. constructor; auto.
+      destruct G. simpl in *. now rewrite H3.
+    - intros. inversion H. subst. simpl.
+      apply E.ETderef with (md':=md) (rt:=rt_trans rt).
+      apply IHc in H3. simpl in H3. auto. intuition.
+    - intros. inversion H. subst. simpl.
+      apply E.ETunset with (md':=md); intuition.
+    - intros. inversion H. subst. simpl. apply IHc in H3. now apply E.ETlambda.
+      Admitted.
 
 (*
 Lemma id_trans_ind:

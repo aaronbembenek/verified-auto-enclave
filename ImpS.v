@@ -192,6 +192,7 @@ Section Typing.
                        | Eloc (Not_cnd l) => forall t rt,
                            loc_context G (Not_cnd l) = Some (t, rt) ->
                            rt = Immut
+                       | Eisunset _ => False
                        | _ => True
                        end).
 

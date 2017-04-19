@@ -481,6 +481,7 @@ Section Typing.
                        | Eloc (Not_cnd l) => forall t rt,
                            loc_context G (Not_cnd l) = Some (t, rt) ->
                            rt = Immut
+                       | Eisunset _ => False
                        | _ => True
                        end).
 
@@ -517,9 +518,10 @@ Section Typing.
       md' = d (Cnd cnd) ->
       md' = Normal \/ md' = md ->
       exp_type md g d (Eisunset cnd) (Typ Tnat (LevelP L))
-  | ETlambda : forall md g d c p k u g' k',
-      com_type p md g k u d c g' k' ->
-      exp_type md g d (Elambda md c) (Typ (Tlambda g k u p md g' k') (LevelP L))
+  | ETlambda : forall md g d c p k u g' g'' k',
+      com_type p md g' k u d c g'' k' ->
+      exp_type md g d (Elambda md c)
+               (Typ (Tlambda g' k u p md g'' k') (LevelP L))
   | ETbinop : forall md g d e1 e2 p q f,
       exp_type md g d e1 (Typ Tnat p) ->
       exp_type md g d e2 (Typ Tnat q) ->
