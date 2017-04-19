@@ -226,18 +226,20 @@ Section Adequacy.
       now apply impe2_exp_sound with (is_left := is_left) in H0.
       now discriminate.
       now apply IHcstep2_1 with (c0 := c).
-      (* XXX changed defn of while semantics to be correct... broke this 
-      now apply IHcstep2_2 with (c0 := (Cwhile e c)).
+      (* XXX problem with inductive hypothesis *)
+      apply IHcstep2_2 with (c0 := (Cwhile e c)); auto.
+      admit.
     - apply Cstep_while_f with (e := e) (c := c); auto.
       now apply impe2_exp_sound with (is_left := is_left) in H0.
       now apply mode_alive_project_alive.
-    - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
+    - admit.
+
+      (* XXX: typo in paper's while-div definition
+      apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
         apply project_merge_inv_reg in H3; apply project_merge_inv_mem in H4;
           destruct_conjs; subst.
 
-      admit.
-     (* XXX: I think there's a typo in the paper's While-div rule that I need to figure out *)
-     (* destruct is_left; [destruct n1 | destruct n2]; rewrite project_merge_inv_trace.
+          destruct is_left; [destruct n1 | destruct n2]; rewrite project_merge_inv_trace.
       +  assert (t1 = [] /\ k1 = (project_kill xK true) /\
                  (project_reg r true) = (project_reg r' true) /\
                  (project_mem m true) = (project_mem m' true)) by
@@ -245,13 +247,10 @@ Section Adequacy.
          rewrite <- H4; rewrite <- H5.
          apply Cstep_while_f with (e := e) (c := c); auto.
          inversion H1; now try discriminate. *)
-
-     
     - simpl in H0; subst; simpl in *; apply Cstep_kill with (enc := enc); auto.
       assert (mode_alive2 (Encl enc) K) by (unfold mode_alive2; now simpl).
       now apply mode_alive_project_alive.
       now apply project_add_comm_kill. 
-*)     
   Admitted.
 
   Lemma impe2_exp_complete : forall md d e r m K v'i is_left,
