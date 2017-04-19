@@ -367,14 +367,14 @@ Section Semantics.
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VPair (Vnat n1) (Vnat n2)) ->
       let cleft := (match n1 with
                     | 0 => Cskip
-                    | _ => c end) in
+                    | _ => Cseq [c; Cwhile e c] end) in
       cstep md d (cleft, project_reg (ccfg_reg2 ccfg) true,
                   project_mem (ccfg_mem2 ccfg) true,
                   project_kill (ccfg_kill2 ccfg) true)
              (r1, m1, k1) t1 ->
       let cright := (match n2 with
                      | 0 => Cskip
-                     | _ => c end) in
+                     | _ => Cseq [c; Cwhile e c] end) in
       cstep md d (cright, project_reg (ccfg_reg2 ccfg) false,
                   project_mem (ccfg_mem2 ccfg) false,
                   project_kill (ccfg_kill2 ccfg) false)
