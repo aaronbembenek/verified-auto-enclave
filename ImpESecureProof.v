@@ -23,7 +23,6 @@ Ltac unfold_cfgs :=
   unfold ccfg_to_ecfg2 in *;
   unfold ccfg_reg2 in *;
   unfold ccfg_mem2 in *;
-  unfold ccfg_kill2 in *;
   unfold ccfg_com2 in *;
   unfold ecfg_exp2 in *;
   unfold ecfg_reg2 in *;
@@ -45,28 +44,23 @@ Section Adequacy.
     end.
 
   (* XXX: thought I needed this for exp_output_wf, didn't use it. Might still be useful...? *)
-  Lemma estep2_deterministic : forall md d e r m k v1 v2,
-    estep2 md d (e, r, m, k) v1 ->
-    estep2 md d (e, r, m, k) v2 ->
+  Lemma estep2_deterministic : forall md d e r m v1 v2,
+    estep2 md d (e, r, m) v1 ->
+    estep2 md d (e, r, m) v2 ->
     v1 = v2.
   Proof.
     intros; revert H0; revert v2.
-    induction H; intros; destruct ecfg as [[[e' r'] m'] k']; simpl in *; try rewrite H in H0.
+    induction H; intros; destruct ecfg as [[e' r'] m']; simpl in *; try rewrite H in H0.
     1-3: inversion H0; subst; try discriminate; simpl in H1; congruence.
     inversion H1; subst; try discriminate; simpl in *; congruence.
     - rewrite H in H2; inversion H2; try discriminate; simpl in *;
         assert (e1 = e0) by congruence; assert (e2 = e3) by congruence;
           subst; apply IHestep2_1 in H4; apply IHestep2_2 in H5; congruence.
-    - rewrite H in H3; inversion H3; subst; try discriminate; simpl in *.
+    - rewrite H in H2; inversion H2; subst; try discriminate; simpl in *.
       assert (e0 = e1) by congruence.
       assert (r0 = r1) by congruence.
       assert (m0 = m1) by congruence.
-      assert (k0 = k1) by congruence.
-      subst. apply IHestep2 in H5. assert (l = l0) by congruence; now subst.
-    - rewrite H in H2; inversion H2; subst; try discriminate; simpl in *.
-      assert (cnd = cnd0) by congruence; subst.
-      apply IHestep2 in H4.
-      destruct H1; destruct H5; destruct_conjs; subst; auto; congruence.
+      subst. apply IHestep2 in H4. assert (l = l0) by congruence; now subst.
   Qed.      
 
   Lemma project_comm_reg : forall r b x,
@@ -85,12 +79,6 @@ Section Adequacy.
   Lemma project_update_comm_mem : forall ccfg l v is_left,
       project_mem (ccfg_update_mem2 ccfg l v) is_left = 
       ccfg_update_mem (project_ccfg ccfg is_left) l (project_value v is_left).
-  Proof.
-  Admitted.
-
-  Lemma project_add_comm_kill : forall K is_left enc,
-      project_kill (add_to_kill2 enc K) is_left =
-      set_add Nat.eq_dec enc (project_kill K is_left).
   Proof.
   Admitted.
 
@@ -115,13 +103,12 @@ Section Adequacy.
   Proof.
   Admitted.
 
-  Lemma impe2_exp_sound : forall md d e r m K v is_left,
-      estep2 md d (e, r, m, K) v ->
-      estep md d (e, project_reg r is_left, project_mem m is_left, project_kill K is_left)
-            (project_value v is_left).
+  Lemma impe2_exp_sound : forall md d e r m v is_left,
+      estep2 md d (e, r, m) v ->
+      estep md d (e, project_reg r is_left, project_mem m is_left) (project_value v is_left).
   Proof.
     intros.
-    remember (e, r, m, K) as ecfg.
+    remember (e, r, m) as ecfg.
     generalize dependent e.
     induction H; intros; try rewrite Heqecfg in H; simpl in *; try rewrite H.
     1-3: constructor; simpl; auto.
@@ -131,48 +118,36 @@ Section Adequacy.
         rewrite Heqecfg; unfold ecfg_update_exp2; auto.
     - inversion H; subst.
       apply Estep_deref with (e:=e) (l:=l) (m:=project_mem m0 is_left)
-                                    (r:=project_reg r0 is_left)
-                                    (k:=project_kill k is_left); simpl; auto.
-      now apply mode_access_ok_project_ok.
-    - apply Estep_isunset with (cnd := cnd) (v := (project_value v is_left)); simpl; auto.
-      apply IHestep2; subst; auto.
-      destruct H1; destruct_conjs; [left | right];
-        simpl; split; try (now rewrite H1); try (now rewrite H2).
+                                    (r:=project_reg r0 is_left); simpl; auto.
   Qed.
        
-  Lemma impe2_sound : forall md d c r m K r' m' K' t is_left,
-    cstep2 md d (c, r, m, K) (r', m', K') t ->
-    cstep md d (project_ccfg (c, r, m, K) is_left)
-          (project_reg r' is_left, project_mem m' is_left, project_kill K' is_left)
-          (project_trace t is_left).
+  Lemma impe2_sound : forall md d c r m r' m' t is_left,
+    cstep2 md d (c, r, m) (r', m') t ->
+    cstep md d (project_ccfg (c, r, m) is_left)
+          (project_reg r' is_left, project_mem m' is_left) (project_trace t is_left).
   Proof.
     intros.
-    remember (c, r, m, K) as ccfg.
-    remember (r', m', K') as cterm.
+    remember (c, r, m) as ccfg.
+    remember (r', m') as cterm.
     generalize dependent r'.
     generalize dependent m'.
-    generalize dependent K'.
     generalize dependent c.
     induction H; intros; try rewrite Heqccfg in H, Heqcterm; simpl in *; inversion Heqcterm; subst.
-    - constructor; auto. now apply mode_alive_project_alive.
+    - constructor; auto.
     - apply impe2_exp_sound with (is_left:=is_left) in H0.
       apply Cstep_assign with (x:=x) (e:=e) (v := project_value v is_left); auto.
       unfold ccfg_to_ecfg; simpl in *; auto.
       apply project_update_comm_reg.
-      simpl in *; apply mode_alive_project_alive; auto.
     - apply impe2_exp_sound with (is_left:=is_left) in H1.
       apply Cstep_declassify with (x:=x) (e:=e) (v :=(project_value v is_left)); auto.
       apply project_update_comm_reg.
-      now apply mode_alive_project_alive.
     - apply impe2_exp_sound with (is_left:=is_left) in H0.
       apply impe2_exp_sound with (is_left:=is_left) in H1.
       apply Cstep_update with (e1 := e1) (e2 := e2) (l := l) (v := project_value v is_left); auto.
-      now apply mode_alive_project_alive.
-      now apply mode_access_ok_project_ok.
       now apply project_update_comm_mem.
     - apply impe2_exp_sound with (is_left:=is_left) in H0; simpl in *.
       apply Cstep_output with (e := e); auto.
-      now apply mode_alive_project_alive.
+      destruct sl; auto.
     - apply impe2_exp_sound with (is_left:=is_left) in H0; simpl in *.
       apply Cstep_call with (e := e) (c := c); auto.
       apply IHcstep2 with (c1 := c); auto.
@@ -182,17 +157,12 @@ Section Adequacy.
       destruct is_left;
         [apply Cstep_call with (e:=e) (c:=c1) | apply Cstep_call with (e:=e) (c:=c2)]; auto;
       unfold ccfg_update_com; simpl; rewrite project_merge_inv_trace; auto.
-    - apply Cstep_cset with (c := c); auto.
-      now apply mode_access_ok_project_ok.
-      now apply project_update_comm_mem.
-      now apply mode_alive_project_alive.
     - apply Cstep_enclave with (enc := enc) (c := c); auto.
       apply IHcstep2 with (c1 := c); auto.
     - apply Cstep_seq_nil; auto. 
     - apply Cstep_seq_hd with (hd:=hd) (tl:=tl)
                                        (r:=(project_reg r0 is_left))
                                        (m:=(project_mem m0 is_left))
-                                       (k:=(project_kill k is_left))
                                        (tr:=(project_trace tr is_left))
                                        (tr':=(project_trace tr' is_left)); auto.
       apply IHcstep2_1 with (c0 := hd); auto.
@@ -221,8 +191,7 @@ Section Adequacy.
     - rewrite project_app_trace; simpl in *; subst.
       apply Cstep_while_t with (e := e) (c := c) (v := (Vnat 1))
                                         (r := (project_reg r0 is_left))
-                                        (m := (project_mem m0 is_left))
-                                        (k := (project_kill k is_left)); auto.
+                                        (m := (project_mem m0 is_left)); auto.
       now apply impe2_exp_sound with (is_left := is_left) in H0.
       now discriminate.
       now apply IHcstep2_1 with (c0 := c).
@@ -231,7 +200,6 @@ Section Adequacy.
       admit.
     - apply Cstep_while_f with (e := e) (c := c); auto.
       now apply impe2_exp_sound with (is_left := is_left) in H0.
-      now apply mode_alive_project_alive.
     - admit.
 
       (* XXX: typo in paper's while-div definition
@@ -247,18 +215,14 @@ Section Adequacy.
          rewrite <- H4; rewrite <- H5.
          apply Cstep_while_f with (e := e) (c := c); auto.
          inversion H1; now try discriminate. *)
-    - simpl in H0; subst; simpl in *; apply Cstep_kill with (enc := enc); auto.
-      assert (mode_alive2 (Encl enc) K) by (unfold mode_alive2; now simpl).
-      now apply mode_alive_project_alive.
-      now apply project_add_comm_kill. 
   Admitted.
 
-  Lemma impe2_exp_complete : forall md d e r m K v'i is_left,
-      estep md d (e, project_reg r is_left, project_mem m is_left, project_kill K is_left) v'i ->
-      exists v', estep2 md d (e, r, m, K) v' /\ (project_value v' is_left = v'i).
+  Lemma impe2_exp_complete : forall md d e r m v'i is_left,
+      estep md d (e, project_reg r is_left, project_mem m is_left) v'i ->
+      exists v', estep2 md d (e, r, m) v' /\ (project_value v' is_left = v'i).
   Proof.
     intros.
-    remember (e, project_reg r is_left, project_mem m is_left, project_kill K is_left) as ecfg.
+    remember (e, project_reg r is_left, project_mem m is_left) as ecfg.
     generalize dependent e.
     induction H; intros; rewrite Heqecfg in H; simpl in *.
     - exists (VSingle (Vnat n)); subst; split; auto; now constructor.
@@ -267,15 +231,13 @@ Section Adequacy.
     - admit.
     - admit.
     - admit.
-    - admit.
     Admitted. 
       
-  Lemma impe2_complete : forall md d c r m K r'i m'i K'i t'i is_left,
-      cstep md d (project_ccfg (c, r, m, K) is_left) (r'i, m'i, K'i) t'i ->
-      exists r' m' K' t', cstep2 md d (c, r, m, K) (r', m', K') t' /\
+  Lemma impe2_complete : forall md d c r m r'i m'i t'i is_left,
+      cstep md d (project_ccfg (c, r, m) is_left) (r'i, m'i) t'i ->
+      exists r' m' t', cstep2 md d (c, r, m) (r', m') t' /\
                      (project_reg r' is_left) = r'i /\
                      (project_mem m' is_left) = m'i /\
-                     (project_kill K' is_left) = K'i /\
                      (project_trace t' is_left) = t'i.
   Proof.
     (* Proof is done by straightforward induction *)
