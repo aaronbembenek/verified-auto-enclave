@@ -64,5 +64,17 @@ Section Security.
   Definition sec_spec : Type :=  location -> sec_level.
   Definition well_formed_spec (g : sec_spec) : Prop := forall l, exists p, g l = p.
 
-  Definition protected (sl: sec_level) : Prop := sl = H.      
+  Definition protected (sl: sec_level) : Prop := sl = H.
+  Lemma join_protected_l (sl sl': sec_level) :
+    protected sl -> protected (sec_level_join sl sl').
+  Proof.
+    induction sl, sl'; unfold sec_level_join; simpl; auto.
+    intros. inversion H0.
+  Qed.
+  Lemma join_protected_r (sl sl': sec_level) :
+    protected sl' -> protected (sec_level_join sl sl').
+  Proof.
+    induction sl, sl'; unfold sec_level_join; simpl; auto.
+    intros. inversion H0.
+  Qed.
 End Security.
