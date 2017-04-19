@@ -355,7 +355,7 @@ Section Semantics.
       ccfg_com2 ccfg = Cwhile e c ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vnat 1)) ->
       cstep2 md d (ccfg_update_com2 c ccfg) (r, m, k) tr ->
-      cstep2 md d (ccfg_update_com2 (Cwhile e c) ccfg) (r', m', k') tr' ->
+      cstep2 md d (Cwhile e c,r,m,k) (r', m', k') tr' ->
       cstep2 md d ccfg (r', m', k') (tr++tr')
   | Cstep2_while_f : forall md d ccfg e c,
       ccfg_com2 ccfg = Cwhile e c ->
@@ -428,7 +428,7 @@ Section Semantics.
       estep2 md d (e, r, m, k) (VSingle (Vnat 1)) ->
       cstep2 md d (c, r, m, k) (r', m', k') tr' ->
       cstep2 md d (Cwhile e c, r', m', k') (r'', m'', k'') tr ->
-      imm_premise (cstep2 md d (c, r, m, k) (r'', m'', k'') tr')
+      imm_premise (cstep2 md d (c, r, m, k) (r', m', k') tr')
                   (cstep2 md d (Cwhile e c, r, m, k) (r'', m'', k'')
                           (tr' ++ tr))
   | IPwhilet2: forall md d c e r m k r' m' k' r'' m'' k'' tr tr',

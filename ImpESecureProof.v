@@ -226,6 +226,7 @@ Section Adequacy.
       now apply impe2_exp_sound with (is_left := is_left) in H0.
       now discriminate.
       now apply IHcstep2_1 with (c0 := c).
+      (* XXX changed defn of while semantics to be correct... broke this 
       now apply IHcstep2_2 with (c0 := (Cwhile e c)).
     - apply Cstep_while_f with (e := e) (c := c); auto.
       now apply impe2_exp_sound with (is_left := is_left) in H0.
@@ -233,6 +234,7 @@ Section Adequacy.
     - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
         apply project_merge_inv_reg in H3; apply project_merge_inv_mem in H4;
           destruct_conjs; subst.
+
       admit.
      (* XXX: I think there's a typo in the paper's While-div rule that I need to figure out *)
      (* destruct is_left; [destruct n1 | destruct n2]; rewrite project_merge_inv_trace.
@@ -248,7 +250,8 @@ Section Adequacy.
     - simpl in H0; subst; simpl in *; apply Cstep_kill with (enc := enc); auto.
       assert (mode_alive2 (Encl enc) K) by (unfold mode_alive2; now simpl).
       now apply mode_alive_project_alive.
-      now apply project_add_comm_kill.      
+      now apply project_add_comm_kill. 
+*)     
   Admitted.
 
   Lemma impe2_exp_complete : forall md d e r m K v'i is_left,
@@ -567,9 +570,9 @@ Section Guarantees.
       apply policy_le_refl.
       assert (project_trace tr true = project_trace tr true); auto.
       apply (IHHcstep H0 H3 Hcstep H4 c); auto.
-   (* CSEQ *)
+   (* SEQ *)
     - admit.
-    (* CIF *)
+    (* IF *)
     - assert (cconfig2_ok pc md G d m0 (c1, r, m, k) G' k').
       pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m k G' k' H0 H1
                                     md c1 r m k r'0 m'0 k'0 tr) as Lemma6.
@@ -580,7 +583,7 @@ Section Guarantees.
       apply policy_le_refl.
       assert (project_trace tr true = project_trace tr true); auto.
       apply (IHHcstep H0 H3 Hcstep H4 c1); auto.
-   (* CELSE *)
+   (* ELSE *)
     - assert (cconfig2_ok pc md G d m0 (c2, r, m, k) G' k').
       pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m k G' k' H0 H1
                                     md c2 r m k r'0 m'0 k'0 tr) as Lemma6.
@@ -590,7 +593,21 @@ Section Guarantees.
       apply (Lemma6 r'0 m'0 k'0 tr HIP pc).
       apply policy_le_refl.
       assert (project_trace tr true = project_trace tr true); auto.
-      apply (IHHcstep H0 H3 Hcstep H4 c2); auto.  
+      apply (IHHcstep H0 H3 Hcstep H4 c2); auto.
+    (* IFELSE-DIV *)
+    - admit.
+    (* WHILE *)
+    - assert (cconfig2_ok pc md G d m0 (c, r, m, k) G' k').
+      pose (impe2_type_preservation G d m0 pc md (Cwhile e c) r m k G' k' H0 H1
+                                    md c r m k r0 m3 k0 tr) as Lemma6.
+      assert (imm_premise (cstep2 md d (c, r, m, k) (r0, m3, k0) tr)
+                          (cstep2 md d (Cwhile e c, r, m, k) (r'0, m'0, k'0) (tr++tr')))
+        as HIP by apply (IPwhilet1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ H5 Hcstep1 Hcstep2). 
+      apply (Lemma6 r'0 m'0 k'0 (tr++tr') HIP pc).
+      apply policy_le_refl.
+      assert (project_trace tr true = project_trace tr true); auto.
+      (* XXX need to generalize here somehow 
+      apply (IHHcstep1 H0 H3 Hcstep1 H4 c); auto. *)
   Admitted.
 
   Lemma com_type_k'_implies_cstep2_k' (c: com) : forall G G' K' md d r m k r' m' k' t,

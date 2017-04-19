@@ -351,7 +351,7 @@ Section Semantics.
       estep md d (ccfg_to_ecfg e ccfg) v ->
       ~(v = (Vnat 0)) ->
       cstep md d (ccfg_update_com c ccfg) (r, m, k) tr ->
-      cstep md d (ccfg_update_com (Cwhile e c) ccfg) (r', m', k') tr' ->
+      cstep md d (Cwhile e c,r,m,k) (r', m', k') tr' ->
       cstep md d ccfg (r', m', k') (tr++tr')
   | Cstep_while_f : forall md d ccfg e c,
       ccfg_com ccfg = Cwhile e c ->
