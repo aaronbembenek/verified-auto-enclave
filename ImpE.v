@@ -444,9 +444,9 @@ Section Typing.
       exp_type md g d e (Typ (Tref (Typ s p) md' rt) q) ->
       md' = Normal \/ md' = md ->
       exp_type md g d (Ederef e) (Typ s (sec_level_join p q))
-  | ETlambda : forall md g d c p g',
-      com_type p md g d c g'->
-      exp_type md g d (Elambda md c) (Typ (Tlambda g p md g') (L))
+  | ETlambda : forall md g d c p g' g'',
+      com_type p md g' d c g''->
+      exp_type md g d (Elambda md c) (Typ (Tlambda g' p md g'') (L))
   | ETbinop : forall md g d e1 e2 p q f,
       exp_type md g d e1 (Typ Tnat p) ->
       exp_type md g d e2 (Typ Tnat q) ->
