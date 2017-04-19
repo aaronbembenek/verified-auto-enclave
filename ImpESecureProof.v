@@ -35,7 +35,6 @@ Ltac unfold_cfgs :=
 * ADEQUACY
 *
 *******************************************************************************)
-(*
 Section Adequacy.
 
   Definition not_pair_val (v : val2) : Prop :=
@@ -57,11 +56,11 @@ Section Adequacy.
     - rewrite H in H2; inversion H2; try discriminate; simpl in *;
         assert (e1 = e0) by congruence; assert (e2 = e3) by congruence;
           subst; apply IHestep2_1 in H4; apply IHestep2_2 in H5; congruence.
-    - rewrite H in H2; inversion H2; subst; try discriminate; simpl in *.
+    - rewrite H in H3; inversion H3; subst; try discriminate; simpl in *.
       assert (e0 = e1) by congruence.
       assert (r0 = r1) by congruence.
       assert (m0 = m1) by congruence.
-      subst. apply IHestep2 in H4. assert (l = l0) by congruence; now subst.
+      subst. apply IHestep2 in H5. assert (l = l0) by congruence; now subst.
   Qed.      
 
   Lemma project_comm_reg : forall r b x,
@@ -202,7 +201,6 @@ Section Adequacy.
     - apply Cstep_while_f with (e := e) (c := c); auto.
       now apply impe2_exp_sound with (is_left := is_left) in H0.
     - admit.
-
       (* XXX: typo in paper's while-div definition
       apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
         apply project_merge_inv_reg in H3; apply project_merge_inv_mem in H4;
@@ -246,7 +244,7 @@ Section Adequacy.
   Admitted.
   
 End Adequacy.
-*)
+
 (*******************************************************************************
 *
 * SECURITY
