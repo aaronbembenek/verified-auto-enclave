@@ -48,7 +48,8 @@ Section Security.
   Inductive sec_level_rel : relation sec_level :=
   | sec_level_l_rel : sec_level_rel L H
   | sec_level_h_rel : sec_level_rel H T.
- 
+
+  (*
   Definition sec_level_le := clos_refl_trans sec_level sec_level_rel.
   
   Global Instance sec_level_le_refl : Reflexive sec_level_le.
@@ -71,6 +72,13 @@ Section Security.
     apply rt_trans with (y := H); apply rt_step; [apply sec_level_l_rel | apply sec_level_h_rel].
     apply rt_step; apply sec_level_h_rel.
   Qed.
+   *)
+
+  Definition sec_level_le (sl sl': sec_level) :=
+    match sl, sl' with
+    | H, L | T, L | T, H => False
+    | _, _ => True
+    end.
 
   Definition sec_level_le_compute (sl sl': sec_level) :=
     match sl, sl' with
@@ -80,10 +88,7 @@ Section Security.
   Lemma sec_level_le_correct (sl sl': sec_level) :
     sec_level_le_compute sl sl' = true <-> sec_level_le sl sl'.
   Proof.
-    destruct sl, sl'; intuition; try discriminate; unfold sec_level_le in *.
-    apply rt_step. constructor.
-    apply rt_trans with (y := H); apply rt_step; constructor.
-    (* XXX why is it so hard to prove that sec_level_le H L is False? *)
+    destruct sl, sl'; intuition; try discriminate; unfold sec_level_le in *; auto.
   Admitted.
 
   Definition sec_level_join (sl sl': sec_level) : sec_level :=
@@ -93,6 +98,18 @@ Section Security.
     | L, L => L
     end.
 
+  Lemma sec_level_join_ge (sl sl': sec_level) :
+    sec_level_le sl (sec_level_join sl sl') /\ sec_level_le sl' (sec_level_join sl sl').
+  Proof.
+    induction sl, sl'; unfold sec_level_join; unfold sec_level_le; auto.
+  Qed.
+
+  Lemma sec_level_le_trans (sl sl' sl'': sec_level) :
+    sec_level_le sl sl' -> sec_level_le sl' sl'' -> sec_level_le sl sl''.
+  Proof.
+    intros; unfold sec_level_le; induction sl, sl', sl''; auto.
+  Qed.
+  
   Inductive sec_policy : Type :=
   | LevelP : sec_level -> sec_policy
   | ErasureP (l1: sec_level) (cnd: condition) (l2: sec_level)
@@ -117,7 +134,7 @@ Section Security.
       sec_level_le l1 l2 ->
       sec_level_le l1' l2' ->
       policy_le (ErasureP l1 cnd l1' pf1) (ErasureP l2 cnd l2' pf2).
-
+(*
   Lemma policy_le_refl : reflexive sec_policy policy_le.
   Proof.
     intro x. destruct x.
@@ -140,10 +157,12 @@ Section Security.
     - apply policy_le_transitive.
     - apply policy_le_antisymmetric.
   Qed.  
-  
+ *)
   Parameter policy_join : sec_policy -> sec_policy -> sec_policy.
   Axiom policy_le_join : forall p1 p2,
       policy_le p1 (policy_join p1 p2) /\ policy_le p2 (policy_join p1 p2).
+  Axiom policy_le_join_inv : forall p1 p2 p,
+      policy_le (policy_join p1 p2) p -> policy_le p1 p /\ policy_le p2 p.
   
   Function cur (p : sec_policy) (U : set condition) : sec_level :=
     match p with
@@ -154,8 +173,9 @@ Section Security.
   Inductive protected : sec_policy -> Prop :=
   | level_high: protected (LevelP H)
   | level_top: protected (LevelP T)
+  (*
   | erase_high: forall cnd sl pf,
-      protected (ErasureP H cnd sl pf)
+      protected (ErasureP H cnd sl pf)*)
   | join_protected_l: forall p p',
       protected p ->
       protected (policy_join p p')
@@ -163,4 +183,11 @@ Section Security.
       protected p' ->
       protected (policy_join p p').
 
+  Lemma protected_gt_L : forall p, protected p -> sec_level_le (cur p []) L = False.
+  Proof.
+    intros.
+    induction H0; simpl; auto.
+    admit.
+    admit.
+  Admitted.
 End Security.

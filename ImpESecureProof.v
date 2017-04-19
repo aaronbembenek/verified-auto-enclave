@@ -27,7 +27,8 @@ Ltac unfold_cfgs :=
   unfold ccfg_com2 in *;
   unfold ecfg_exp2 in *;
   unfold ecfg_reg2 in *;
-  unfold ecfg_update_exp2 in *.                   
+  unfold ecfg_update_exp2 in *;
+  unfold ccfg_update_com2 in *.                   
 
 
 (*******************************************************************************
@@ -312,9 +313,6 @@ Section Security.
         estep md d (e, reg_init, m, []) v ->
         estep md d (e, reg_init, m', []) v.
 
-  Definition cnd_unset (m: mem) (cnd: condition) : Prop := m (Cnd cnd) = Vnat 0.
-  Definition cnd_set (m: mem) (cnd: condition) : Prop := m (Cnd cnd) = Vnat 1.
-                
   Definition secure_prog (sl: sec_level) (d: loc_mode) (c: com) : Prop :=
     forall m0 mknown m r' m' k' t tobs,
       merge_mem m0 mknown m ->
@@ -339,7 +337,8 @@ Section Preservation.
       /\ (forall e v md', is_esc_hatch e G ->
                           (estep2 md' d (e, reg_init2, m0, K) v ->
                            estep2 md' d (e, r, m, K) v))
-      /\ project_kill K true = project_kill K false.
+      /\ project_kill K true = project_kill K false
+      /\ knowledge_ind (project_mem m0 true) L (project_mem m0 false).
 
   Definition cconfig2_ok (pc: sec_policy) (md: mode) (G: context) (d: loc_mode)
              (m0: mem2) (ccfg2: cconfig2) (G': context) (K': kill2) : Prop :=
@@ -409,25 +408,25 @@ Section Preservation.
       v = VPair v1 v2 ->
       exp_type md G d e (Typ bt p) ->
       estep2 md d (e,r,m,k) v ->
-      (forall bt' (p' q: sec_policy) md' rt e',
-          e = Ederef e' ->
-          exp_type md G d e' (Typ (Tref (Typ bt' p') md' rt) q)
-          -> protected q) ->
       cterm2_ok G d m0 r m k ->
       protected p.
   Proof.
     intros.
     remember (e,r,m,k) as ecfg.
     generalize dependent e.
-    induction H1; intros; subst; try discriminate; unfold_cfgs;
-    unfold cterm2_ok in H3; destruct_pairs; subst.
-    - inversion H2; subst.
+    pose H1 as Hestep2.
+    induction Hestep2; intros; subst; try discriminate; unfold_cfgs;
+      unfold cterm2_ok in H2; destruct_pairs; subst.
+    - inversion H4; subst.
       apply (H x v1 v2 bt p); split; auto. 
     - inversion Heqecfg; subst.
       inversion H5; subst.
-      assert (protected q). apply (H6 bt p0 q md' rt e); auto.
+      assert (protected q).
+      apply (econfig2_locs_protected (Ederef e) m0 G d r m k (m l) v1 v2 bt bt
+                                     (policy_join p0 q) p0 q md md' rt e); auto.
+             rewrite H3; auto.
       apply (join_protected_r p0 q); auto.
-    - destruct H2; destruct_pairs; try discriminate.
+    - destruct H3; destruct_pairs; try discriminate.
   Qed.
 
   Lemma impe2_final_config_preservation (G: context) (d: loc_mode) (m0: mem2) :
@@ -511,7 +510,7 @@ Section Guarantees.
     (forall l p bt rt, g0 l = p -> (loc_context G) l = Some (Typ bt p, rt))
     /\ (forall x, (var_context G) x = Some (Typ Tnat (LevelP L))).
   
-  Lemma obs_equal (m1 m2: mem) (c: com) (tobs: trace) (t: trace2) :
+  Lemma config_ok_implies_obs_equal (m1 m2: mem) (c: com) (tobs: trace) (t: trace2) :
     forall pc md G d m0 r k G' r' m' k' m,
       merge_mem m1 m2 m ->
       cconfig2_ok pc md G d m0 (c,r,m,k) G' k' ->
@@ -519,6 +518,23 @@ Section Guarantees.
       tobs = project_trace t true ->
       tobs_sec_level L tobs = tobs_sec_level L (project_trace t false).
   Proof.
+    intros. remember (c,r,m,k) as ccfg.
+    induction H1; subst; simpl in *; auto.
+    - unfold_cfgs.
+      unfold sec_level_le_compute. destruct H4. subst.
+      destruct v; simpl; auto.
+      inversion H0; destruct_pairs; unfold_cfgs; subst; auto; try discriminate.
+      -- inversion H1; unfold_cfgs; try discriminate; subst; auto.
+         remember (VPair v v0) as vpair.
+         assert (cterm2_ok G' d m0 r m k) as Hctermok; unfold cterm2_ok; auto.
+         assert (protected p).
+         apply (econfig2_pair_protected md G' d e p r m k vpair v v0 s m0
+                                        Heqvpair H12 H3 Hctermok).
+         pose (sec_level_join_ge (cur p []) (cur pc [])); destruct_pairs.
+         apply (sec_level_le_trans (cur p []) (sec_level_join (cur p []) (cur pc [])) L) in H22; auto.
+         rewrite (protected_gt_L p H9) in *; intuition.
+      -- subst; auto.
+    - unfold_cfgs.
   Admitted.
 
   Lemma com_type_k'_implies_cstep2_k' (c: com) : forall G G' K' md d r m k r' m' k' t,
@@ -549,7 +565,7 @@ Section Guarantees.
     secure_prog L d c.
   Proof.
     unfold secure_prog; intros.
-    apply (obs_equal m0 mknown c tobs t (LevelP L) Normal G d
+    apply (config2_ok_implies_obs_equal m0 mknown c tobs t (LevelP L) Normal G d
                      m reg_init2 (KSingle []) G' r' m' (KSingle K') m); auto.
     unfold cconfig2_ok; split; unfold_cfgs.
     - intros. unfold project_kill; auto.
