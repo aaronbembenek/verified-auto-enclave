@@ -172,7 +172,16 @@ Section Semantics.
       | _ => hd_proj :: project_trace tl is_left
       end
     end.
-  
+
+  Lemma project_trace_app (t1 t2: trace2) (is_left: bool) :
+    project_trace t1 is_left ++ project_trace t2 is_left
+    = project_trace (t1 ++ t2) is_left.
+  Proof.
+    induction t1, t2; simpl in *; auto.
+    rewrite app_nil_r in *; rewrite (app_nil_r t1) in *; auto.
+    destruct (event2_to_event a is_left); rewrite <- IHt1; auto.
+  Qed.
+
   Definition econfig2 : Type := exp * reg2 * mem2 * kill2.
   Definition ecfg_exp2 (ecfg: econfig2) : exp :=
     match ecfg with (e, _, _, _) => e end.
