@@ -412,20 +412,18 @@ Section Semantics.
       imm_premise (cstep2 md d (Cseq rest, r', m', k') (r'', m'', k'') tr)
                   (cstep2 md d (Cseq (c :: rest), r, m, k) (r'', m'', k'')
                           (tr' ++ tr))
-  | IPif: forall md d c1 c2 e r m k r' m' k' tr tr',
+  | IPif: forall md d c1 c2 e r m k r' m' k' tr,
       estep2 md d (e, r, m, k) (VSingle (Vnat 1)) ->
-      cstep2 md d (c1, r, m, k) (r', m', k') tr' ->
+      cstep2 md d (c1, r, m, k) (r', m', k') tr ->
       cstep2 md d (Cif e c1 c2, r, m, k) (r', m', k') tr ->
       imm_premise (cstep2 md d (c1, r, m, k) (r', m', k') tr)
-                  (cstep2 md d (Cif e c1 c2, r, m, k) (r', m', k')
-                          (tr' ++ tr))
-  | IPelse: forall md d c1 c2 e r m k r' m' k' tr tr',
+                  (cstep2 md d (Cif e c1 c2, r, m, k) (r', m', k') (tr))
+  | IPelse: forall md d c1 c2 e r m k r' m' k' tr,
       estep2 md d (e, r, m, k) (VSingle (Vnat 0)) ->
-      cstep2 md d (c2, r, m, k) (r', m', k') tr' ->
+      cstep2 md d (c2, r, m, k) (r', m', k') tr ->
       cstep2 md d (Cif e c1 c2, r, m, k) (r', m', k') tr ->
       imm_premise (cstep2 md d (c2, r, m, k) (r', m', k') tr)
-                  (cstep2 md d (Cif e c1 c2, r, m, k) (r', m', k')
-                          (tr' ++ tr))
+                  (cstep2 md d (Cif e c1 c2, r, m, k) (r', m', k') (tr))
   | IPwhilet1: forall md d c e r m k r' m' k' r'' m'' k'' tr tr',
       estep2 md d (e, r, m, k) (VSingle (Vnat 1)) ->
       cstep2 md d (c, r, m, k) (r', m', k') tr' ->

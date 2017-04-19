@@ -570,7 +570,27 @@ Section Guarantees.
    (* CSEQ *)
     - admit.
     (* CIF *)
-    - 
+    - assert (cconfig2_ok pc md G d m0 (c1, r, m, k) G' k').
+      pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m k G' k' H0 H1
+                                    md c1 r m k r'0 m'0 k'0 tr) as Lemma6.
+      assert (imm_premise (cstep2 md d (c1, r, m, k) (r'0, m'0, k'0) tr)
+                          (cstep2 md d (Cif e c1 c2, r, m, k) (r'0, m'0, k'0) tr))
+        as HIP by apply (IPif _ _ _ _ _ _ _ _ _ _ _ _ H5 Hcstep H2).
+      apply (Lemma6 r'0 m'0 k'0 tr HIP pc).
+      apply policy_le_refl.
+      assert (project_trace tr true = project_trace tr true); auto.
+      apply (IHHcstep H0 H3 Hcstep H4 c1); auto.
+   (* CELSE *)
+    - assert (cconfig2_ok pc md G d m0 (c2, r, m, k) G' k').
+      pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m k G' k' H0 H1
+                                    md c2 r m k r'0 m'0 k'0 tr) as Lemma6.
+      assert (imm_premise (cstep2 md d (c2, r, m, k) (r'0, m'0, k'0) tr)
+                          (cstep2 md d (Cif e c1 c2, r, m, k) (r'0, m'0, k'0) tr))
+        as HIP by apply (IPelse _ _ _ _ _ _ _ _ _ _ _ _ H5 Hcstep H2).
+      apply (Lemma6 r'0 m'0 k'0 tr HIP pc).
+      apply policy_le_refl.
+      assert (project_trace tr true = project_trace tr true); auto.
+      apply (IHHcstep H0 H3 Hcstep H4 c2); auto.  
   Admitted.
 
   Lemma com_type_k'_implies_cstep2_k' (c: com) : forall G G' K' md d r m k r' m' k' t,
