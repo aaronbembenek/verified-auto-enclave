@@ -166,6 +166,7 @@ Section Semantics.
       ecfg = (Ederef e, r, m) ->
       estep2 md d (e, r, m) (VSingle (Vloc l)) ->
       m l = v ->
+      mode_access_ok md d l ->
       estep2 md d ecfg v.
   
   (* Semantics for commands. *)
