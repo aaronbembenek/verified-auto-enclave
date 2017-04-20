@@ -293,7 +293,6 @@ Section Security.
       merge_mem m0 mknown m ->
       cstep2 Normal d (c, reg_init2, m) (r', m') t ->
       tobs = project_trace t true ->
-      (exists m'' t'', tobs = Mem m'' :: t'') ->
       knowledge_ind m0 sl mknown ->
       (forall mdecl e,
           In (Decl e mdecl) tobs ->
@@ -484,92 +483,93 @@ Section Guarantees.
       cstep2 md d (c,r,m) (r',m') t ->
       tobs_sec_level L (project_trace t true) = tobs_sec_level L (project_trace t false).
   Proof.
-    intros. remember (c,r,m) as ccfg.
+    intros pc md G d m0 r G' r' m' HGwt Hccfg2ok Hcstep2.
+    remember (c,r,m) as ccfg.
     generalize dependent c.
     generalize dependent r.
     generalize dependent m.
-    pose H1 as Hcstep.
+    pose Hcstep2 as Hcstep.
     induction Hcstep; intros; subst; simpl in *; auto; repeat unfold_cfgs; subst.
     (* OUTPUT *)
     - unfold sec_level_le_compute. destruct sl; auto.
       destruct v; simpl; auto.
-      inversion H0; destruct_pairs; unfold_cfgs; subst; auto; try discriminate.
-      inversion H2; unfold_cfgs; try discriminate; subst; auto.
+      inversion Hccfg2ok; destruct_pairs; unfold_cfgs; subst; auto; try discriminate.
+      inversion H; unfold_cfgs; try discriminate; subst; auto.
       remember (VPair v v0) as vpair.
       assert (cterm2_ok G' d m0 r m) as Hctermok; unfold cterm2_ok; auto.
       assert (protected p) by apply (econfig2_pair_protected
                                           md G' d e p r m vpair v v0 s m0
-                                          Heqvpair H14 H3 Hctermok).
+                                          Heqvpair H11 H0 Hctermok).
       pose (sec_level_join_ge p pc); destruct_pairs.
-      apply (sec_level_le_trans p (sec_level_join p pc) L) in H16; auto.
-      destruct p; inversion H8; inversion H16.
+      apply (sec_level_le_trans p (sec_level_join p pc) L) in H13; auto.
+      destruct p; inversion H5; inversion H13.
     (* CALL *)
     - assert (cconfig2_ok pc md G d m0 (c, r, m) G') as Hccfgok.
-      pose (impe2_type_preservation G d m0 pc md (Ccall e) r m G' H H0
+      pose (impe2_type_preservation G d m0 pc md (Ccall e) r m G' HGwt Hccfg2ok
                                     md c r m r'0 m'0 tr r'0 m'0 tr) as Lemma6.
       assert (imm_premise (cstep2 md d (c, r, m) (r'0, m'0) tr)
                           (cstep2 md d (Ccall e, r, m) (r'0, m'0) tr))
              as HIP by now apply IPcall.
       apply (Lemma6 HIP pc).
       apply sec_level_le_refl.
-      apply (IHHcstep H Hccfgok Hcstep m r c); auto.
+      apply (IHHcstep HGwt Hccfgok Hcstep m r c); auto.
     (* CALL-DIV *)
     - remember (VPair (Vlambda md c1) (Vlambda md c2)) as v.
       (* apply (econfig2_pair_protected) *)
       admit.
     (* ENCLAVE *)
     - assert (cconfig2_ok pc (Encl enc) G d m0 (c, r, m) G').
-      pose (impe2_type_preservation G d m0 pc Normal (Cenclave enc c) r m G' H H0
+      pose (impe2_type_preservation G d m0 pc Normal (Cenclave enc c) r m G' HGwt Hccfg2ok
                                     (Encl enc) c r m r'0 m'0 tr) as Lemma6.
       assert (imm_premise (cstep2 (Encl enc) d (c, r, m) (r'0, m'0) tr)
                           (cstep2 Normal d (Cenclave enc c, r, m) (r'0, m'0) tr))
              as HIP by now apply IPencl.
       apply (Lemma6 r'0 m'0 tr HIP pc).
       apply sec_level_le_refl.
-      apply (IHHcstep H H2 Hcstep m r c); auto.
+      apply (IHHcstep HGwt H Hcstep m r c); auto.
    (* SEQ *)
     - admit.
     (* IF *)
     - assert (cconfig2_ok pc md G d m0 (c1, r, m) G').
-      pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m G' H H0
+      pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m G' HGwt Hccfg2ok
                                     md c1 r m r'0 m'0 tr) as Lemma6.
       assert (imm_premise (cstep2 md d (c1, r, m) (r'0, m'0) tr)
                           (cstep2 md d (Cif e c1 c2, r, m) (r'0, m'0) tr))
-        as HIP by apply (IPif  _ _ _ _ _ _ _ _ _ _ H3 Hcstep H1).
+        as HIP by apply (IPif  _ _ _ _ _ _ _ _ _ _ H0 Hcstep Hcstep2).
       apply (Lemma6 r'0 m'0 tr HIP pc).
       apply sec_level_le_refl.
-      apply (IHHcstep H H2 Hcstep m r c1); auto.
+      apply (IHHcstep HGwt H Hcstep m r c1); auto.
    (* ELSE *)
     - assert (cconfig2_ok pc md G d m0 (c2, r, m) G').
-      pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m G' H H0
+      pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m G' HGwt Hccfg2ok
                                     md c2 r m r'0 m'0 tr) as Lemma6.
       assert (imm_premise (cstep2 md d (c2, r, m) (r'0, m'0) tr)
                           (cstep2 md d (Cif e c1 c2, r, m) (r'0, m'0) tr))
-        as HIP by apply (IPelse _ _ _ _ _ _ _ _ _ _ H3 Hcstep H1).
+        as HIP by apply (IPelse _ _ _ _ _ _ _ _ _ _ H0 Hcstep Hcstep2).
       apply (Lemma6 r'0 m'0 tr HIP pc).
       apply sec_level_le_refl.
-      apply (IHHcstep H H2 Hcstep m r c2); auto.
+      apply (IHHcstep HGwt H Hcstep m r c2); auto.
     (* IFELSE-DIV *)
     - admit.
     (* WHILE *)
     - assert (cconfig2_ok pc md G d m0 (c, r0, m1) G').
-      pose (impe2_type_preservation G d m0 pc md (Cwhile e c) r0 m1 G' H H0
+      pose (impe2_type_preservation G d m0 pc md (Cwhile e c) r0 m1 G' HGwt Hccfg2ok
                                     md c r0 m1 r m tr) as Lemma6.
       assert (imm_premise (cstep2 md d (c, r0, m1) (r, m) tr)
                           (cstep2 md d (Cwhile e c, r0, m1) (r'0, m'0) (tr++tr')))
-        as HIP by apply (IPwhilet1 _ _ _ _ _ _ _ _ _ _ _ _ H3 Hcstep1 Hcstep2). 
+        as HIP by apply (IPwhilet1 _ _ _ _ _ _ _ _ _ _ _ _ H0 Hcstep1 Hcstep3). 
       apply (Lemma6 r'0 m'0 (tr++tr') HIP pc).
       apply sec_level_le_refl.
       assert (cconfig2_ok pc md G d m0 (Cwhile e c, r, m) G').
-      pose (impe2_type_preservation G d m0 pc md (Cwhile e c) r0 m1 G' H H0
+      pose (impe2_type_preservation G d m0 pc md (Cwhile e c) r0 m1 G' HGwt Hccfg2ok
                                     md (Cwhile e c) r m r'0 m'0 tr') as Lemma6.
       assert (imm_premise (cstep2 md d (Cwhile e c, r, m) (r'0, m'0) tr')
                           (cstep2 md d (Cwhile e c, r0, m1) (r'0, m'0) (tr++tr')))
-        as HIP by apply (IPwhilet2 _ _ _ _ _ _ _ _ _ _ _ _ H3 Hcstep1 Hcstep2). 
+        as HIP by apply (IPwhilet2 _ _ _ _ _ _ _ _ _ _ _ _ H0 Hcstep1 Hcstep3). 
       apply (Lemma6 r'0 m'0 (tr++tr') HIP pc).
       apply sec_level_le_refl.
-      pose (IHHcstep1 H H2 Hcstep1 m1 r0 c) as tr'_same.
-      pose (IHHcstep2 H H4 Hcstep2 m r (Cwhile e c)) as tr_same; auto.
+      pose (IHHcstep1 HGwt H Hcstep1 m1 r0 c) as tr'_same.
+      pose (IHHcstep2 HGwt H1 Hcstep3 m r (Cwhile e c)) as tr_same; auto.
       rewrite <- project_trace_app.
       rewrite <- tobs_sec_level_app.
       rewrite tr'_same, tr_same; auto.
@@ -598,54 +598,35 @@ Section Guarantees.
     com_type (L) Normal G d c G' ->
     secure_prog L d c.
   Proof.
-    unfold secure_prog; intros. rewrite H5.
+    unfold secure_prog.
+    intros G G' d c Hg0wf Hcorr HGwt Hcomtype
+           m0 mknown m r' m' t tobs Hmmerge
+           Hcstep2 Htobs Hind Hesc.
+    rewrite Htobs.
     apply (config2_ok_implies_obs_equal m c t (L) Normal G d
                      m reg_init2 G' r' m'); auto.
-    unfold cconfig2_ok; split; unfold_cfgs.
-    (*
+    unfold cconfig2_ok; split; unfold_cfgs; auto.
+    split; intros; destruct_pairs.
+    - inversion H.
     - split; intros; destruct_pairs.
-      inversion H9.
-      split; intros; destruct_pairs.
-      unfold corresponds in H0; destruct_pairs.
-      unfold well_formed_spec in H.
-      pose (H (Not_cnd l)) as Hgwf; destruct Hgwf; destruct_pairs.
-      pose H12 as Hg0.
-      apply (H0 (Not_cnd l) x bt rt) in Hg0.
-      rewrite H10 in Hg0. inversion Hg0; subst.
-      apply (diff_loc_protected m0 mknown (Not_cnd l)); auto.
-      apply (vpair_iff_diff m0 mknown m v1 v2 (Not_cnd l)) in H3.
-      apply H3 in H9; auto.
-      split; intros; [ | split; intros]; auto.
-      apply project_merge_inv_mem in H3; destruct_pairs; subst; auto.
-    - assert (k' = K'). apply (com_type_k'_implies_cstep2_k'
-                                 c G G' K' Normal d reg_init2 m
-                                 (KSingle []) r' m' k' t); auto.
-      rewrite <- H9; auto.
-     *)
-    Admitted.
+      -- unfold corresponds in Hcorr; destruct_pairs.
+         unfold well_formed_spec in Hg0wf.
+         pose (Hg0wf l) as Hgwf; destruct Hgwf; destruct_pairs.
+         pose H3 as Hg0. apply (H1 l x bt rt) in Hg0.
+         rewrite H0 in Hg0. inversion Hg0; subst.
+         apply (diff_loc_protected m0 mknown l); auto.
+         apply (vpair_iff_diff m0 mknown m v1 v2 l) in H; auto.
+      -- split; intros; auto.
+         apply project_merge_inv_mem in Hmmerge; destruct_pairs; subst; auto.
+  Qed.
   
 (*
-  Definition g_prime (d: loc_mode) (g: sec_spec) (I: set enclave) : sec_spec :=
-    fun l => match (d l) with
-             | Encl i => if (set_mem Nat.eq_dec i I) then g l else LevelP L
-             | _ => LevelP L
-             end.
-
   Lemma secure_n_chaos : forall g G G' K' d c,
       well_formed_spec g ->
       corresponds G g ->
       context_wt G d ->
       com_type (LevelP L) Normal G nil nil d c G' K' ->
       secure_prog L g cstep_n_chaos estep c.
-  Proof.
-  Admitted.
-
-  Lemma secure_e_chaos : forall g G G' K' d c I,
-      well_formed_spec g ->
-      corresponds G g ->
-      context_wt G d ->
-      com_type (LevelP L) Normal G nil nil d c G' K' ->
-      secure_prog H (g_prime d g I) (cstep_e_chaos I) estep c.
   Proof.
   Admitted.
 *)       
