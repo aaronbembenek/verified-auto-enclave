@@ -529,5 +529,4 @@ Section Typing.
                     (forall t' rt', ~loc_in_dom Gp l t' rt') ->
                     loc_in_dom Gout l t rt) ->
       com_type pc md G d (Ccall e) Gout.
-  
 End Typing.

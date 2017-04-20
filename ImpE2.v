@@ -82,7 +82,6 @@ Section Semantics.
   
   Function project_value (v: val2) (is_left: bool): val :=
     match v with
-      (* XXX pretty sure we can't have nested value pairs *)
     | VPair v1 v2 => if is_left then v1 else v2
     | VSingle v => v
     end.
@@ -360,4 +359,16 @@ Section Semantics.
   .
   Hint Constructors imm_premise.
 End Semantics.
-     
+
+Section Typing.
+
+  (* XXX I feel like this should be provable from something... but our typing *)
+  (* system seems to be lacking something *)
+  Lemma call_div_fxn_typ : forall pc md G d e r m Gm p Gp q c1 c2 Gout,
+    com_type pc md G d (Ccall e) Gout ->
+    exp_type md G d e (Typ (Tlambda Gm p md Gp) q) ->
+    estep2 md d (e,r,m) (VPair (Vlambda md c1) (Vlambda md c2)) ->
+    com_type p md Gm d c1 Gp /\ com_type p md Gm d c2 Gp.
+  Admitted.
+
+End Typing.

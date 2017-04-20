@@ -1,5 +1,3 @@
-(* FIXME: Copied these from pset4; probably won't need all of them. *)
-
 Require Import Bool Arith List Omega ListSet.
 Require Import Recdef Morphisms.
 Require Import Program.Tactics.
@@ -274,6 +272,10 @@ Section Security.
   Proof.
     unfold tobs_sec_level. now rewrite (filter_app _ l l').
   Qed.
+
+  Definition corresponds (G: context) : Prop :=
+    (forall l p bt rt, g0 l = p -> (loc_context G) l = Some (Typ bt p, rt))
+    /\ (forall x, (var_context G) x = Some (Typ Tnat (L))).
   
   Definition knowledge_ind (m: mem) (sl: sec_level) (m': mem) : Prop :=
     forall m2 l sl',
@@ -472,9 +474,14 @@ End Preservation.
 (***********************************)
 
 Section Guarantees.
-  Definition corresponds (G: context) : Prop :=
-    (forall l p bt rt, g0 l = p -> (loc_context G) l = Some (Typ bt p, rt))
-    /\ (forall x, (var_context G) x = Some (Typ Tnat (L))).
+  Lemma protected_typ_no_obs_output : forall pc md d G c G' r m r' m' tr,
+    com_type pc md G d c G' ->
+    protected pc ->
+    cstep md d (c,r,m) (r',m') tr ->
+    tobs_sec_level L tr = [].
+  Proof.
+    intros.
+  Admitted.
   
   Lemma config2_ok_implies_obs_equal (m: mem2) (c: com) (t: trace2) :
     forall pc md G d m0 r G' r' m',
@@ -515,8 +522,29 @@ Section Guarantees.
       apply (IHHcstep HGwt Hccfgok Hcstep m r c); auto.
     (* CALL-DIV *)
     - remember (VPair (Vlambda md c1) (Vlambda md c2)) as v.
-      (* apply (econfig2_pair_protected) *)
-      admit.
+      inversion Hccfg2ok; destruct_pairs; unfold_cfgs; subst; auto; try discriminate.
+      inversion H; unfold_cfgs; try discriminate; subst; auto.
+      assert (protected q) as Hqprotected.
+      eapply econfig2_pair_protected in H10; auto. apply H0.
+      assert (cterm2_ok G d m0 r m) by now unfold cterm2_ok. apply H9.
+      assert (protected (sec_level_join pc q)) as Hpcqprotected
+          by apply (join_protected_r pc q Hqprotected).
+      inversion Hpcqprotected; rewrite Hpcqprotected in H11.
+      assert (protected p) as Hpprotected.
+      unfold protected. unfold sec_level_le in H11; destruct p; intuition.
+      clear H11 H14.
+      assert (com_type p md Gm d c1 Gp /\ com_type p md Gm d c2 Gp).
+      eapply call_div_fxn_typ. apply H. apply H10. apply H0.
+      destruct_pairs.
+      assert (tobs_sec_level L t1 = []) as t1_empty.
+      eapply protected_typ_no_obs_output in H1; auto.
+      apply H9; auto. auto.
+      assert (tobs_sec_level L t2 = []) as t2_empty.
+      eapply protected_typ_no_obs_output in H2; auto.
+      apply H11; auto. auto.
+      pose (project_merge_inv_trace t1 t2 true) as Ht1; simpl in *.
+      pose (project_merge_inv_trace t1 t2 false) as Ht2; simpl in *.
+      now rewrite Ht1, Ht2, t1_empty, t2_empty.
     (* ENCLAVE *)
     - assert (cconfig2_ok pc (Encl enc) G d m0 (c, r, m) G').
       pose (impe2_type_preservation G d m0 pc Normal (Cenclave enc c) r m G' HGwt Hccfg2ok
