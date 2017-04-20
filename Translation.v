@@ -18,8 +18,6 @@ Require ImpS.
 Module E := ImpE.
 Module S := ImpS.
 
-Module id_trans.
-
   Notation encl0 := 0.
   Notation md := (E.Encl encl0).
   Notation d := (fun (_: location) => md).
@@ -207,7 +205,6 @@ Module id_trans.
       + admit.
     - intros. inversion H. subst. simpl.
       eapply E.CTset with (md':=md); simpl; auto.
-      + admit (* missing premise *).
     - intros. inversion H; subst; simpl.
       + eapply E.CTifunset; simpl; auto. apply IHc1 in H6. simpl in H6. auto.
       + eapply E.CTifelse with (p:=p) (pc':=pc'); simpl; auto.
@@ -223,5 +220,3 @@ Module id_trans.
       + apply IHc in H2. now simpl in H2.
       + right. intuition. discriminate.
   Admitted.
-
-End id_trans.

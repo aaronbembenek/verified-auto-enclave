@@ -292,6 +292,7 @@ Section Typing.
           com_wt pc (nth i Gs mt) U (nth i coms Cskip) (nth (i + 1) Gs mt)) ->
       com_wt pc G U (Cseq coms) (nth (length coms) Gs mt)
   | STsetcnd : forall G U cnd,
+      ~set_In cnd U ->
       com_wt (LevelP L) G U (Cset cnd) G
   | SToutput : forall pc G U e s p l,
       exp_wt G e (Typ s p) ->
