@@ -556,7 +556,28 @@ Section Guarantees.
       apply sec_level_le_refl.
       apply (IHHcstep HGwt H Hcstep m r c); auto.
    (* SEQ *)
-    - admit.
+    - assert (cconfig2_ok pc md G d m0 (hd, r0, m1) G') as ccfgok.
+      pose (impe2_type_preservation G d m0 pc md (Cseq (hd::tl)) r0 m1 G' HGwt Hccfg2ok
+                                    md hd r0 m1 r m tr) as Lemma6.
+      assert (imm_premise (cstep2 md d (hd, r0, m1) (r, m) tr)
+                          (cstep2 md d (Cseq (hd::tl), r0, m1) (r'0, m'0) (tr++tr')))
+        as HIP by apply (IPseq1 _ _ _ _ _ _ _ _ _ _ _ _ Hcstep1 Hcstep3).
+      apply (Lemma6 r'0 m'0 (tr++tr') HIP pc).
+      apply sec_level_le_refl.
+      assert (cconfig2_ok pc md G d m0 (Cseq tl, r, m) G') as ccfgok3.
+      pose (impe2_type_preservation G d m0 pc md (Cseq (hd::tl)) r0 m1 G' HGwt Hccfg2ok
+                                    md (Cseq tl) r m r'0 m'0 tr') as Lemma6.
+      assert (imm_premise (cstep2 md d (Cseq tl, r, m) (r'0, m'0) tr')
+                          (cstep2 md d (Cseq (hd::tl), r0, m1) (r'0, m'0) (tr++tr')))
+        as HIP by apply (IPseq2 _ _ _ _ _ _ _ _ _ _ _ _ Hcstep1 Hcstep3).
+      apply (Lemma6 r'0 m'0 (tr++tr') HIP pc).
+      apply sec_level_le_refl.
+      pose (IHHcstep1 HGwt ccfgok Hcstep1 m1 r0 hd) as tr_same.
+      pose (IHHcstep2 HGwt ccfgok3 Hcstep3 m r (Cseq tl)) as tr'_same; auto.
+      rewrite <- project_trace_app.
+      rewrite <- tobs_sec_level_app.
+      rewrite tr'_same, tr_same; auto.
+      rewrite tobs_sec_level_app. rewrite project_trace_app; auto.
     (* IF *)
     - assert (cconfig2_ok pc md G d m0 (c1, r, m) G').
       pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m G' HGwt Hccfg2ok
