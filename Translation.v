@@ -60,11 +60,9 @@ Module id_trans.
   
   Lemma typ_trans_inv : forall s b,
       typ_trans s = typ_trans b -> s = b.
-    intros.
-    induction s. simpl in *. destruct b; auto; simpl in *; try discriminate.
-    destruct t. discriminate.
-    destruct b; auto; simpl in *; try discriminate. destruct t. discriminate.
-    destruct b; auto; simpl in *; destruct t; try discriminate.
+  Proof.
+  Admitted.
+  
   Lemma cntxt_trans_pres_dom : forall G x s p,
       S.var_in_dom G x (S.Typ s p) <->
       E.var_in_dom (cntxt_trans G) x (E.Typ (typ_trans s) p).
@@ -72,8 +70,9 @@ Module id_trans.
     intros.
     split; intros; inversion H; subst; constructor; destruct G; simpl in *.
     - now rewrite H0.
-    - destruct (var_cntxt x). destruct t. inversion H0. auto.
-      Focus 2. discriminate.
+    - destruct (var_cntxt x). destruct t. inversion H0.
+      apply typ_trans_inv in H2. now rewrite H2. discriminate.
+  Qed.
   
   Fixpoint id_trans (c: S.com) : E.com :=
     match c with
@@ -196,8 +195,7 @@ Module id_trans.
       + right. intuition. discriminate.
       + unfold E.forall_dom. unfold S.forall_dom in H4. destruct H4. split.
         * unfold E.forall_var. intros. unfold S.forall_var in H0.
-          inversion H6.
-        intros.
+          inversion H6. destruct t.
       
       
       Admitted.
