@@ -259,7 +259,7 @@ Section Typing.
   | STassign : forall pc U x e s p q vc lc vc',
       vc x = Some (Typ s q) ->
       exp_wt (Cntxt vc lc) e (Typ s p) ->
-      p <> LevelP T ->
+      policy_join pc p <> LevelP T ->
       vc' = (fun y => if y =? x
                       then Some (Typ s (policy_join pc p))
                       else vc y) ->

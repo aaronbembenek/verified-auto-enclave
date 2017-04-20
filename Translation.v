@@ -10,6 +10,7 @@ Require Import Coq.Classes.RelationClasses.
 Require Import OrderedType OrderedTypeEx DecidableType.
 Require Import Sorting.Permutation.
 Import ListNotations.
+Require Import Logic.FunctionalExtensionality.
 Require Import Common.
 Require ImpE.
 Require ImpS.
@@ -19,8 +20,8 @@ Module S := ImpS.
 
 Module id_trans.
 
-  Definition encl0 := 0.
-  Definition md := E.Encl encl0.
+  Notation encl0 := 0.
+  Notation md := (E.Encl encl0).
   Notation d := (fun (_: location) => md).
 
   Definition rt_trans (rt: S.ref_type) : E.ref_type :=
@@ -54,6 +55,25 @@ Module id_trans.
            | Some (S.Typ s p, rt) => Some (E.Typ (typ_trans s) p, rt_trans rt)
            end)
     end.
+
+  Check S.base_type_ind.
+  
+  Lemma typ_trans_inv : forall s b,
+      typ_trans s = typ_trans b -> s = b.
+    intros.
+    induction s. simpl in *. destruct b; auto; simpl in *; try discriminate.
+    destruct t. discriminate.
+    destruct b; auto; simpl in *; try discriminate. destruct t. discriminate.
+    destruct b; auto; simpl in *; destruct t; try discriminate.
+  Lemma cntxt_trans_pres_dom : forall G x s p,
+      S.var_in_dom G x (S.Typ s p) <->
+      E.var_in_dom (cntxt_trans G) x (E.Typ (typ_trans s) p).
+  Proof.
+    intros.
+    split; intros; inversion H; subst; constructor; destruct G; simpl in *.
+    - now rewrite H0.
+    - destruct (var_cntxt x). destruct t. inversion H0. auto.
+      Focus 2. discriminate.
   
   Fixpoint id_trans (c: S.com) : E.com :=
     match c with
@@ -82,9 +102,21 @@ Module id_trans.
 
   Definition id_trans_wrapper (c: S.com) : E.com :=
     E.Cenclave encl0 (id_trans c).
-
-  Hint Constructors E.exp_type E.com_type.
   
+  Lemma trans_pres_novars : forall e,
+      S.exp_novars e -> E.exp_novars (id_trans_e e).
+  Proof.
+  Admitted.
+
+  Lemma trans_pres_all_loc_immutable : forall e G G',
+      S.all_loc_immutable e G ->
+      G' = cntxt_trans G ->
+      E.all_loc_immutable (id_trans_e e) G'.
+  Proof.
+  Admitted.
+  
+  Hint Constructors E.exp_type E.com_type.
+
   Lemma id_trans_sound' (c: S.com) :
     forall pc G U G',
       S.com_wt pc G U c G' ->
@@ -111,7 +143,7 @@ Module id_trans.
     - intros. inversion H. subst. simpl. apply IHc in H3. now apply E.ETlambda.
     - intros. inversion H. subst. simpl. apply E.CTskip. simpl. intuition.
     - intros. inversion H0. subst. simpl.
-      apply E.Tseq with (Gs:=map cntxt_trans Gs) (Ks:=map (fun _ => []) Gs).
+      apply E.CTseq with (Gs:=map cntxt_trans Gs) (Ks:=map (fun _ => []) Gs).
       + repeat rewrite map_length. auto.
       + repeat rewrite map_length. auto.
       + destruct Gs; now simpl.
@@ -140,13 +172,34 @@ Module id_trans.
     - intros. inversion H. subst.
       replace (id_trans (S.Cassign x e)) with (E.Cassign x (id_trans_e e)).
       eapply E.CTassign with (s:=typ_trans s) (p:=p); auto.
-      + admit.
-      + right. unfold md. intuition. discriminate.
-      + simpl. auto.
-      + simpl. auto.
-      + simpl. admit.
-      + simpl. auto.
-      + simpl. auto.
+      all: simpl; auto.
+      + right. intuition. discriminate.
+      + apply functional_extensionality. intro. now destruct (x0 =? x).
+    - intros. inversion H. subst.
+      replace (id_trans (S.Cdeclassify x e))
+      with (E.Cdeclassify x (id_trans_e e)).
+      eapply E.CTdeclassify with (s:=typ_trans s) (p:=p); auto.
+      all: simpl; auto.
+      + now apply trans_pres_novars.
+      + now apply trans_pres_all_loc_immutable with (G:=S.Cntxt vc lc).
+      + apply functional_extensionality. intro. now destruct (x0 =? x).
+    - intros. inversion H. subst. simpl.
+      eapply E.CTupdate with (p:=p) (q:=q) (p':=p') (s:=typ_trans s) (md':=md);
+        simpl; auto.
+      apply IHc in H2. simpl in H2. auto.
+    - intros. inversion H. subst. simpl.
+      eapply E.CToutput with (p:=p) (s:=typ_trans s); simpl; auto.
+    - intros. inversion H. subst. simpl.
+      eapply E.CTcall with (p:=p) (q:=q) (Gm:=cntxt_trans Gminus)
+                                  (Gp:=cntxt_trans Gplus); auto.
+      + apply IHc in H1. now simpl in H1.
+      + right. intuition. discriminate.
+      + unfold E.forall_dom. unfold S.forall_dom in H4. destruct H4. split.
+        * unfold E.forall_var. intros. unfold S.forall_var in H0.
+          inversion H6.
+        intros.
+      
+      
       Admitted.
 
 End id_trans.

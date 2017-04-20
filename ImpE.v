@@ -538,7 +538,7 @@ Section Typing.
       com_type (LevelP L) Normal g k u d (Ckill i) g (set_add Nat.eq_dec i k)
   | CTassign : forall pc md g k u d x e s p q vc lc vc' g',
       exp_type md g d e (Typ s p) ->
-      q = policy_join p pc ->
+      q = policy_join pc p ->
       q <> LevelP T ->
       policy_le q (LevelP L) \/ md <> Normal ->
       mode_alive md k ->
@@ -570,18 +570,18 @@ Section Typing.
       p' <> LevelP T ->
       q <> LevelP T ->
       com_type pc md g k u d (Cupdate e1 e2) g k
-  | Tset : forall md g k u d cnd md',
+  | CTset : forall md g k u d cnd md',
       md' = d (Cnd cnd) ->
       ~set_In cnd u ->
       md' = Normal \/ md' = md ->
       mode_alive md k ->
       com_type (LevelP L) md g k u d (Cset cnd) g k
-  | Tifunset : forall pc md g k u d cnd c1 c2 g' k',
+  | CTifunset : forall pc md g k u d cnd c1 c2 g' k',
       exp_type md g d (Eisunset cnd) (Typ Tnat (LevelP L)) ->
       com_type pc md g k (set_add Nat.eq_dec cnd u) d c1 g' k' ->
       com_type pc md g k u d c2 g' k' ->
       com_type pc md g k u d (Cif (Eisunset cnd) c1 c2) g' k'
-  | Tifelse : forall pc md g k u d e c1 c2 pc' p g' k',
+  | CTifelse : forall pc md g k u d e c1 c2 pc' p g' k',
       ~(exists cnd, e = Eisunset cnd) ->
       com_type pc' md g k u d c1 g' k' ->
       com_type pc' md g k u d c2 g' k' ->
@@ -590,19 +590,19 @@ Section Typing.
       policy_le p (LevelP L) \/ md <> Normal ->
       p <> LevelP T ->
       com_type pc md g k u d (Cif e c1 c2) g' k'
-  | Tenclave : forall pc g k u d c i c' g' k',
+  | CTenclave : forall pc g k u d c i c' g' k',
       c = Cenclave i c' ->
       com_type pc (Encl i) g k nil d c' g' k' ->
       is_var_low_context g' ->
       com_type pc Normal g k u d c g' k'
-  | Twhile : forall pc md g k u d c e p pc',
+  | CTwhile : forall pc md g k u d c e p pc',
       exp_type md g d e (Typ Tnat p) ->
       com_type pc' md g k u d c g k ->
       policy_le (policy_join pc p) pc' ->
       policy_le p (LevelP L) \/ md <> Normal ->
       p <> LevelP T ->
       com_type pc md g k u d (Cwhile e c) g k
-  | Tseq : forall pc md G K U d coms Gs Ks G' K',
+  | CTseq : forall pc md G K U d coms Gs Ks G' K',
       length Gs = length coms + 1 ->
       length Ks = length coms + 1 ->
       nth 0 Ks [] = K ->
@@ -614,7 +614,7 @@ Section Typing.
       G' = nth (length coms) Gs mt ->
       K' = nth (length coms) Ks [] ->
       com_type pc md G K U d (Cseq coms) G' K'
-  | Tcall : forall pc md G u d e Gm km Gp kp Gout q p,
+  | CTcall : forall pc md G u d e Gm km Gp kp Gout q p,
       exp_type md G d e (Typ (Tlambda Gm km u p md Gp kp) q) ->
       policy_le (policy_join pc q) p ->
       q <> LevelP T ->
