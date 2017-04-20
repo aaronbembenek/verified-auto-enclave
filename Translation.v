@@ -116,6 +116,17 @@ Module id_trans.
   
   Hint Constructors E.exp_type E.com_type.
 
+
+  Check E.forall_var.
+
+  Lemma trans_pres_forall_var:
+    forall (P: var -> S.type -> Prop) (P': var -> E.type -> Prop) G x s p,
+      (P x (S.Typ s p) -> P' x (E.Typ (typ_trans s) p)) ->
+      S.forall_var G P ->
+      E.forall_var (cntxt_trans G) P'.
+  Proof.
+  Admitted.
+  
   Lemma id_trans_sound' (c: S.com) :
     forall pc G U G',
       S.com_wt pc G U c G' ->
