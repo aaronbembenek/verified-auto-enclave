@@ -599,7 +599,25 @@ Section Guarantees.
       apply sec_level_le_refl.
       apply (IHHcstep HGwt H Hcstep m r c2); auto.
     (* IFELSE-DIV *)
-    - admit.
+    - remember (VPair (Vnat n1) (Vnat n2)) as v.
+      inversion Hccfg2ok; destruct_pairs; unfold_cfgs; subst; auto; try discriminate.
+      inversion H; unfold_cfgs; try discriminate; subst; auto.
+      assert (protected p) as Hqprotected.
+      eapply econfig2_pair_protected in H18; auto. apply H0.
+      assert (cterm2_ok G d m0 r m) by now unfold cterm2_ok. apply H9.
+      assert (protected (sec_level_join pc p)) by now apply (join_protected_r pc p).
+      inversion H9; rewrite H9 in H20.
+      assert (protected pc') as Hpc'protected.
+      unfold protected. unfold sec_level_le in H20. destruct pc'; intuition.
+      assert (tobs_sec_level L t1 = [] /\ tobs_sec_level L t2 = []).
+      destruct n1, n2; simpl in *;
+        eapply protected_typ_no_obs_output in H1;
+        eapply protected_typ_no_obs_output in H2;
+        try apply H13; try apply H12; auto.
+      destruct_pairs.
+      pose (project_merge_inv_trace t1 t2 true) as Ht1; simpl in *.
+      pose (project_merge_inv_trace t1 t2 false) as Ht2; simpl in *.
+      now rewrite Ht1, Ht2, H10, H14.
     (* WHILE *)
     - assert (cconfig2_ok pc md G d m0 (c, r0, m1) G').
       pose (impe2_type_preservation G d m0 pc md (Cwhile e c) r0 m1 G' HGwt Hccfg2ok
