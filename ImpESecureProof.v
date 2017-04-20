@@ -463,7 +463,7 @@ Section Preservation.
         imm_premise
           (cstep2 mdmid d (cmid, rmid, mmid) (rmid', mmid') tmid)
           (cstep2 md d (c, r, m) (rfin, mfin) tfin) ->
-        forall pcmid,
+        forall pcmid, (* XXX I feel like this might need to be an exists *)
           sec_level_le pc pcmid ->
           cconfig2_ok pcmid mdmid G d m0 (cmid, rmid, mmid) G'.
   Proof.
@@ -479,6 +479,16 @@ Section Guarantees.
     protected pc ->
     cstep md d (c,r,m) (r',m') tr ->
     tobs_sec_level L tr = [].
+  Proof.
+    intros.
+  Admitted.
+
+  Lemma protected_while_no_obs_output : forall pc pc' md d G e c r m r' m' tr,
+      com_type pc md G d (Cwhile e c) G ->
+      com_type pc' md G d c G ->
+      protected pc' ->
+      cstep md d (Cseq [c; Cwhile e c],r,m) (r',m') tr ->
+      tobs_sec_level L tr = [].
   Proof.
     intros.
   Admitted.
@@ -642,8 +652,48 @@ Section Guarantees.
       rewrite tr'_same, tr_same; auto.
       rewrite tobs_sec_level_app. rewrite project_trace_app; auto.
     (* WHILE-DIV *)
-    - 
-  Admitted.
+    - remember (VPair (Vnat n1) (Vnat n2)) as v.
+      inversion Hccfg2ok; destruct_pairs; unfold_cfgs; subst; auto; try discriminate.
+      inversion H; unfold_cfgs; try discriminate; subst; auto.
+      assert (protected p) as Hqprotected.
+      eapply econfig2_pair_protected in H11; auto. apply H0.
+      assert (cterm2_ok G' d m0 r m) by now unfold cterm2_ok. apply H9.
+      assert (protected (sec_level_join pc p)) by now apply (join_protected_r pc p).
+     inversion H9; rewrite H9 in H17.
+      assert (protected pc') as Hpc'protected.
+      unfold protected. unfold sec_level_le in H17. destruct pc'; intuition.
+
+      assert (com_type pc' md G' d Cskip G') as skip_typ by apply CTskip.
+      assert (com_type pc md G' d (Cseq [c; Cwhile e c]) G') as seq_type.
+      assert (com_type pc md G' d c G') as c_typ.
+      apply (subsumption pc' pc md d G' c) in H12; auto.
+      destruct pc; simpl in *; auto.
+      eapply Tseq. apply c_typ.
+      eapply Tseq. apply H.
+      eapply Tseqnil.
+      assert (tobs_sec_level L t1 = [] /\ tobs_sec_level L t2 = []).
+      destruct n1, n2; simpl in *.
+      -- eapply protected_typ_no_obs_output in H1; auto. 
+         eapply protected_typ_no_obs_output in H2; auto.
+         apply skip_typ. auto.
+         apply skip_typ. auto.
+      -- eapply protected_typ_no_obs_output in H1; auto. 
+         eapply protected_while_no_obs_output in H2; auto.
+         apply H. apply H12. auto.
+         apply skip_typ. auto.
+      -- eapply protected_while_no_obs_output in H1; auto.
+         eapply protected_typ_no_obs_output in H2; auto.
+         apply skip_typ. auto.
+         apply H. apply H12. auto.
+      -- eapply protected_while_no_obs_output in H1; auto.
+         eapply protected_while_no_obs_output in H2; auto.
+         apply H. apply H12; auto.
+         auto. apply H. apply H12. auto.
+      -- destruct_pairs.
+         pose (project_merge_inv_trace t1 t2 true) as Ht1; simpl in *.
+         pose (project_merge_inv_trace t1 t2 false) as Ht2; simpl in *.
+         now rewrite Ht1, Ht2, H10, H14.
+  Qed.
       
   Lemma diff_loc_protected : forall m0 mknown l,
       knowledge_ind m0 L mknown ->
