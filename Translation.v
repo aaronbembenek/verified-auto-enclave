@@ -56,11 +56,10 @@ Module id_trans.
            end)
     end.
 
-  Check S.base_type_ind.
-  
   Lemma typ_trans_inv : forall s b,
       typ_trans s = typ_trans b -> s = b.
   Proof.
+    (* Need a better inductive principle for types. *)
   Admitted.
   
   Lemma cntxt_trans_pres_dom : forall G x s p,
@@ -73,6 +72,14 @@ Module id_trans.
     - destruct (var_cntxt x). destruct t. inversion H0.
       apply typ_trans_inv in H2. now rewrite H2. discriminate.
   Qed.
+
+  Lemma trans_pres_forall_var:
+    forall (P: var -> S.type -> Prop) (P': var -> E.type -> Prop) G x s p,
+      (P x (S.Typ s p) -> P' x (E.Typ (typ_trans s) p)) ->
+      S.forall_var G P ->
+      E.forall_var (cntxt_trans G) P'.
+  Proof.
+  Admitted.
   
   Fixpoint id_trans (c: S.com) : E.com :=
     match c with
@@ -115,17 +122,6 @@ Module id_trans.
   Admitted.
   
   Hint Constructors E.exp_type E.com_type.
-
-
-  Check E.forall_var.
-
-  Lemma trans_pres_forall_var:
-    forall (P: var -> S.type -> Prop) (P': var -> E.type -> Prop) G x s p,
-      (P x (S.Typ s p) -> P' x (E.Typ (typ_trans s) p)) ->
-      S.forall_var G P ->
-      E.forall_var (cntxt_trans G) P'.
-  Proof.
-  Admitted.
   
   Lemma id_trans_sound' (c: S.com) :
     forall pc G U G',
@@ -204,11 +200,28 @@ Module id_trans.
                                   (Gp:=cntxt_trans Gplus); auto.
       + apply IHc in H1. now simpl in H1.
       + right. intuition. discriminate.
-      + unfold E.forall_dom. unfold S.forall_dom in H4. destruct H4. split.
+      + (*unfold E.forall_dom. unfold S.forall_dom in H4. destruct H4. split.
         * unfold E.forall_var. intros. unfold S.forall_var in H0.
-          inversion H6. destruct t.
-      
-      
-      Admitted.
+          inversion H6. destruct t.*) admit.
+      + admit.
+      + admit.
+    - intros. inversion H. subst. simpl.
+      eapply E.CTset with (md':=md); simpl; auto.
+      + admit (* missing premise *).
+    - intros. inversion H; subst; simpl.
+      + eapply E.CTifunset; simpl; auto. apply IHc1 in H6. simpl in H6. auto.
+      + eapply E.CTifelse with (p:=p) (pc':=pc'); simpl; auto.
+        * intuition. destruct H0. assert (exists c, e = S.Eisunset c).
+          {
+            destruct e; simpl in *; try discriminate; eauto.
+          }
+          destruct H1. now apply H3 in H1.
+        * apply IHc1 in H4. now simpl in H4.
+        * right. intuition. discriminate.
+    - intros. inversion H. subst. simpl.
+      eapply E.CTwhile with (p:=p) (pc':=pc'); simpl; auto.
+      + apply IHc in H2. now simpl in H2.
+      + right. intuition. discriminate.
+  Admitted.
 
 End id_trans.
