@@ -308,54 +308,57 @@ Section Semantics.
   .
   Hint Constructors cstep2.
 
-  Inductive imm_premise : Prop -> Prop -> Prop :=
+  Inductive imm_premise : com -> mode -> reg2 -> mem2 -> reg2 -> mem2 -> trace2 ->
+                          com -> mode -> reg2 -> mem2 -> reg2 -> mem2 -> trace2 ->
+                          loc_mode -> Prop :=
   | IPcall: forall md d e r m r' m' tr c,
       estep2 md d (e, r, m) (VSingle (Vlambda md c)) ->
       cstep2 md d (c, r, m) (r', m') tr ->
-      imm_premise (cstep2 md d (c, r, m) (r', m') tr)
-                  (cstep2 md d (Ccall e, r, m) (r', m') tr)
+      cstep2 md d (Ccall e, r, m) (r', m') tr ->
+      imm_premise c md r m r' m' tr
+                  (Ccall e) md r m r' m' tr d
   | IPencl: forall d encl c r m r' m' tr,
       cstep2 (Encl encl) d (c, r, m) (r', m') tr ->
-      imm_premise (cstep2 (Encl encl) d (c, r, m) (r', m') tr)
-                  (cstep2 Normal d (Cenclave encl c, r, m) (r', m') tr)
+      cstep2 Normal d (Cenclave encl c, r, m) (r', m') tr ->
+      imm_premise c (Encl encl) r m r' m' tr
+                  (Cenclave encl c) Normal r m r' m tr d
   | IPseq1: forall md d c rest r m r' m' r'' m'' tr tr',
       cstep2 md d (c, r, m) (r', m') tr' ->
       cstep2 md d (Cseq rest, r', m') (r'', m'') tr ->
-      imm_premise (cstep2 md d (c, r, m) (r', m') tr')
-                  (cstep2 md d (Cseq (c :: rest), r, m) (r'', m'')
-                          (tr' ++ tr))
+      cstep2 md d (Cseq (c :: rest), r, m) (r'', m'') (tr' ++ tr) ->
+      imm_premise c md r m r' m' tr' 
+                  (Cseq (c :: rest)) md r m r'' m'' (tr'++tr) d
   | IPseq2: forall md d c rest r m r' m' r'' m'' tr tr',
       cstep2 md d (c, r, m) (r', m') tr' ->
       cstep2 md d (Cseq rest, r', m') (r'', m'') tr ->
-      imm_premise (cstep2 md d (Cseq rest, r', m') (r'', m'') tr)
-                  (cstep2 md d (Cseq (c :: rest), r, m) (r'', m'')
-                          (tr' ++ tr))
+      cstep2 md d (Cseq (c :: rest), r, m) (r'', m'') (tr' ++ tr) ->
+      imm_premise (Cseq rest) md r' m' r'' m'' tr
+                  (Cseq (c :: rest)) md r m r'' m'' (tr' ++ tr) d
   | IPif: forall md d c1 c2 e r m r' m' tr,
       estep2 md d (e, r, m) (VSingle (Vnat 1)) ->
       cstep2 md d (c1, r, m) (r', m') tr ->
       cstep2 md d (Cif e c1 c2, r, m) (r', m') tr ->
-      imm_premise (cstep2 md d (c1, r, m) (r', m') tr)
-                  (cstep2 md d (Cif e c1 c2, r, m) (r', m') (tr))
+      cstep2 md d (Cif e c1 c2, r, m) (r', m') (tr) ->
+      imm_premise c1 md r m r' m' tr
+                  (Cif e c1 c2) md r m r' m' tr d
   | IPelse: forall md d c1 c2 e r m r' m' tr,
       estep2 md d (e, r, m) (VSingle (Vnat 0)) ->
       cstep2 md d (c2, r, m) (r', m') tr ->
       cstep2 md d (Cif e c1 c2, r, m) (r', m') tr ->
-      imm_premise (cstep2 md d (c2, r, m) (r', m') tr)
-                  (cstep2 md d (Cif e c1 c2, r, m) (r', m') (tr))
+      imm_premise c2 md r m r' m' tr (Cif e c1 c2) md r m r' m' tr d
   | IPwhilet1: forall md d c e r m r' m' r'' m'' tr tr',
       estep2 md d (e, r, m) (VSingle (Vnat 1)) ->
       cstep2 md d (c, r, m) (r', m') tr' ->
       cstep2 md d (Cwhile e c, r', m') (r'', m'') tr ->
-      imm_premise (cstep2 md d (c, r, m) (r', m') tr')
-                  (cstep2 md d (Cwhile e c, r, m) (r'', m'')
-                          (tr' ++ tr))
+      cstep2 md d (Cwhile e c, r, m) (r'', m'') (tr' ++ tr) ->
+      imm_premise c md r m r' m' tr' (Cwhile e c) md r m r'' m'' (tr' ++ tr) d
   | IPwhilet2: forall md d c e r m r' m' r'' m'' tr tr',
       estep2 md d (e, r, m) (VSingle (Vnat 1)) ->
       cstep2 md d (c, r, m) (r', m') tr' ->
       cstep2 md d (Cwhile e c, r', m') (r'', m'') tr ->
-      imm_premise (cstep2 md d (Cwhile e c, r', m') (r'', m'') tr)
-                  (cstep2 md d (Cwhile e c, r, m) (r'', m'')
-                          (tr' ++ tr))
+      cstep2 md d (Cwhile e c, r, m) (r'', m'') (tr' ++ tr) ->
+      imm_premise (Cwhile e c) md r' m' r'' m'' tr
+                  (Cwhile e c) md r m r'' m'' (tr' ++ tr) d
   .
   Hint Constructors imm_premise.
 
@@ -366,17 +369,7 @@ Section Semantics.
       cstep2 md d (c,r,m) (rfin,mfin) tr = cstep2 md' d' (c',r',m') (rfin',mfin') tr'.
   Proof.
   Admitted.
-  (* XXX I need some way to define equality between two cstep2 cases...??? 
-  Definition cstep2_eq cs cs' :=
-    match cs, cs' with
-    | Cstep2_skip _ _ _ _, Cstep2_skip _ _ _ _ => True
-    | _, _ => False
-    end.
-      | cstep2 _ _ (c,_,_) (_,_) _,
-        cstep2 _ _ (c',_,_) (_,_) _ => c = c'
-      | _ => False
-      end.
-   *)
+
 End Semantics.
 
 Section Typing.
@@ -397,6 +390,11 @@ Section Typing.
     exp_type md G d e (Typ (Tlambda Gm p md Gp) q) ->
     estep2 md d (e,r,m) (VSingle (Vlambda md c)) ->
     com_type p md Gm d c Gp.
+  Proof.
+    intros.
+    inversion H0; try discriminate; subst.
+    inversion H1; try discriminate; subst.
+    Focus 3.
   Admitted.
 
 End Typing.

@@ -329,7 +329,8 @@ End Adequacy.
 
 Section Security.
   Definition esc_hatch : Type := exp.
-  Definition is_esc_hatch (e: esc_hatch) (G: context) := exp_novars e /\ all_loc_immutable e G.
+  Definition is_esc_hatch (c: com) (G: context) := exists x e',
+      c = Cdeclassify x e' /\ exp_novars e' /\ all_loc_immutable e' G.
 
   Lemma filter_app (f:event -> bool) l1 l2:
     filter f (l1 ++ l2) = filter f l1 ++ filter f l2.
@@ -387,7 +388,7 @@ Section Preservation.
       /\ (forall l v1 v2 bt p rt,
           (m l = VPair v1 v2 /\ (loc_context G) l = Some (Typ bt p, rt))
           -> protected p)
-      /\ (forall e v md', is_esc_hatch e G ->
+      /\ (forall x e v md', is_esc_hatch (Cdeclassify x e) G ->
                           (estep2 md' d (e, reg_init2, m0) v ->
                            estep2 md' d (e, r, m) v))
       /\ knowledge_ind (project_mem m0 true) L (project_mem m0 false).
@@ -402,36 +403,54 @@ Section Preservation.
     /\ (forall l v1 v2 bt p rt,
            ((ccfg_mem2 ccfg2) (l) = VPair v1 v2 /\ (loc_context G) (l) = Some (Typ bt p, rt))    
            -> protected p)
-    /\ (forall e v md', is_esc_hatch e G ->
+    /\ (forall x e v md', is_esc_hatch (Cdeclassify x e) G ->
                         (estep2 md' d  (e, reg_init2, m0) v ->
                          estep2 md' d (e, ccfg_reg2 ccfg2, ccfg_mem2 ccfg2) v))
     /\ knowledge_ind (project_mem m0 true) L (project_mem m0 false).
 
   Lemma esc_hatch_reg_irrelevance (e : esc_hatch) :
-    forall G md d r m v r',
-    is_esc_hatch e G -> estep2 md d (e, r, m) v ->
+    forall G md d r m v r' x,
+    is_esc_hatch (Cdeclassify x e) G -> estep2 md d (e, r, m) v ->
     estep2 md d (e, r', m) v.
   Proof.
     intros. unfold is_esc_hatch in *.
     remember (e, r, m) as ecfg2.
     generalize dependent e.
-    induction H0; intros; subst; auto.
+    induction H0; intros; unfold_cfgs; subst; auto.
+    destruct H0 as [escx [esce H0]]; destruct_pairs; subst.
     1-3: constructor; unfold_cfgs; auto.
-    - unfold_cfgs. subst. unfold exp_novars in H1. simpl in H1. omega.
-    - unfold_cfgs; subst; destruct_pairs.
-      assert (exp_novars e1 /\ all_loc_immutable e1 G).
-      split. unfold exp_novars in *. destruct_pairs; inversion H; destruct_pairs; auto.
-      unfold all_loc_immutable in *; destruct_pairs; inversion H0; destruct_pairs; auto.
-      assert (exp_novars e2 /\ all_loc_immutable e2 G).
-      split. unfold exp_novars in *. destruct_pairs; inversion H; destruct_pairs; auto.
-      unfold all_loc_immutable in *; destruct_pairs; inversion H0; destruct_pairs; auto.
-      pose (IHestep2_1 e1 H1); pose (IHestep2_2 e2 H2).
+    - destruct H1 as [escx [esce H0]]; destruct_pairs; subst.
+      inversion H0. rewrite <- H4 in *.      
+      unfold exp_novars in *. simpl in *. omega.
+    - destruct H0 as [escx [esce H0]]; destruct_pairs; subst.
+      inversion H0. rewrite <- H4 in *.
+      assert (exists x0 e', Cdeclassify x e1 = Cdeclassify x0 e'
+                          /\ exp_novars e' /\ all_loc_immutable e' G)
+      as He1.
+      exists x. exists e1.
+      split; auto.
+      split. unfold exp_novars in *. inversion H1; destruct_pairs; auto.
+      unfold all_loc_immutable in *. inversion H2; destruct_pairs; auto.
+      assert (exists x0 e', Cdeclassify x e2 = Cdeclassify x0 e'
+                          /\ exp_novars e' /\ all_loc_immutable e' G)
+      as He2.
+      exists x. exists e2.
+      split; auto.
+      split. unfold exp_novars in *. inversion H1; destruct_pairs; auto.
+      unfold all_loc_immutable in *. inversion H2; destruct_pairs; auto.
+      pose (IHestep2_1 e1 He1); pose (IHestep2_2 e2 He2).
       apply (Estep2_binop md d (Ebinop e1 e2 op,r',m) e1 e2 n1 n2); unfold_cfgs; auto.
     - inversion Heqecfg2; subst; destruct_pairs.
-      assert (exp_novars e). unfold exp_novars in *; destruct_pairs; inversion H; auto.
+      destruct H3 as [x0 [e' H]]; destruct_pairs.
+      inversion H. rewrite <- H6 in *.
       apply (Estep2_deref md d (Ederef e,r',m) e r' m l (m l)); unfold_cfgs; auto.
-      apply (IHestep2 e); split; auto.
-      unfold all_loc_immutable in *; inversion H1; auto.
+      apply (IHestep2 e).
+      exists x. exists e.
+      split; auto.
+      split; auto.
+      unfold exp_novars in *; destruct_pairs; inversion H1; auto.
+      unfold all_loc_immutable in *; inversion H3; auto.
+      auto.
   Qed.
 
   (*Lemma esc_hatch_nopairs_equivalent (e : esc_hatch) : *)
@@ -477,7 +496,8 @@ Section Preservation.
 
   Lemma impe2_final_config_preservation (G: context) (d: loc_mode) (m0: mem2) :
       forall G' c r m pc md r' m' t,
-        (forall l e v, loc_in_exp e G l -> m0 l = VSingle v) -> 
+        (forall l e v, (exists x, is_esc_hatch (Cdeclassify x e) G) ->
+                       loc_in_exp e G l -> m0 l = VSingle v) -> 
         context_wt G d ->
         cconfig2_ok pc md G d m0 (c,r,m) G' ->
         cstep2 md d (c,r,m) (r', m') t ->
@@ -538,9 +558,10 @@ Section Preservation.
       context_wt G d ->
       cconfig2_ok pc md G d m0 (c, r, m) G' ->
       forall mdmid cmid rmid mmid rmid' mmid' tmid rfin mfin tfin,
-        imm_premise
-          (cstep2 mdmid d (cmid, rmid, mmid) (rmid', mmid') tmid)
-          (cstep2 md d (c, r, m) (rfin, mfin) tfin) ->
+        cstep2 mdmid d (cmid, rmid, mmid) (rmid', mmid') tmid
+        -> cstep2 md d (c, r, m) (rfin, mfin) tfin
+        -> imm_premise cmid mdmid rmid mmid rmid' mmid' tmid
+                       c md r m rfin mfin tfin d ->
         exists pcmid Gmid Gmid',
           sec_level_le pc pcmid /\ context_wt Gmid d /\
           cconfig2_ok pcmid mdmid Gmid d m0 (cmid, rmid, mmid) Gmid'.
@@ -548,38 +569,44 @@ Section Preservation.
     intros pc md c r m G' HGwt Hccfg2ok mdmid cmid rmid mmid
            rmid' mmid' tmid rfin mfin tfin HIP.
     revert tfin mfin rfin tmid mmid' rmid' mmid rmid cmid mdmid r m G' Hccfg2ok HGwt HIP.
-    induction c; intros; inversion HIP;
-      (* XXX get rid of clearly wrong statements ... this needs equality!*)
-      rewrite <- cstep2_eq in H0; destruct_pairs; try discriminate; subst;
-        inversion H0; subst; inversion Hccfg2ok; destruct_pairs.
-    - rewrite <- cstep2_eq in H; destruct_pairs; subst.
-      inversion H3; try discriminate; subst; unfold_cfgs.
-      exists p. exists Gm. exists Gp. split. now apply sec_level_join_le_l in H9.
+    induction c; intros; destruct_pairs; inversion H0; try discriminate; subst; unfold_cfgs;
+      inversion Hccfg2ok; try discriminate; subst; destruct_pairs;
+        inversion H1; try discriminate; subst; unfold_cfgs.
+    - exists p. exists Gm. exists Gp. split. now apply sec_level_join_le_l in H10.
       unfold cconfig2_ok; split; auto; unfold_cfgs.
-      admit. (* ew contexts *)
+      admit. (* XXX ew contexts *)
       split.
-      eapply (call_fxn_typ _ _ _ _ _ _ _ _ _ _ _ _ _ H3 H8 H1).
-      admit. (* XXX we need something about well-typed inside lambdas? *)
-    - inversion H0; subst.
-      inversion H2; try discriminate; subst; unfold_cfgs.
-      exists pc. exists G. exists G'. split. apply sec_level_le_refl.
+      eapply (call_fxn_typ _ _ _ _ _ _ _ _ _ _ _ _ _ H1 H9 H2).
+      admit. (* XXX ew contexts *)
+    - exists pc. exists G. exists G'. split. apply sec_level_le_refl.
       split. apply HGwt.
       inversion Hccfg2ok; unfold_cfgs; subst; try discriminate; destruct_pairs.
-      inversion H2; try discriminate; unfold_cfgs; subst. inversion H7; subst.
-      rewrite <- cstep2_eq in H; destruct_pairs; subst.      
+      inversion H1; try discriminate; unfold_cfgs; subst. inversion H6; subst.
       unfold cconfig2_ok; split; unfold_cfgs; auto.
-    - inversion H3; try discriminate; subst; unfold_cfgs.
-      exists pc. exists G. exists g'.
+    - exists pc. exists G. exists g'.
       split. apply sec_level_le_refl.
       split. auto.
-      rewrite <- cstep2_eq in H; destruct_pairs; subst.
       unfold cconfig2_ok; split; unfold_cfgs; auto.
-    - inversion H3; try discriminate; subst; unfold_cfgs.
-      rewrite <- cstep2_eq in H; destruct_pairs; subst.
-      exists pc. exists g'. exists G'.
+    - exists pc. exists g'. exists G'.
       split. apply sec_level_le_refl.
-      split. admit.
-      unfold cconfig2_ok; auto.
+      split. admit. (* XXX ew contexts *)
+      unfold cconfig2_ok; split; unfold_cfgs; auto.
+      admit. (* XXX ew contexts *)
+    - exists pc'. exists G. exists G'.
+      split. now apply (sec_level_join_le_l pc p pc') in H19.
+      split; unfold cconfig2_ok; auto.
+    - exists pc'. exists G. exists G'.
+      split. now apply (sec_level_join_le_l pc p pc') in H18.
+      split; unfold cconfig2_ok; auto.
+    - exists pc'. exists G'. exists G'.
+      split. now apply (sec_level_join_le_l pc p pc') in H17.
+      split; unfold cconfig2_ok; auto.
+    - exists pc. exists G'. exists G'.
+      split. now apply sec_level_le_refl.
+      split; unfold cconfig2_ok; unfold_cfgs; auto.
+      split; auto.
+      split; auto.
+      
   Admitted.
 End Preservation.
 
@@ -636,11 +663,12 @@ Section Guarantees.
       apply (sec_level_le_trans p (sec_level_join p pc) L) in H13; auto.
       destruct p; inversion H5; inversion H13.
     (* CALL *)
-    - assert (imm_premise (cstep2 md d (c, r, m) (r'0, m'0) tr)
-                          (cstep2 md d (Ccall e, r, m) (r'0, m'0) tr))
+    - assert (imm_premise c md r m r'0 m'0 tr
+                          (Ccall e) md r m r'0 m'0 tr d)
         as HIP by now apply IPcall.
       pose (impe2_type_preservation G d m0 pc md (Ccall e) r m G' HGwt Hccfg2ok
-                                    md c r m r'0 m'0 tr r'0 m'0 tr HIP) as Lemma6.
+                                    md c r m r'0 m'0 tr r'0 m'0 tr Hcstep Hcstep2 HIP)
+        as Lemma6.
       destruct Lemma6; repeat destruct H; destruct_pairs. 
       apply (IHHcstep Hcstep x0 H1 x1 x H2 m r c); auto.
     (* CALL-DIV *)
