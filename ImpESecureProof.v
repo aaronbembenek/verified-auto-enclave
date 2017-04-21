@@ -69,6 +69,12 @@ Section Adequacy.
     intros; unfold project_reg; destruct (r x); auto.
   Qed.
 
+  Lemma project_comm_mem : forall m b x,
+      (project_mem m b) x = project_value (m x) b.
+  Proof.
+    intros; unfold project_mem; destruct (m x); auto.
+  Qed.
+  
   (* XXX: this might be a pain to prove with registers as functions. Used below in soundness. *)
   Lemma project_update_comm_reg : forall ccfg x v is_left,
       project_reg (ccfg_update_reg2 ccfg x v) is_left = 
@@ -265,6 +271,12 @@ Section Adequacy.
       contains_nat v.
   Proof.
   Admitted.
+
+  Lemma no_location_pairs : forall v l is_left,
+      project_value v is_left = Vloc l ->
+      v = VSingle (Vloc l).
+  Proof.
+  Admitted.
   
   Lemma impe2_exp_complete : forall md d e r m v'i is_left,
       estep md d (e, project_reg r is_left, project_mem m is_left) v'i ->
@@ -291,8 +303,14 @@ Section Adequacy.
     - assert (r0 = project_reg r is_left) by congruence.
       assert (m0 = project_mem m is_left) by congruence.
       destruct IHestep with (e0 := e). congruence.
-      admit.
-    Admitted. 
+      destruct_conjs.
+      apply no_location_pairs in H6.
+      exists (m l); split.
+      apply Estep2_deref with (e := e) (r :=r) (m := m) (l := l); auto.
+      congruence.
+      rewrite <- H6; auto.
+      rewrite <- project_comm_mem; rewrite <- H4; auto.
+    Qed.
       
   Lemma impe2_complete : forall md d c r m r'i m'i t'i is_left,
       cstep md d (project_ccfg (c, r, m) is_left) (r'i, m'i) t'i ->
@@ -326,9 +344,12 @@ Section Adequacy.
       all: congruence.
     - apply impe2_exp_complete in H1; destruct H1;
         apply impe2_exp_complete in H0; destruct H0; destruct_conjs.
-      (* XXX: need a hypothesis that e1 evaluates to a VSingle of a location *)
-      (* exists r; exists (ccfg_update_mem2 (Cupdate e1 e2, r, m) x0 x); exists []. *)
-      admit.
+      pose (no_location_pairs x0 l is_left H1).
+      exists r; exists (ccfg_update_mem2 (Cupdate e1 e2, r, m) l x); exists []; repeat split.
+      apply Cstep2_update with (e1 := e1) (e2 := e2) (l := l) (v := x); auto.
+      rewrite <- e; auto.
+      congruence.
+      rewrite project_update_comm_mem. unfold project_ccfg; simpl; congruence.
     - apply impe2_exp_complete in H0; destruct H0; destruct_conjs.
       exists r; exists m; exists [Mem2 m; Out2 sl x]; repeat split; try congruence.
       apply Cstep2_output with (e := e); auto.
