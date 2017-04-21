@@ -25,7 +25,9 @@ Ltac unfold_cfgs :=
   unfold ecfg_exp2 in *;
   unfold ecfg_reg2 in *;
   unfold ecfg_update_exp2 in *;
-  unfold ccfg_update_com2 in *.                   
+  unfold ccfg_update_com2 in *;
+  unfold ccfg_update_mem in *;
+  unfold ccfg_update_reg in *.
 
 
 (*******************************************************************************
@@ -72,13 +74,25 @@ Section Adequacy.
       project_reg (ccfg_update_reg2 ccfg x v) is_left = 
       ccfg_update_reg (project_ccfg ccfg is_left) x (project_value v is_left).
   Proof.
-  Admitted.
+    intros.
+    extensionality z.
+    unfold project_reg; unfold ccfg_update_reg; unfold ccfg_update_reg2.
+    destruct (z =? x).
+    - unfold project_value; auto.
+    - simpl; now unfold project_reg.
+  Qed.
 
   Lemma project_update_comm_mem : forall ccfg l v is_left,
       project_mem (ccfg_update_mem2 ccfg l v) is_left = 
       ccfg_update_mem (project_ccfg ccfg is_left) l (project_value v is_left).
   Proof.
-  Admitted.
+    intros.
+    extensionality z.
+    unfold_cfgs; unfold ccfg_update_mem2; unfold project_mem.
+    destruct (z =? l).
+    - unfold project_value; auto.
+    - simpl; now unfold project_mem.
+  Qed.
 
   Lemma project_merge_inv_reg : forall r1 r2 r,
       merge_reg r1 r2 r -> (project_reg r true = r1) /\ (project_reg r false = r2).
