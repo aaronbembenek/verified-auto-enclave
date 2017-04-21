@@ -99,7 +99,11 @@ Section Adequacy.
       project_trace (t1 ++ t2) is_left =
       (project_trace t1 is_left) ++ (project_trace t2 is_left).
   Proof.
-  Admitted.
+    intros.
+    induction t1.
+    - rewrite app_nil_l; now cbn.
+    - cbn; rewrite IHt1; now destruct (event2_to_event a is_left).
+  Qed.
 
   Lemma impe2_exp_sound : forall md d e r m v is_left,
       estep2 md d (e, r, m) v ->
