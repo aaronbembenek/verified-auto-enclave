@@ -10,6 +10,10 @@ Require Import Coq.Classes.RelationClasses.
 Require Import OrderedType OrderedTypeEx DecidableType.
 Require Import Sorting.Permutation.
 Import ListNotations.
+Require Import OrderedType.
+
+Module NatMap := FMapList.Make Nat_as_OT.
+Module NatMapFacts := FMapFacts.WFacts_fun Nat_as_OT NatMap.
 
 Section MachineModel.
   Definition var : Type := nat.
@@ -18,6 +22,11 @@ Section MachineModel.
   Inductive location : Type :=
   | Not_cnd : nat -> location
   | Cnd : condition -> location.
+
+  Inductive ref_type : Set :=
+  | Mut
+  | Immut.
+  
   Definition is_Cnd (l: location) : Prop :=
     match l with
     | Not_cnd _ => False

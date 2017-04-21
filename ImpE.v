@@ -388,10 +388,6 @@ End Semantics.
 *******************************************************************************)
 
 Section Typing.
-  Inductive ref_type : Set :=
-  | Mut
-  | Immut.
-
   (* FIXME: we might want to change contexts to be defined in terms of
      finite maps instead of functions. *)
   Inductive base_type : Type :=

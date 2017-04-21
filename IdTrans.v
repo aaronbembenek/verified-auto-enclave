@@ -14,7 +14,7 @@ Require Import Logic.FunctionalExtensionality.
 Require Import Common.
 Require ImpE.
 Require ImpS.
-
+(*
 Module E := ImpE.
 Module S := ImpS.
 
@@ -220,3 +220,4 @@ induction c using S.com_ind' with
   + apply IHc in H2. now simpl in H2.
   + right. intuition. discriminate.
 Admitted.
+*)

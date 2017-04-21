@@ -136,10 +136,6 @@ Section Syntax.
 End Syntax.
 
 Section Typing.
-  Inductive ref_type : Set :=
-  | Mut
-  | Immut.
-
   (* FIXME: we might want to change contexts to be defined in terms of
      finite maps instead of functions. *)
   Inductive base_type : Type :=
@@ -154,7 +150,7 @@ Section Typing.
                                             
   with context : Type :=
   | Cntxt (var_cntxt: var -> option type)
-           (loc_cntxt: location -> option (type * ref_type)) : context.
+          (loc_cntxt: location -> option (type * ref_type)) : context.
                                       
   Definition var_context (G: context) : var -> option type :=
     match G with Cntxt vc _ => vc end.
