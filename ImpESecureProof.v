@@ -593,26 +593,23 @@ Section Guarantees.
       rewrite tr'_same, tr_same; auto.
       rewrite tobs_sec_level_app. rewrite project_trace_app; auto.
     (* IF *)
-      (*
-    - assert (cconfig2_ok pc md G d m0 (c1, r, m) G').
-      pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m G' HGwt Hccfg2ok
-                                    md c1 r m r'0 m'0 tr) as Lemma6.
+    - assert (exists pc, cconfig2_ok pc md G d m0 (c1, r, m) G') as ccfgok.
       assert (imm_premise (cstep2 md d (c1, r, m) (r'0, m'0) tr)
                           (cstep2 md d (Cif e c1 c2, r, m) (r'0, m'0) tr))
         as HIP by apply (IPif  _ _ _ _ _ _ _ _ _ _ H0 Hcstep Hcstep2).
-      apply (Lemma6 r'0 m'0 tr HIP pc).
-      apply sec_level_le_refl.
-      apply (IHHcstep HGwt H Hcstep m r c1); auto.
-   (* ELSE *)
-    - assert (cconfig2_ok pc md G d m0 (c2, r, m) G').
       pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m G' HGwt Hccfg2ok
-                                    md c2 r m r'0 m'0 tr) as Lemma6.
+                                    md c1 r m r'0 m'0 tr _ _ _ HIP) as Lemma6.
+      destruct Lemma6; destruct_pairs; exists x; auto. destruct ccfgok.
+      apply (IHHcstep HGwt Hcstep x H m r c1); auto.
+   (* ELSE *)
+    - assert (exists pc, cconfig2_ok pc md G d m0 (c2, r, m) G') as ccfgok.
       assert (imm_premise (cstep2 md d (c2, r, m) (r'0, m'0) tr)
                           (cstep2 md d (Cif e c1 c2, r, m) (r'0, m'0) tr))
-        as HIP by apply (IPelse _ _ _ _ _ _ _ _ _ _ H0 Hcstep Hcstep2).
-      apply (Lemma6 r'0 m'0 tr HIP pc).
-      apply sec_level_le_refl.
-      apply (IHHcstep HGwt H Hcstep m r c2); auto.
+        as HIP by apply (IPelse  _ _ _ _ _ _ _ _ _ _ H0 Hcstep Hcstep2).
+      pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m G' HGwt Hccfg2ok
+                                    md c2 r m r'0 m'0 tr _ _ _ HIP) as Lemma6.
+      destruct Lemma6; destruct_pairs; exists x; auto. destruct ccfgok.
+      apply (IHHcstep HGwt Hcstep x H m r c2); auto.
     (* IFELSE-DIV *)
     - remember (VPair (Vnat n1) (Vnat n2)) as v.
       inversion Hccfg2ok; destruct_pairs; unfold_cfgs; subst; auto; try discriminate.
@@ -634,24 +631,22 @@ Section Guarantees.
       pose (project_merge_inv_trace t1 t2 false) as Ht2; simpl in *.
       now rewrite Ht1, Ht2, H10, H14.
     (* WHILE *)
-    - assert (cconfig2_ok pc md G d m0 (c, r0, m1) G').
-      pose (impe2_type_preservation G d m0 pc md (Cwhile e c) r0 m1 G' HGwt Hccfg2ok
-                                    md c r0 m1 r m tr) as Lemma6.
+    - assert (exists pc, cconfig2_ok pc md G d m0 (c, r0, m1) G') as ccfgok.
       assert (imm_premise (cstep2 md d (c, r0, m1) (r, m) tr)
                           (cstep2 md d (Cwhile e c, r0, m1) (r'0, m'0) (tr++tr')))
         as HIP by apply (IPwhilet1 _ _ _ _ _ _ _ _ _ _ _ _ H0 Hcstep1 Hcstep3). 
-      apply (Lemma6 r'0 m'0 (tr++tr') HIP pc).
-      apply sec_level_le_refl.
-      assert (cconfig2_ok pc md G d m0 (Cwhile e c, r, m) G').
       pose (impe2_type_preservation G d m0 pc md (Cwhile e c) r0 m1 G' HGwt Hccfg2ok
-                                    md (Cwhile e c) r m r'0 m'0 tr') as Lemma6.
+                                    md c r0 m1 r m tr _ _ _ HIP) as Lemma6.
+      destruct Lemma6; exists x; destruct_pairs; auto. destruct ccfgok.
+      assert (exists pc, cconfig2_ok pc md G d m0 (Cwhile e c, r, m) G').
       assert (imm_premise (cstep2 md d (Cwhile e c, r, m) (r'0, m'0) tr')
                           (cstep2 md d (Cwhile e c, r0, m1) (r'0, m'0) (tr++tr')))
-        as HIP by apply (IPwhilet2 _ _ _ _ _ _ _ _ _ _ _ _ H0 Hcstep1 Hcstep3). 
-      apply (Lemma6 r'0 m'0 (tr++tr') HIP pc).
-      apply sec_level_le_refl.
-      pose (IHHcstep1 HGwt H Hcstep1 m1 r0 c) as tr'_same.
-      pose (IHHcstep2 HGwt H1 Hcstep3 m r (Cwhile e c)) as tr_same; auto.
+        as HIP by apply (IPwhilet2 _ _ _ _ _ _ _ _ _ _ _ _ H0 Hcstep1 Hcstep3).
+      pose (impe2_type_preservation G d m0 pc md (Cwhile e c) r0 m1 G' HGwt Hccfg2ok
+                                    md (Cwhile e c) r m r'0 m'0 tr' _ _ _ HIP) as Lemma6.
+      destruct Lemma6; exists x0; destruct_pairs; auto. destruct H1.
+      pose (IHHcstep1 HGwt Hcstep1 x H m1 r0 c) as tr'_same.
+      pose (IHHcstep2 HGwt Hcstep3 x0 H1 m r (Cwhile e c)) as tr_same; auto.
       rewrite <- project_trace_app.
       rewrite <- tobs_sec_level_app.
       rewrite tr'_same, tr_same; auto.
@@ -698,7 +693,6 @@ Section Guarantees.
          pose (project_merge_inv_trace t1 t2 true) as Ht1; simpl in *.
          pose (project_merge_inv_trace t1 t2 false) as Ht2; simpl in *.
          now rewrite Ht1, Ht2, H10, H14.
-*)
   Qed.
       
   Lemma diff_loc_protected : forall m0 mknown l,
