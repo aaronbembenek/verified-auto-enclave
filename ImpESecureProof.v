@@ -547,21 +547,39 @@ Section Preservation.
   Proof. 
     intros pc md c r m G' HGwt Hccfg2ok mdmid cmid rmid mmid
            rmid' mmid' tmid rfin mfin tfin HIP.
-    induction c; inversion HIP;
+    revert tfin mfin rfin tmid mmid' rmid' mmid rmid cmid mdmid r m G' Hccfg2ok HGwt HIP.
+    induction c; intros; inversion HIP;
       (* XXX get rid of clearly wrong statements ... this needs equality!*)
-      rewrite <- cstep2_eq in H0; destruct_pairs; try discriminate; subst.
-        rewrite <- cstep2_eq in H; destruct_pairs; subst; 
-          inversion H0; subst; inversion Hccfg2ok; destruct_pairs.
-    - inversion H; try discriminate; subst; unfold_cfgs.
-      Search (sec_level_join).
-      exists p. exists Gm. exists Gp. split. now apply sec_level_join_le_l in H10.
+      rewrite <- cstep2_eq in H0; destruct_pairs; try discriminate; subst;
+        inversion H0; subst; inversion Hccfg2ok; destruct_pairs.
+    - rewrite <- cstep2_eq in H; destruct_pairs; subst.
+      inversion H3; try discriminate; subst; unfold_cfgs.
+      exists p. exists Gm. exists Gp. split. now apply sec_level_join_le_l in H9.
       unfold cconfig2_ok; split; auto; unfold_cfgs.
-      admit.
+      admit. (* ew contexts *)
       split.
-      eapply (call_fxn_typ _ _ _ _ _ _ _ _ _ _ _ _ _ H H8 H1).
+      eapply (call_fxn_typ _ _ _ _ _ _ _ _ _ _ _ _ _ H3 H8 H1).
       admit. (* XXX we need something about well-typed inside lambdas? *)
-    - 
-      
+    - inversion H0; subst.
+      inversion H2; try discriminate; subst; unfold_cfgs.
+      exists pc. exists G. exists G'. split. apply sec_level_le_refl.
+      split. apply HGwt.
+      inversion Hccfg2ok; unfold_cfgs; subst; try discriminate; destruct_pairs.
+      inversion H2; try discriminate; unfold_cfgs; subst. inversion H7; subst.
+      rewrite <- cstep2_eq in H; destruct_pairs; subst.      
+      unfold cconfig2_ok; split; unfold_cfgs; auto.
+    - inversion H3; try discriminate; subst; unfold_cfgs.
+      exists pc. exists G. exists g'.
+      split. apply sec_level_le_refl.
+      split. auto.
+      rewrite <- cstep2_eq in H; destruct_pairs; subst.
+      unfold cconfig2_ok; split; unfold_cfgs; auto.
+    - inversion H3; try discriminate; subst; unfold_cfgs.
+      rewrite <- cstep2_eq in H; destruct_pairs; subst.
+      exists pc. exists g'. exists G'.
+      split. apply sec_level_le_refl.
+      split. admit.
+      unfold cconfig2_ok; auto.
   Admitted.
 End Preservation.
 
