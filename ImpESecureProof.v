@@ -25,7 +25,9 @@ Ltac unfold_cfgs :=
   unfold ecfg_exp2 in *;
   unfold ecfg_reg2 in *;
   unfold ecfg_update_exp2 in *;
-  unfold ccfg_update_com2 in *.                   
+  unfold ccfg_update_com2 in *;
+  unfold ccfg_update_mem in *;
+  unfold ccfg_update_reg in *.
 
 
 (*******************************************************************************
@@ -72,13 +74,25 @@ Section Adequacy.
       project_reg (ccfg_update_reg2 ccfg x v) is_left = 
       ccfg_update_reg (project_ccfg ccfg is_left) x (project_value v is_left).
   Proof.
-  Admitted.
+    intros.
+    extensionality z.
+    unfold project_reg; unfold ccfg_update_reg; unfold ccfg_update_reg2.
+    destruct (z =? x).
+    - unfold project_value; auto.
+    - simpl; now unfold project_reg.
+  Qed.
 
   Lemma project_update_comm_mem : forall ccfg l v is_left,
       project_mem (ccfg_update_mem2 ccfg l v) is_left = 
       ccfg_update_mem (project_ccfg ccfg is_left) l (project_value v is_left).
   Proof.
-  Admitted.
+    intros.
+    extensionality z.
+    unfold_cfgs; unfold ccfg_update_mem2; unfold project_mem.
+    destruct (z =? l).
+    - unfold project_value; auto.
+    - simpl; now unfold project_mem.
+  Qed.
 
   Lemma project_merge_inv_reg : forall r1 r2 r,
       merge_reg r1 r2 r -> (project_reg r true = r1) /\ (project_reg r false = r2).
@@ -99,7 +113,11 @@ Section Adequacy.
       project_trace (t1 ++ t2) is_left =
       (project_trace t1 is_left) ++ (project_trace t2 is_left).
   Proof.
-  Admitted.
+    intros.
+    induction t1.
+    - rewrite app_nil_l; now cbn.
+    - cbn; rewrite IHt1; now destruct (event2_to_event a is_left).
+  Qed.
 
   Lemma impe2_exp_sound : forall md d e r m v is_left,
       estep2 md d (e, r, m) v ->
@@ -163,10 +181,10 @@ Section Adequacy.
                                        (m:=(project_mem m0 is_left))
                                        (tr:=(project_trace tr is_left))
                                        (tr':=(project_trace tr' is_left)); auto.
-      apply IHcstep2_1 with (c0 := hd); auto.
-      (* XXX: getting stuck with a weird induction hypothesis... maybe generalizing wrong *)
-      apply IHcstep2_2 with (c := (Cseq tl)); auto.
+      apply IHcstep2_1 with (c0:=hd); auto.
+      apply IHcstep2_2 with (c:=Cseq tl); auto.
       admit.
+      (* XXX: getting stuck with a weird induction hypothesis... maybe generalizing wrong *)
       now apply project_app_trace.
     - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *.
       apply Cstep_if with (e:=e) (c1:=c1) (c2:=c2) (v := (Vnat 1)); auto. discriminate.
@@ -198,20 +216,23 @@ Section Adequacy.
       admit.
     - apply Cstep_while_f with (e := e) (c := c); auto.
       now apply impe2_exp_sound with (is_left := is_left) in H0.
-    - admit.
-      (* XXX: typo in paper's while-div definition
-      apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
+    - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
         apply project_merge_inv_reg in H3; apply project_merge_inv_mem in H4;
           destruct_conjs; subst.
-
           destruct is_left; [destruct n1 | destruct n2]; rewrite project_merge_inv_trace.
-      +  assert (t1 = [] /\ k1 = (project_kill xK true) /\
+      +  assert (t1 = [] /\
                  (project_reg r true) = (project_reg r' true) /\
                  (project_mem m true) = (project_mem m' true)) by
             (inversion H1; subst; auto; try discriminate); destruct_conjs; subst.
-         rewrite <- H4; rewrite <- H5.
+         rewrite <- H3; rewrite <- H4.
          apply Cstep_while_f with (e := e) (c := c); auto.
-         inversion H1; now try discriminate. *)
+      + admit.
+      + assert (t2 = [] /\ (project_reg r false) = (project_reg r' false) /\
+                (project_mem m false) = (project_mem m' false)) by
+            (inversion H2; subst; auto; try discriminate); destruct_conjs; subst.
+        rewrite <- H3; rewrite <- H4.
+        apply Cstep_while_f with (e := e) (c := c); auto.
+      + admit.
   Admitted.
 
   Lemma impe2_exp_complete : forall md d e r m v'i is_left,
@@ -225,9 +246,21 @@ Section Adequacy.
     - exists (VSingle (Vnat n)); subst; split; auto; now constructor.
     - exists (VSingle (Vloc l)); subst; split; auto; now constructor.
     - exists (VSingle (Vlambda md c)); subst; split; auto; now constructor.
-    - admit.
-    - admit.
-    - admit.
+    - exists (r x); split; auto. rewrite H. apply Estep2_var with (x:=x); auto.
+      rewrite Heqecfg in H0; simpl in *. rewrite <- H0.
+      now apply project_comm_reg.
+    - destruct IHestep1 with (e := e1). rewrite Heqecfg; auto.
+      destruct IHestep2 with (e := e2). rewrite Heqecfg; auto.
+      destruct_conjs.
+      exists (VSingle (Vnat (op n1 n2))); split.
+      apply Estep2_binop with (e1:=e1) (e2:=e2); auto.
+      admit.
+      admit.
+      auto.
+    - assert (r0 = project_reg r is_left) by congruence.
+      assert (m0 = project_mem m is_left) by congruence.
+      destruct IHestep with (e0 := e). congruence.
+      admit.
     Admitted. 
       
   Lemma impe2_complete : forall md d c r m r'i m'i t'i is_left,
@@ -237,8 +270,53 @@ Section Adequacy.
                      (project_mem m' is_left) = m'i /\
                      (project_trace t' is_left) = t'i.
   Proof.
-    (* Proof is done by straightforward induction *)
-    intros; induction H; intuition.
+    intros.
+    remember (project_ccfg (c, r, m) is_left) as ccfg.
+    remember (r'i, m'i) as cterm.
+    generalize dependent r'i.
+    generalize dependent m'i.
+    generalize dependent c.
+    induction H; intros; try rewrite Heqccfg in H; simpl in *; subst;
+      unfold project_ccfg in Heqcterm; simpl in *.
+    - exists r; exists m; exists []. repeat split.
+      constructor; auto.
+      all: congruence.
+    - apply impe2_exp_complete in H0; destruct H0; destruct_conjs.
+      exists (ccfg_update_reg2 (Cassign x e, r, m) x x0).
+      exists m; exists []; repeat split.
+      apply Cstep2_assign with (x := x) (e := e) (v := x0); auto.
+      rewrite project_update_comm_reg. rewrite H0. unfold project_ccfg; simpl.
+      all: congruence.
+    - apply impe2_exp_complete in H1; destruct H1; destruct_conjs.
+      exists (ccfg_update_reg2 (Cdeclassify x e, r, m) x x0).
+      exists m; exists [Decl2 e m]; repeat split.
+      apply Cstep2_declassify with (x := x) (v := x0); auto.
+      rewrite project_update_comm_reg. rewrite H1. unfold project_ccfg; simpl.
+      all: congruence.
+    - apply impe2_exp_complete in H1; destruct H1;
+        apply impe2_exp_complete in H0; destruct H0; destruct_conjs.
+      (* XXX: need a hypothesis that e1 evaluates to a VSingle of a location *)
+      (* exists r; exists (ccfg_update_mem2 (Cupdate e1 e2, r, m) x0 x); exists []. *)
+      admit.
+    - apply impe2_exp_complete in H0; destruct H0; destruct_conjs.
+      exists r; exists m; exists [Mem2 m; Out2 sl x]; repeat split; try congruence.
+      apply Cstep2_output with (e := e); auto.
+      cbn; now rewrite H0.
+    - admit.
+    - admit.
+    - exists r; exists m; exists []; repeat split.
+      apply Cstep2_seq_nil; auto.
+      all: congruence.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - apply impe2_exp_complete in H0; destruct H0; simpl in *; destruct_conjs.
+      exists r; exists m; exists []; repeat split.
+      apply Cstep2_while_f with (e := e) (c := c); auto.
+      (* XXX not sure this case is actually true because of the single vs pair issue *)
+      admit.
+      all: congruence.
   Admitted.
   
 End Adequacy.
