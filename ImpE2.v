@@ -358,6 +358,25 @@ Section Semantics.
                           (tr' ++ tr))
   .
   Hint Constructors imm_premise.
+
+  Lemma cstep2_eq (c c': com) : forall md d r m rfin mfin tr
+                                                md' d' r' m' rfin' mfin' tr',
+      c = c' /\ r = r' /\ m = m' /\ rfin = rfin' /\ mfin = mfin' /\ tr = tr'
+      /\ md = md' /\ d = d' <->
+      cstep2 md d (c,r,m) (rfin,mfin) tr = cstep2 md' d' (c',r',m') (rfin',mfin') tr'.
+  Proof.
+  Admitted.
+  (* XXX I need some way to define equality between two cstep2 cases...??? 
+  Definition cstep2_eq cs cs' :=
+    match cs, cs' with
+    | Cstep2_skip _ _ _ _, Cstep2_skip _ _ _ _ => True
+    | _, _ => False
+    end.
+      | cstep2 _ _ (c,_,_) (_,_) _,
+        cstep2 _ _ (c',_,_) (_,_) _ => c = c'
+      | _ => False
+      end.
+   *)
 End Semantics.
 
 Section Typing.
