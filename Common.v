@@ -50,6 +50,16 @@ Section Security.
   Proof.
     induction sl, sl'; unfold sec_level_join; unfold sec_level_le; auto.
   Qed.
+  Lemma sec_level_join_le_l (sl sl' sl'': sec_level) :
+    sec_level_le (sec_level_join sl sl') sl'' -> sec_level_le sl sl''.
+  Proof.
+    induction sl, sl', sl''; unfold sec_level_join; unfold sec_level_le; auto.
+  Qed.
+  Lemma sec_level_join_le_r (sl sl' sl'': sec_level) :
+    sec_level_le (sec_level_join sl sl') sl'' -> sec_level_le sl' sl''.
+  Proof.
+    induction sl, sl', sl''; unfold sec_level_join; unfold sec_level_le; auto.
+  Qed.
   Lemma sec_level_le_trans (sl sl' sl'': sec_level) :
     sec_level_le sl sl' -> sec_level_le sl' sl'' -> sec_level_le sl sl''.
   Proof.

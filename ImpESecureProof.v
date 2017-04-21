@@ -541,18 +541,25 @@ Section Preservation.
         imm_premise
           (cstep2 mdmid d (cmid, rmid, mmid) (rmid', mmid') tmid)
           (cstep2 md d (c, r, m) (rfin, mfin) tfin) ->
-        exists pcmid,
+        exists pcmid Gmid Gmid',
           sec_level_le pc pcmid /\
-          cconfig2_ok pcmid mdmid G d m0 (cmid, rmid, mmid) G'.
+          cconfig2_ok pcmid mdmid Gmid d m0 (cmid, rmid, mmid) Gmid'.
   Proof. 
     intros pc md c r m G' HGwt Hccfg2ok mdmid cmid rmid mmid
            rmid' mmid' tmid rfin mfin tfin HIP.
     induction c; inversion HIP;
       (* XXX get rid of clearly wrong statements ... this needs equality!*)
-      rewrite <- cstep2_eq in H0; destruct_pairs; try discriminate; subst;
+      rewrite <- cstep2_eq in H0; destruct_pairs; try discriminate; subst.
         rewrite <- cstep2_eq in H; destruct_pairs; subst; 
           inversion H0; subst; inversion Hccfg2ok; destruct_pairs.
-    exists pc; split.
+    - inversion H; try discriminate; subst; unfold_cfgs.
+      Search (sec_level_join).
+      exists p. exists Gm. exists Gp. split. now apply sec_level_join_le_l in H10.
+      unfold cconfig2_ok; split; auto; unfold_cfgs.
+      eapply (call_fxn_typ _ _ _ _ _ _ _ _ _ _ _ _ _ H H8 H1).
+      admit. (* XXX we need something about well-typed inside lambdas? *)
+    - 
+      
   Admitted.
 End Preservation.
 
@@ -591,6 +598,8 @@ Section Guarantees.
     generalize dependent r.
     generalize dependent m.
     generalize dependent pc.
+    generalize dependent G.
+    generalize dependent G'.
     pose Hcstep2 as Hcstep.
     induction Hcstep; intros; subst; simpl in *; auto; repeat unfold_cfgs; subst.
     (* OUTPUT *)
@@ -607,6 +616,7 @@ Section Guarantees.
       apply (sec_level_le_trans p (sec_level_join p pc) L) in H13; auto.
       destruct p; inversion H5; inversion H13.
     (* CALL *)
+      (*
     - assert (exists pcmid, cconfig2_ok pcmid md G d m0 (c, r, m) G') as Hccfgok.
       assert (imm_premise (cstep2 md d (c, r, m) (r'0, m'0) tr)
                           (cstep2 md d (Ccall e, r, m) (r'0, m'0) tr))
@@ -814,6 +824,8 @@ Section Guarantees.
       -- split; intros; auto.
          apply project_merge_inv_mem in Hmmerge; destruct_pairs; subst; auto.
   Qed.
+       *)
+      Admitted.
   
 (*
   Lemma secure_n_chaos : forall g G G' K' d c,
