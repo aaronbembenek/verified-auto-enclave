@@ -20,7 +20,7 @@ Section Syntax.
   | Eloc : location -> exp
   | Ederef : exp -> exp
   | Eisunset : condition -> exp
-  | Elambda : com -> exp
+  | Elambda : prog -> exp
                                    
   with com : Type :=
   | Cskip : com
@@ -30,13 +30,16 @@ Section Syntax.
   | Coutput : exp -> sec_level -> com
   | Ccall : exp -> com
   | Cset : condition -> com
-  | Cseq : list com -> com
-  | Cif : exp -> com -> com -> com
-  | Cwhile : exp -> com -> com.
+  | Cif : exp -> prog -> prog -> com
+  | Cwhile : exp -> prog -> com
 
-  Section com_exp_mut.
+  with prog: Type :=
+  | Prog : list com -> prog.
+
+  Section Induction.
     Variable P : com -> Prop.
     Variable P0 : exp -> Prop.
+    Variable P1 : prog -> Prop.
 
     Hypothesis Enat_case : forall n, P0 (Enat n).
     Hypothesis Evar_case : forall x, P0 (Evar x).
@@ -47,11 +50,9 @@ Section Syntax.
         P0 e -> P0 (Ederef e).
     Hypothesis Eisunset_case : forall cnd, P0 (Eisunset cnd).
     Hypothesis Elambda_case : forall c,
-        P c -> P0 (Elambda c).
+        P1 c -> P0 (Elambda c).
     
     Hypothesis Cskip_case : P Cskip.
-    Hypothesis Cseq_case : forall coms,
-        Forall P coms -> P (Cseq coms).
     Hypothesis Cassign_case : forall x e,
         P0 e -> P (Cassign x e).
     Hypothesis Cdeclassify_case : forall x e,
@@ -64,9 +65,12 @@ Section Syntax.
         P0 e -> P (Ccall e).
     Hypothesis Cset_case : forall cnd, P (Cset cnd).
     Hypothesis Cif_case : forall e c1 c2,
-        P0 e -> P c1 -> P c2 -> P (Cif e c1 c2).
+        P0 e -> P1 c1 -> P1 c2 -> P (Cif e c1 c2).
     Hypothesis Cwhile_case : forall e c,
-        P0 e -> P c -> P (Cwhile e c).
+        P0 e -> P1 c -> P (Cwhile e c).
+
+    Hypothesis Prog_case : forall coms,
+        Forall P coms -> P1 (Prog coms).
 
     Fixpoint com_ind' (c: com) : P c :=
       match c with
@@ -78,15 +82,8 @@ Section Syntax.
       | Ccall e => Ccall_case e (exp_ind' e)
       | Cset cnd => Cset_case cnd
       | Cif e c1 c2 =>
-        Cif_case e c1 c2 (exp_ind' e) (com_ind' c1) (com_ind' c2)
-      | Cwhile e c => Cwhile_case e c (exp_ind' e) (com_ind' c)
-      | Cseq coms =>
-        Cseq_case coms
-                  ((fix com_list_ind (coms: list com) : Forall P coms :=
-                      match coms with
-                      | [] => Forall_nil P
-                      | h :: t => Forall_cons h (com_ind' h) (com_list_ind t)
-                      end) coms)
+        Cif_case e c1 c2 (exp_ind' e) (prog_ind' c1) (prog_ind' c2)
+      | Cwhile e c => Cwhile_case e c (exp_ind' e) (prog_ind' c)
       end
 
     with exp_ind' (e: exp) : P0 e :=
@@ -97,47 +94,94 @@ Section Syntax.
       | Eloc l => Eloc_case l
       | Ederef e => Ederef_case e (exp_ind' e)
       | Eisunset cnd => Eisunset_case cnd
-      | Elambda c => Elambda_case c (com_ind' c)
-      end.                                                   
-  End com_exp_mut.
+      | Elambda c => Elambda_case c (prog_ind' c)
+      end
+
+    with prog_ind' (p: prog) : P1 p :=
+      match p with
+      | Prog coms =>
+        Prog_case coms
+                  ((fix com_list_ind (coms: list com) : Forall P coms :=
+                      match coms with
+                      | [] => Forall_nil P
+                      | h :: t => Forall_cons h (com_ind' h) (com_list_ind t)
+                      end) coms)
+      end.                                                
+  End Induction.
 
   Inductive val : Type :=
   | Vlambda : com -> val
   | Vnat : nat -> val
   | Vloc : location -> val.
 
-  Function forall_subexp (e: exp) (P: exp -> Prop) : Prop :=
-    P e /\
-    match e with
-    | Ebinop e1 e2 _ => forall_subexp e1 P /\ forall_subexp e2 P
-    | Ederef e' => forall_subexp e' P
-    | Elambda c => forall_subexp' c P
-    | _ => True
-    end
-  with forall_subexp' (c: com) (P: exp -> Prop) : Prop :=
-    match c with
-    | Cassign _ e => forall_subexp e P
-    | Cdeclassify _ e => forall_subexp e P
-    | Cupdate e1 e2 => forall_subexp e1 P /\ forall_subexp e2 P
-    | Ccall e => forall_subexp e P
-    | Cseq cs => fold_left (fun acc c => forall_subexp' c P /\ acc) cs True
-    | Cif e c1 c2 =>
-      forall_subexp e P /\ forall_subexp' c1 P /\ forall_subexp' c2 P
-    | Cwhile e c' => forall_subexp e P /\ forall_subexp' c' P
-    | _ => True
-    end.
-  
-  Definition exp_novars (e: exp) : Prop :=
-    forall_subexp e (fun e =>
-                       match e with
-                       | Evar _ => False
-                       | _ => True
-                       end).
+  Inductive forall_subexp (P: exp -> Prop) : exp -> Prop :=
+  | FAnat : forall n,
+      P (Enat n) -> forall_subexp P (Enat n)
+  | FAvar : forall x,
+      P (Evar x) -> forall_subexp P (Evar x)
+  | FAbinop : forall e1 e2 op,
+      P (Ebinop e1 e2 op) ->
+      forall_subexp P e1 ->
+      forall_subexp P e2 ->
+      forall_subexp P (Ebinop e1 e2 op)
+  | FAloc : forall l,
+      P (Eloc l) -> forall_subexp P (Eloc l)
+  | FAderef : forall e,
+      P (Ederef e) ->
+      forall_subexp P e ->
+      forall_subexp P (Ederef e)
+  | FAisunset : forall cnd,
+      P (Eisunset cnd) ->
+      forall_subexp P (Eisunset cnd)
+  | FAlambda : forall c,
+      P (Elambda c) ->
+      forall_subexp'' P c ->
+      forall_subexp P (Elambda c)
+
+  with forall_subexp' (P: exp -> Prop) : com -> Prop :=
+  | FAskip :
+      forall_subexp' P Cskip
+  | FAassign : forall x e,
+      forall_subexp P e ->
+      forall_subexp' P (Cassign x e)
+  | FAdeclassify : forall x e,
+      forall_subexp P e ->
+      forall_subexp' P (Cdeclassify x e)
+  | FAupdate : forall e1 e2,
+      forall_subexp P e1 ->
+      forall_subexp P e2 ->
+      forall_subexp' P (Cupdate e1 e2)
+  | FAoutput : forall e sl,
+      forall_subexp P e ->
+      forall_subexp' P (Coutput e sl)
+  | FAcall : forall e,
+      forall_subexp P e ->
+      forall_subexp' P (Ccall e)
+  | FAset : forall cnd,
+      forall_subexp' P (Cset cnd)
+  | FAif : forall e c1 c2,
+      forall_subexp P e ->
+      forall_subexp'' P c1 ->
+      forall_subexp'' P c2 ->
+      forall_subexp' P (Cif e c1 c2)
+  | FAwhile : forall e c,
+      forall_subexp P e ->
+      forall_subexp'' P c ->
+      forall_subexp' P (Cwhile e c)
+
+  with forall_subexp'' (P: exp -> Prop) : prog -> Prop :=
+  | FAprog : forall coms,
+      Forall (fun c => forall_subexp' P c) coms ->
+      forall_subexp'' P (Prog coms).
+
+  Definition exp_novars : exp -> Prop :=
+    forall_subexp (fun e => match e with
+                            | Evar _ => False
+                            | _ => True
+                            end).
 End Syntax.
 
 Section Typing.
-  (* FIXME: we might want to change contexts to be defined in terms of
-     finite maps instead of functions. *)
   Inductive base_type : Type :=
   | Tnat : base_type
   | Tcond : base_type
@@ -182,15 +226,14 @@ Section Typing.
     forall_var G P /\ forall_loc G Q.
 
   Definition all_loc_immutable (e: exp) (G: context) : Prop :=
-    forall_subexp e (fun e =>
-                       match e with
-                       | Eloc (Cnd _) => False
-                       | Eloc (Not_cnd l) => forall t rt,
-                           loc_context G (Not_cnd l) = Some (t, rt) ->
-                           rt = Immut
-                       | Eisunset _ => False
-                       | _ => True
-                       end).
+    forall_subexp (fun e =>
+                     match e with
+                     | Eloc (Cnd _) => False
+                     | Eloc (Not_cnd l) => forall t rt,
+                         loc_context G (Not_cnd l) = Some (t, rt) -> rt = Immut
+                     | Eisunset _ => False
+                     | _ => True
+                     end) e.
 
   Inductive type_le : type -> type -> Prop :=
   | Type_le : forall s1 s2 p1 p2,
