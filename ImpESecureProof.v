@@ -474,24 +474,24 @@ Section Preservation.
     - destruct H1 as [escx [esce H0]]; destruct_pairs; subst.
       inversion H0. rewrite <- H4 in *.      
       unfold exp_novars in *. simpl in *. omega.
-    - destruct H0 as [escx [esce H0]]; destruct_pairs; subst.
-      inversion H0. rewrite <- H4 in *.
+    - destruct H1 as [escx [esce H1]]; destruct_pairs; subst.
+      inversion H1. rewrite <- H6 in *.
       assert (exists x0 e', Cdeclassify x e1 = Cdeclassify x0 e'
                           /\ exp_novars e' /\ all_loc_immutable e' G)
       as He1.
       exists x. exists e1.
       split; auto.
-      split. unfold exp_novars in *. inversion H1; destruct_pairs; auto.
-      unfold all_loc_immutable in *. inversion H2; destruct_pairs; auto.
+      split. unfold exp_novars in *. inversion H2; destruct_pairs; auto.
+      unfold all_loc_immutable in *. inversion H3; destruct_pairs; auto.
       assert (exists x0 e', Cdeclassify x e2 = Cdeclassify x0 e'
                           /\ exp_novars e' /\ all_loc_immutable e' G)
       as He2.
       exists x. exists e2.
       split; auto.
-      split. unfold exp_novars in *. inversion H1; destruct_pairs; auto.
-      unfold all_loc_immutable in *. inversion H2; destruct_pairs; auto.
+      split. unfold exp_novars in *. inversion H2; destruct_pairs; auto.
+      unfold all_loc_immutable in *. inversion H3; destruct_pairs; auto.
       pose (IHestep2_1 e1 He1); pose (IHestep2_2 e2 He2).
-      apply (Estep2_binop md d (Ebinop e1 e2 op,r',m) e1 e2 n1 n2); unfold_cfgs; auto.
+      eapply (Estep2_binop md d (Ebinop e1 e2 op,r',m)); unfold_cfgs; auto.
     - inversion Heqecfg2; subst; destruct_pairs.
       destruct H3 as [x0 [e' H]]; destruct_pairs.
       inversion H. rewrite <- H6 in *.
@@ -532,18 +532,39 @@ Section Preservation.
     intros.
     remember (e,r,m) as ecfg.
     generalize dependent e.
+    generalize dependent v1.
+    generalize dependent v2.
+    generalize dependent p.
     pose H1 as Hestep2.
     induction Hestep2; intros; subst; try discriminate; unfold_cfgs;
       unfold cterm2_ok in H2; destruct_pairs; subst.
-    - inversion H4; subst.
-      apply (H x v1 v2 bt p); split; auto. 
-    - inversion Heqecfg; subst.
-      inversion H5; subst.
-      assert (protected q).
-      apply (econfig2_locs_protected (Ederef e) m0 G d r m (m l) v1 v2 bt bt
-                                     (sec_level_join p0 q) p0 q md md' rt e); auto.
-             rewrite H3; auto.
-      apply (join_protected_r p0 q); auto.
+     - inversion H4; subst.
+       apply (H0 x v1 v2 bt p); split; auto.
+     - rewrite H3 in *.
+       assert (exists v' v'', v1 = VPair v' v'' \/ v2 = VPair v' v'').
+       pose (apply_op_pair op v1 v2) as Hop_pair.
+       destruct Hop_pair as [Hop1 Hop2].
+       assert (contains_nat v1 /\ contains_nat v2 /\
+               (exists v3 v4 : val, apply_op op v1 v2 = VPair v3 v4)).
+       split; auto. split; auto. exists v3. exists v0.  auto.
+       apply Hop1 in H. destruct H. destruct H. destruct_pairs.
+       exists x. exists x0. auto.
+       inversion H4; subst; try discriminate.
+       destruct H. destruct H. destruct H.
+       -- assert (protected p0).
+          eapply (IHHestep2_1 Hestep2_1). unfold cterm2_ok; auto.
+          apply H. apply H14. auto.
+          now apply (join_protected_l p0 q).
+       -- assert (protected q ).
+          eapply (IHHestep2_2 Hestep2_2). unfold cterm2_ok; auto.
+          apply H. apply H18. auto.
+          now apply (join_protected_r p0 q).
+     - inversion Heqecfg; subst.
+       inversion H5; subst.
+       assert (protected q).
+       apply (econfig2_locs_protected (Ederef e) m0 G d r m (m l) v1 v2 bt bt
+                                      (sec_level_join p0 q) p0 q md md' rt e); auto.
+       apply (join_protected_r p0 q); auto.
   Qed.
 
   Lemma impe2_final_config_preservation (G: context) (d: loc_mode) (m0: mem2) :
@@ -767,8 +788,8 @@ Section Guarantees.
       pose (project_merge_inv_trace t1 t2 false) as Ht2; simpl in *.
       now rewrite Ht1, Ht2, t1_empty, t2_empty.
     (* ENCLAVE *)
-    - assert (imm_premise (cstep2 (Encl enc) d (c, r, m) (r'0, m'0) tr)
-                          (cstep2 Normal d (Cenclave enc c, r, m) (r'0, m'0) tr))
+    - assert (imm_premise c (Encl enc) r m r'0 m'0 tr
+                          (Cenclave enc c) Normal r m r'0 m'0 tr d)
         as HIP by now apply IPencl.
       pose (impe2_type_preservation G d m0 pc Normal (Cenclave enc c) r m G' HGwt Hccfg2ok
                                     (Encl enc) c r m r'0 m'0 tr _ _ _ HIP) as Lemma6.

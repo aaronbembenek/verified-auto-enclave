@@ -154,8 +154,64 @@ Section Semantics.
                                   VPair (Vnat (op n1 n3)) (Vnat (op n2 n4))
      | _, _ => v1
      end.
-   
-  Inductive estep2 : esemantics2 :=
+
+   Lemma apply_op_pair (op : nat -> nat -> nat) (v1 v2: val2) :
+       contains_nat v1 /\ contains_nat v2 /\
+       (exists v3 v4, apply_op op v1 v2 = VPair v3 v4) <->
+       exists v' v'', contains_nat v1 /\ contains_nat v2 /\
+                      (v1 = VPair v' v'' \/ v2 = VPair v' v'').
+   Proof.
+     intros.
+     split; intros; destruct_pairs.
+     induction v1, v2; unfold apply_op in *; destruct H1; destruct H1.
+     destruct v, v0; try discriminate.
+     - destruct v, v0; try discriminate.
+       destruct v1; try discriminate.
+       exists (Vnat n0). exists (Vnat n1).
+       split; auto. 
+     - destruct v, v0; try discriminate.
+       1-4: unfold contains_nat in H; destruct H; destruct H;
+         [discriminate | destruct H; inversion H].
+       2-5: unfold contains_nat in H; destruct H; destruct H;
+         [discriminate | destruct H; inversion H].
+       exists (Vnat n). exists (Vnat n0). split; auto.
+     - destruct v, v0; try discriminate.
+       1-4: unfold contains_nat in H; destruct H; destruct H;
+         [discriminate | destruct H; inversion H].
+       2-5: unfold contains_nat in H; destruct H; destruct H;
+         [discriminate | destruct H; inversion H].
+       exists (Vnat n). exists (Vnat n0). split; auto.
+     - destruct H. destruct H. destruct H; destruct_pairs.
+       split; [ | split]; auto.
+       destruct H1.
+       -- rewrite H1. destruct v2; destruct v.
+          destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
+          2-5: destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
+          unfold apply_op.
+          exists x. exists x0. destruct x; auto. destruct x0; auto.
+          unfold apply_op.
+          destruct x; auto. exists (Vlambda m c). exists x0; auto.
+          destruct x0; auto. exists (Vnat n0). exists (Vlambda m c); auto.
+          exists (Vnat (op n0 x1)). exists (Vnat (op n1 x2)); auto.
+          exists (Vnat n0). exists (Vloc l). auto.
+          exists (Vloc l). exists x0. auto.
+       -- rewrite H1 in *. destruct v1; destruct v.
+          destruct H; destruct H; [discriminate | destruct H; inversion H].
+          2-5: destruct H; destruct H; [discriminate | destruct H; inversion H].
+          unfold apply_op.
+          destruct x. destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
+          destruct x0. destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
+          exists (Vnat (op n n0)). exists (Vnat (op n n1)). auto.
+          destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
+          destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
+          unfold apply_op.
+          destruct x; auto. exists (Vnat x1). exists (Vnat x2). auto.
+          destruct x0; auto. exists (Vnat x1). exists (Vnat x2); auto.
+          exists (Vnat (op x1 n0)). exists (Vnat (op x2 n1)); auto.
+          1-2: exists (Vnat x1); exists (Vnat x2); auto.
+   Qed.
+       
+   Inductive estep2 : esemantics2 :=
   | Estep2_nat : forall md d ecfg n,
       ecfg_exp2 ecfg = Enat n ->
       estep2 md d ecfg (VSingle (Vnat n))
@@ -335,7 +391,7 @@ Section Semantics.
       cstep2 (Encl encl) d (c, r, m) (r', m') tr ->
       cstep2 Normal d (Cenclave encl c, r, m) (r', m') tr ->
       imm_premise c (Encl encl) r m r' m' tr
-                  (Cenclave encl c) Normal r m r' m tr d
+                  (Cenclave encl c) Normal r m r' m' tr d
   | IPseq1: forall md d c rest r m r' m' r'' m'' tr tr',
       cstep2 md d (c, r, m) (r', m') tr' ->
       cstep2 md d (Cseq rest, r', m') (r'', m'') tr ->
