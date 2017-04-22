@@ -79,7 +79,20 @@ Section TransDef.
       d (Cnd cnd) = md' ->
       md' = E.Normal \/ md = md' ->
       exp_trans sG (S.Eisunset cnd) (S.Typ S.Tnat p)
-                md eG d (E.Eisunset cnd) (E.Typ E.Tnat p).
+                md eG d (E.Eisunset cnd) (E.Typ E.Tnat p)
+  | TRloc : forall sG l t rt (q: sec_level) t' md' md eG d q,
+      ttrans (S.Typ (S.Tref t rt) q) d (E.Typ (E.Tref t' md' rt) q) ->
+      E.loc_context eG (Not_cnd l) = Some (t', rt) ->
+      d (Not_cnd l) = md' ->
+      exp_trans sG (S.Eloc (Not_cnd l)) (S.Typ (S.Tref t rt) q)
+                md eG d (E.Eloc (Not_cnd l)) (E.Typ (E.Tref t' md' rt) q)
+  | TRderef : forall sG (eG: E.context) e s p s' rt q md eG d e' md' p',
+      exp_trans sG e (S.Typ (S.Tref (S.Typ s p) rt) q)
+                md eG d e' (E.Typ (E.Tref (E.Typ s' p) md' rt) q) ->
+      md' = E.Normal \/ md = md' ->
+      p' = policy_join p q ->
+      exp_trans sG (S.Ederef e) (S.Typ s p')
+                md eG d (E.Ederef e') (E.Typ s' p').
 End TransDef.
 
 Section TransProof.  
@@ -93,7 +106,13 @@ Section TransProof.
     - inversion H. eapply E.ETnat.
     - now eapply E.ETvar.
     - inversion H. now eapply E.ETcnd.
-    - admit.
+    - inversion H. eapply E.ETunset with (md':=md'); intuition.
+    - inversion H. now eapply E.ETloc.
+    - eapply E.ETderef with (md':=md') (rt:=rt) (p:=p) (q:=q). inversion H. subst.
+      Restart.
+      induction e. Focus 5. intros.
+      inversion H. inversion H0. subst.
+      
   Admitted.
   
 End TransProof.

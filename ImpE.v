@@ -506,10 +506,11 @@ Section Typing.
       d l = md' ->
       loc_context g l = Some (t, rt) ->
       exp_type md g d (Eloc l) (Typ (Tref t md' rt) (LevelP L))
-  | ETderef : forall md g d e md' s p rt q,
+  | ETderef : forall md g d e md' s p rt q p',
       exp_type md g d e (Typ (Tref (Typ s p) md' rt) q) ->
       md' = Normal \/ md' = md ->
-      exp_type md g d (Ederef e) (Typ s (policy_join p q))
+      p' = policy_join p q ->
+      exp_type md g d (Ederef e) (Typ s p')
   | ETunset : forall md g d cnd md',
       md' = d (Cnd cnd) ->
       md' = Normal \/ md' = md ->
