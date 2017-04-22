@@ -394,11 +394,11 @@ Section Typing.
   | Tnat : base_type
   | Tcond : mode -> base_type
   | Tref : type -> mode -> ref_type -> base_type
-  | Tlambda (G: context) (k:set enclave) (u:set condition) (p: sec_policy)
+  | Tlambda (G: context) (k:set enclave) (u:set condition) (p: policy)
             (md: mode) (G': context) (k':set enclave) : base_type
                            
   with type : Type :=
-  | Typ : base_type -> sec_policy -> type
+  | Typ : base_type -> policy -> type
                                             
   with context : Type :=
   | Cntxt (var_cntxt: var -> option type)
@@ -465,10 +465,16 @@ Section Typing.
   Definition context_wt (G: context) (d: loc_mode) : Prop :=
     forall_loc G (fun l t _ =>
                     let (_, p) := t in
-                    p <> LevelP T /\ (p = LevelP H -> exists i, d l = Encl i)).
+                    (fun p =>
+                       base_policy_le p (LevelP L) \/
+                       (p <> (LevelP T) /\ exists i, d l = Encl i))
+                      (to_base_policy p)) /\
+    forall_var G (fun x t =>
+                    let (_, p) := t in
+                    (fun p => p <> LevelP T) (to_base_policy p)).
   
   Definition is_var_low_context (G: context) : Prop :=
-    forall_var G (fun _ t => let (_, p) := t in p = LevelP L).
+    forall_var G (fun _ t => let (_, p) := t in to_base_policy p = LevelP L).
 
   Definition all_loc_immutable (e: exp) (G: context) : Prop :=
     forall_subexp e (fun e =>
@@ -490,41 +496,40 @@ Section Typing.
 
   (* XXX need this for using List.nth... maybe better option *)
   Definition mt := Cntxt (fun _ => None) (fun _ => None).
-
+  
   (* FIXME: don't have subsumption rule *)
   Inductive exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
   | ETnat : forall md g d n,
-      exp_type md g d (Enat n) (Typ Tnat (LevelP L))
+      exp_type md g d (Enat n) (Typ Tnat (liftp (LevelP L)))
   | ETvar : forall md g d x t,
       var_context g x = Some t -> exp_type md g d (Evar x) t
   | ETcnd : forall md g d a md',
       let l := Cnd a in
       d l = md' ->
-      exp_type md g d (Eloc l) (Typ (Tcond md') (LevelP L))
+      exp_type md g d (Eloc l) (Typ (Tcond md') (liftp (LevelP L)))
   | ETloc : forall md g d a md' t rt,
       let l := Not_cnd a in
       d l = md' ->
       loc_context g l = Some (t, rt) ->
-      exp_type md g d (Eloc l) (Typ (Tref t md' rt) (LevelP L))
+      exp_type md g d (Eloc l) (Typ (Tref t md' rt) (liftp (LevelP L)))
   | ETderef : forall md g d e md' s p rt q p',
       exp_type md g d e (Typ (Tref (Typ s p) md' rt) q) ->
       md' = Normal \/ md' = md ->
-      p' = policy_join p q ->
-      exp_type md g d (Ederef e) (Typ s p')
+      exp_type md g d (Ederef e) (Typ s (JoinP p q p'))
   | ETunset : forall md g d cnd md',
       md' = d (Cnd cnd) ->
       md' = Normal \/ md' = md ->
-      exp_type md g d (Eisunset cnd) (Typ Tnat (LevelP L))
+      exp_type md g d (Eisunset cnd) (Typ Tnat (liftp (LevelP L)))
   | ETlambda : forall md g d c p k u g' g'' k',
       com_type p md g' k u d c g'' k' ->
       exp_type md g d (Elambda md c)
-               (Typ (Tlambda g' k u p md g'' k') (LevelP L))
-  | ETbinop : forall md g d e1 e2 p q f,
+               (Typ (Tlambda g' k u p md g'' k') (liftp (LevelP L)))
+  | ETbinop : forall md g d e1 e2 p q f p',
       exp_type md g d e1 (Typ Tnat p) ->
       exp_type md g d e2 (Typ Tnat q) ->
-      exp_type md g d (Ebinop e1 e2 f) (Typ Tnat (policy_join p q))
+      exp_type md g d (Ebinop e1 e2 f) (Typ Tnat (JoinP p q p'))
 
-  with com_type : sec_policy -> mode -> context -> set enclave ->
+  with com_type : policy -> mode -> context -> set enclave ->
                   set condition -> loc_mode -> com ->
                   context -> set enclave -> Prop :=
   | CTskip : forall pc md g d k u,

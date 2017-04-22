@@ -142,6 +142,8 @@ Section Security.
   Definition policy_le (p q: policy) : Prop :=
     base_policy_le (to_base_policy p) (to_base_policy q).
 
+  Definition liftp p := SingleP p.
+
   (* XXX might need axioms about sec policy lattice. *)
 
   (*
