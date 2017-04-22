@@ -102,36 +102,55 @@ Section Security.
     | L, L => L
     end.
 
-  Inductive sec_policy : Type :=
-  | LevelP : sec_level -> sec_policy
+  Inductive base_policy : Type :=
+  | LevelP : sec_level -> base_policy
   | ErasureP (l1: sec_level) (cnd: condition) (l2: sec_level)
-             (l1_le_l2: sec_level_le l1 l2) : sec_policy.
-  
-  Definition sec_spec : Type :=  location -> sec_policy.
+             (l1_le_l2: sec_level_le l1 l2) : base_policy.
 
+  Inductive policy : Type :=
+  | SingleP : base_policy -> policy
+  (* `JoinP p q r` means that `r` is the join of `p` and `q`. *)
+  | JoinP : policy -> policy -> base_policy -> policy.
+  
+  Definition sec_spec : Type :=  location -> policy.
+
+  (*
   Definition well_formed_spec (g : sec_spec) : Prop :=
     forall l, g l <> LevelP T /\ forall cnd sl pf, g l <> ErasureP T cnd sl pf.
+*)
 
-  Inductive policy_le : relation sec_policy :=
-  | PLE1 : forall l1 l2,
+  Inductive base_policy_le : relation base_policy :=
+  | BPLE1 : forall l1 l2,
       sec_level_le l1 l2 ->
-      policy_le (LevelP l1) (LevelP l2)
-  | PLE2 : forall p1 l2 l2' cnd pf,
-      policy_le p1 (LevelP l2) ->
-      policy_le p1 (ErasureP l2 cnd l2' pf)
-  | PLE3 : forall l1 l1' p2 cnd pf,
-      policy_le (LevelP l1') p2 ->
-      policy_le (ErasureP l1 cnd l1' pf) p2
-  | PLE4 : forall l1 l1' l2 l2' cnd pf1 pf2,
+      base_policy_le (LevelP l1) (LevelP l2)
+  | BPLE2 : forall p1 l2 l2' cnd pf,
+      base_policy_le p1 (LevelP l2) ->
+      base_policy_le p1 (ErasureP l2 cnd l2' pf)
+  | BPLE3 : forall l1 l1' p2 cnd pf,
+      base_policy_le (LevelP l1') p2 ->
+      base_policy_le (ErasureP l1 cnd l1' pf) p2
+  | BPLE4 : forall l1 l1' l2 l2' cnd pf1 pf2,
       sec_level_le l1 l2 ->
       sec_level_le l1' l2' ->
-      policy_le (ErasureP l1 cnd l1' pf1) (ErasureP l2 cnd l2' pf2).
+      base_policy_le (ErasureP l1 cnd l1' pf1) (ErasureP l2 cnd l2' pf2).
 
+  Definition to_base_policy (p: policy) : base_policy :=
+    match p with
+    | SingleP q | JoinP _ _ q => q
+    end.
+
+  Definition policy_le (p q: policy) : Prop :=
+    base_policy_le (to_base_policy p) (to_base_policy q).
+
+  (* XXX might need axioms about sec policy lattice. *)
+
+  (*
   Lemma policy_le_refl : reflexive sec_policy policy_le.
   Proof.
     intro x. destruct x.
     - apply PLE1. apply sec_level_le_refl.
     - apply PLE4; apply sec_level_le_refl.
+    - 
   Qed.
 
   Lemma policy_le_antisymmetric : antisymmetric sec_policy policy_le.
@@ -149,7 +168,7 @@ Section Security.
     - apply policy_le_transitive.
     - apply policy_le_antisymmetric.
   Qed.  
-  
+
   Parameter policy_join : sec_policy -> sec_policy -> sec_policy.
   Axiom policy_le_join : forall p1 p2,
       policy_le p1 (policy_join p1 p2) /\ policy_le p2 (policy_join p1 p2).
@@ -167,6 +186,7 @@ Section Security.
       protected (ErasureP H cnd sl pf) S
   | erase_low: forall cnd S sl pf,
       set_In cnd S -> protected (ErasureP L cnd sl pf) S.
+  *)
 
 End Security.
 
