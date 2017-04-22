@@ -284,7 +284,7 @@ Section Typing.
   | STisunset : forall G x,
       exp_wt G (Eisunset x) (Typ Tnat (LevelP L))
   | STlambda : forall p G U c G' G'',
-      com_wt p G' U c G'' ->
+      prog_wt p G' U c G'' ->
       exp_wt G (Elambda c) (Typ (Tlambda G' U p G'') (LevelP L))
   | STbinop : forall G e1 e2 p q op,
       exp_wt G e1 (Typ Tnat p) ->
@@ -321,15 +321,6 @@ Section Typing.
       p' <> LevelP T ->
       q <> LevelP T ->
       com_wt pc G U (Cupdate e1 e2) G
-  | STseq : forall pc G U coms (Gs: list context),
-      (* There might be a better way to write this with a function
-         that recurses over the list of commands. *)
-      length Gs = length coms + 1 ->
-      nth 0 Gs mt = G ->
-      (forall (i: nat),
-          i < length coms ->
-          com_wt pc (nth i Gs mt) U (nth i coms Cskip) (nth (i + 1) Gs mt)) ->
-      com_wt pc G U (Cseq coms) (nth (length coms) Gs mt)
   | STsetcnd : forall G U cnd,
       ~set_In cnd U ->
       com_wt (LevelP L) G U (Cset cnd) G
@@ -340,20 +331,20 @@ Section Typing.
       com_wt pc G U (Coutput e l) G
   | STifunset : forall pc G U cnd c1 c2 G',
       exp_wt G (Eisunset cnd) (Typ Tnat (LevelP L)) ->
-      com_wt pc G (set_add Nat.eq_dec cnd U) c1 G' ->
-      com_wt pc G U c2 G' ->
+      prog_wt pc G (set_add Nat.eq_dec cnd U) c1 G' ->
+      prog_wt pc G U c2 G' ->
       com_wt pc G U (Cif (Eisunset cnd) c1 c2) G'
   | STifelse : forall pc G U e c1 c2 pc' G' p,
       (forall cnd, e <> Eisunset cnd) ->
       exp_wt G e (Typ Tnat p) ->
-      com_wt pc' G U c1 G' ->
-      com_wt pc' G U c2 G' ->
+      prog_wt pc' G U c1 G' ->
+      prog_wt pc' G U c2 G' ->
       policy_le (policy_join pc p) pc' ->
       p <> LevelP T ->
       com_wt pc G U (Cif e c1 c2) G'
   | STwhile : forall pc G U e c p pc',
       exp_wt G e (Typ Tnat p) ->
-      com_wt pc' G U c G ->
+      prog_wt pc' G U c G ->
       policy_le (policy_join pc p) pc' ->
       p <> LevelP T ->
       com_wt pc G U (Cwhile e c) G
@@ -376,9 +367,21 @@ Section Typing.
                  (fun l t rt =>
                     (forall t' rt', ~loc_in_dom Gplus l t' rt') ->
                     loc_in_dom Gout l t rt) ->
-      com_wt pc G U (Ccall e) Gout.
+      com_wt pc G U (Ccall e) Gout
+
+  with prog_wt : sec_policy -> context -> set condition -> prog ->
+                 context -> Prop :=
+  | STprog : forall pc G U coms (Gs: list context),
+      (* There might be a better way to write this with a function
+         that recurses over the list of commands. *)
+      length Gs = length coms + 1 ->
+      nth 0 Gs mt = G ->
+      (forall (i: nat),
+          i < length coms ->
+          com_wt pc (nth i Gs mt) U (nth i coms Cskip) (nth (i + 1) Gs mt)) ->
+      prog_wt pc G U (Prog coms) (nth (length coms) Gs mt).
 
   Scheme exp_wt_mut := Induction for exp_wt Sort Prop
-  with com_wt_mut := Induction for com_wt Sort Prop.
-
+  with com_wt_mut := Induction for com_wt Sort Prop
+  with prog_wt_mut := Induction for prog_wt Sort Prop.
 End Typing.
