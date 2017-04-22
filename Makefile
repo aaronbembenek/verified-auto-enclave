@@ -4,6 +4,7 @@ OBJS=$(SRCS:.v=.vo)
 all: $(OBJS)
 
 Translation.vo : Translation.v ImpS.vo ImpE.vo
+	coqc $<
 
 IdTrans.vo : IdTrans.v ImpS.vo ImpE.vo
 	coqc $<

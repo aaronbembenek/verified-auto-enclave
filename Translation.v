@@ -19,7 +19,6 @@ Module S := ImpS.
 Module E := ImpE.
 
 Section TypeTrans.
-
   Definition subdom {A B C: Type} (f: A -> option B) (g: A -> option C) :=
     forall x,
       match f x with
@@ -58,5 +57,43 @@ Section TypeTrans.
       S.forall_loc G (fun x t rt =>
                         let (s, p) := t in
                         policy_le p (LevelP L) \/ d x <> E.Normal) ->
-      context_trans G d G'. 
+      context_trans G d G'.
 End TypeTrans.
+
+Section TransDef.
+  Inductive exp_trans : S.context -> S.exp -> S.type -> E.mode -> E.context ->
+    E.loc_mode -> E.exp -> E.type -> Prop :=
+  | TRnat : forall sG n p md eG d,
+      exp_trans sG (S.Enat n) (S.Typ S.Tnat p)
+                md eG d (E.Enat n) (E.Typ E.Tnat p)
+  | TRvar : forall sG x t t' eG md d,
+      ttrans t d t' ->
+      E.var_context eG x = Some t' ->
+      exp_trans sG (S.Evar x) t
+                md eG d (E.Evar x) t'
+  | TRcnd : forall sG cnd p d md md' eG,
+      d (Cnd cnd) = md' ->
+      exp_trans sG (S.Eloc (Cnd cnd)) (S.Typ S.Tcond p)
+                md eG d (E.Eloc (Cnd cnd)) (E.Typ (E.Tcond md') p)
+  | TRisunset : forall sG cnd md' md eG d p,
+      d (Cnd cnd) = md' ->
+      md' = E.Normal \/ md = md' ->
+      exp_trans sG (S.Eisunset cnd) (S.Typ S.Tnat p)
+                md eG d (E.Eisunset cnd) (E.Typ E.Tnat p).
+End TransDef.
+
+Section TransProof.  
+  Lemma exp_trans_sound : forall e sG t md eG d e' t',
+    S.exp_wt sG e t ->
+    exp_trans sG e t md eG d e' t' ->
+    E.exp_type md eG d e' t'.
+  Proof.
+    intros.
+    induction H0.
+    - inversion H. eapply E.ETnat.
+    - now eapply E.ETvar.
+    - inversion H. now eapply E.ETcnd.
+    - admit.
+  Admitted.
+  
+End TransProof.
