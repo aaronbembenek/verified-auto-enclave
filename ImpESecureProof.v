@@ -53,9 +53,9 @@ Section Adequacy.
     induction H; intros; destruct ecfg as [[e' r'] m']; simpl in *; try rewrite H in H0.
     1-3: inversion H0; subst; try discriminate; simpl in H1; congruence.
     inversion H1; subst; try discriminate; simpl in *; congruence.
-    - rewrite H in H2; inversion H2; try discriminate; simpl in *;
+    - rewrite H in H3; inversion H3; try discriminate; simpl in *;
         assert (e1 = e0) by congruence; assert (e2 = e3) by congruence;
-          subst; apply IHestep2_1 in H4; apply IHestep2_2 in H5; congruence.
+          subst; apply IHestep2_1 in H5; apply IHestep2_2 in H6; congruence.
     - rewrite H in H3; inversion H3; subst; try discriminate; simpl in *.
       assert (e0 = e1) by congruence.
       assert (r0 = r1) by congruence.
@@ -69,6 +69,12 @@ Section Adequacy.
     intros; unfold project_reg; destruct (r x); auto.
   Qed.
 
+  Lemma project_comm_mem : forall m b x,
+      (project_mem m b) x = project_value (m x) b.
+  Proof.
+    intros; unfold project_mem; destruct (m x); auto.
+  Qed.
+  
   (* XXX: this might be a pain to prove with registers as functions. Used below in soundness. *)
   Lemma project_update_comm_reg : forall ccfg x v is_left,
       project_reg (ccfg_update_reg2 ccfg x v) is_left = 
@@ -119,6 +125,27 @@ Section Adequacy.
     - cbn; rewrite IHt1; now destruct (event2_to_event a is_left).
   Qed.
 
+  Lemma contains_nat_project_nat : forall v is_left,
+      contains_nat v -> exists n, project_value v is_left = Vnat n.
+  Proof.
+    intros.
+    destruct v.
+    - unfold contains_nat in H; destruct H.
+      + destruct H; exists x; simpl; congruence.
+      + destruct H; destruct H; discriminate.
+    - unfold contains_nat in H; destruct H.
+      + destruct H; discriminate.
+      + destruct H; destruct H.
+        destruct is_left; [exists x | exists x0]; simpl; congruence.
+  Qed.
+
+  Lemma project_value_apply_op : forall op v1 v2 n1 n2 is_left,
+      project_value v1 is_left = Vnat n1 ->
+      project_value v2 is_left = Vnat n2 ->
+      (project_value (apply_op op v1 v2) is_left) = Vnat (op n1 n2).
+  Proof.
+  Admitted.
+      
   Lemma impe2_exp_sound : forall md d e r m v is_left,
       estep2 md d (e, r, m) v ->
       estep md d (e, project_reg r is_left, project_mem m is_left) (project_value v is_left).
@@ -129,14 +156,18 @@ Section Adequacy.
     induction H; intros; try rewrite Heqecfg in H; simpl in *; try rewrite H.
     1-3: constructor; simpl; auto.
     - apply Estep_var with (x:=x); auto; subst; apply project_comm_reg.
-    - apply Estep_binop with (e1:=e1) (e2:=e2); simpl; auto; 
-        [apply (IHestep2_1 e1) | apply (IHestep2_2 e2)];
+    - destruct_conjs.
+      apply contains_nat_project_nat with (is_left := is_left) in H2; destruct H2.
+      apply contains_nat_project_nat with (is_left := is_left) in H3; destruct H3.
+      pose (project_value_apply_op op v1 v2 x x0 is_left H2 H3); rewrite e0.
+      apply Estep_binop with (e1:=e1) (e2:=e2); simpl; auto;
+        [rewrite <- H2; apply (IHestep2_1 e1) | rewrite <- H3; apply (IHestep2_2 e2)];
         rewrite Heqecfg; unfold ecfg_update_exp2; auto.
     - inversion H; subst.
       apply Estep_deref with (e:=e) (l:=l) (m:=project_mem m0 is_left)
                                     (r:=project_reg r0 is_left); simpl; auto.
   Qed.
-       
+
   Lemma impe2_sound : forall md d c r m r' m' t is_left,
     cstep2 md d (c, r, m) (r', m') t ->
     cstep md d (project_ccfg (c, r, m) is_left)
@@ -235,6 +266,18 @@ Section Adequacy.
       + admit.
   Admitted.
 
+  Lemma project_nat_contains_nat : forall v n is_left,
+      project_value v is_left = Vnat n ->
+      contains_nat v.
+  Proof.
+  Admitted.
+
+  Lemma no_location_pairs : forall v l is_left,
+      project_value v is_left = Vloc l ->
+      v = VSingle (Vloc l).
+  Proof.
+  Admitted.
+  
   Lemma impe2_exp_complete : forall md d e r m v'i is_left,
       estep md d (e, project_reg r is_left, project_mem m is_left) v'i ->
       exists v', estep2 md d (e, r, m) v' /\ (project_value v' is_left = v'i).
@@ -252,16 +295,22 @@ Section Adequacy.
     - destruct IHestep1 with (e := e1). rewrite Heqecfg; auto.
       destruct IHestep2 with (e := e2). rewrite Heqecfg; auto.
       destruct_conjs.
-      exists (VSingle (Vnat (op n1 n2))); split.
+      exists (apply_op op x x0); split; auto.
       apply Estep2_binop with (e1:=e1) (e2:=e2); auto.
-      admit.
-      admit.
-      auto.
+      split. now apply project_nat_contains_nat in H5.
+      now apply project_nat_contains_nat in H4.
+      apply project_value_apply_op; auto.
     - assert (r0 = project_reg r is_left) by congruence.
       assert (m0 = project_mem m is_left) by congruence.
       destruct IHestep with (e0 := e). congruence.
-      admit.
-    Admitted. 
+      destruct_conjs.
+      apply no_location_pairs in H6.
+      exists (m l); split.
+      apply Estep2_deref with (e := e) (r :=r) (m := m) (l := l); auto.
+      congruence.
+      rewrite <- H6; auto.
+      rewrite <- project_comm_mem; rewrite <- H4; auto.
+    Qed.
       
   Lemma impe2_complete : forall md d c r m r'i m'i t'i is_left,
       cstep md d (project_ccfg (c, r, m) is_left) (r'i, m'i) t'i ->
@@ -295,9 +344,12 @@ Section Adequacy.
       all: congruence.
     - apply impe2_exp_complete in H1; destruct H1;
         apply impe2_exp_complete in H0; destruct H0; destruct_conjs.
-      (* XXX: need a hypothesis that e1 evaluates to a VSingle of a location *)
-      (* exists r; exists (ccfg_update_mem2 (Cupdate e1 e2, r, m) x0 x); exists []. *)
-      admit.
+      pose (no_location_pairs x0 l is_left H1).
+      exists r; exists (ccfg_update_mem2 (Cupdate e1 e2, r, m) l x); exists []; repeat split.
+      apply Cstep2_update with (e1 := e1) (e2 := e2) (l := l) (v := x); auto.
+      rewrite <- e; auto.
+      congruence.
+      rewrite project_update_comm_mem. unfold project_ccfg; simpl; congruence.
     - apply impe2_exp_complete in H0; destruct H0; destruct_conjs.
       exists r; exists m; exists [Mem2 m; Out2 sl x]; repeat split; try congruence.
       apply Cstep2_output with (e := e); auto.
