@@ -361,15 +361,6 @@ Section Semantics.
                   (Cwhile e c) md r m r'' m'' (tr' ++ tr) d
   .
   Hint Constructors imm_premise.
-
-  Lemma cstep2_eq (c c': com) : forall md d r m rfin mfin tr
-                                                md' d' r' m' rfin' mfin' tr',
-      c = c' /\ r = r' /\ m = m' /\ rfin = rfin' /\ mfin = mfin' /\ tr = tr'
-      /\ md = md' /\ d = d' <->
-      cstep2 md d (c,r,m) (rfin,mfin) tr = cstep2 md' d' (c',r',m') (rfin',mfin') tr'.
-  Proof.
-  Admitted.
-
 End Semantics.
 
 Section Typing.

@@ -572,41 +572,59 @@ Section Preservation.
     induction c; intros; destruct_pairs; inversion H0; try discriminate; subst; unfold_cfgs;
       inversion Hccfg2ok; try discriminate; subst; destruct_pairs;
         inversion H1; try discriminate; subst; unfold_cfgs.
+    (* CALL *)
     - exists p. exists Gm. exists Gp. split. now apply sec_level_join_le_l in H10.
       unfold cconfig2_ok; split; auto; unfold_cfgs.
       admit. (* XXX ew contexts *)
       split.
       eapply (call_fxn_typ _ _ _ _ _ _ _ _ _ _ _ _ _ H1 H9 H2).
       admit. (* XXX ew contexts *)
+    (* ENCLAVE *)
     - exists pc. exists G. exists G'. split. apply sec_level_le_refl.
       split. apply HGwt.
       inversion Hccfg2ok; unfold_cfgs; subst; try discriminate; destruct_pairs.
       inversion H1; try discriminate; unfold_cfgs; subst. inversion H6; subst.
       unfold cconfig2_ok; split; unfold_cfgs; auto.
+    (* SEQ1 *)
     - exists pc. exists G. exists g'.
       split. apply sec_level_le_refl.
       split. auto.
       unfold cconfig2_ok; split; unfold_cfgs; auto.
+    (* SEQ2 *)
     - exists pc. exists g'. exists G'.
       split. apply sec_level_le_refl.
-      split. admit. (* XXX ew contexts *)
+      assert (cconfig2_ok pc md G d m0 (c,r,m) g').
       unfold cconfig2_ok; split; unfold_cfgs; auto.
-      admit. (* XXX ew contexts *)
+      assert (cterm2_ok g' d m0 rmid mmid).
+      eapply impe2_final_config_preservation.
+      admit. (* XXX escape hatch mess *)
+      apply HGwt. apply H8. apply H2.
+      split.
+      unfold context_wt. admit. (* XXX well-typedness of contexts is preserved *)
+      unfold cconfig2_ok in *; unfold cterm2_ok in *; destruct_pairs; unfold_cfgs; auto.
+    (* IF *)
     - exists pc'. exists G. exists G'.
       split. now apply (sec_level_join_le_l pc p pc') in H19.
       split; unfold cconfig2_ok; auto.
+    (* ELSE *)
     - exists pc'. exists G. exists G'.
       split. now apply (sec_level_join_le_l pc p pc') in H18.
       split; unfold cconfig2_ok; auto.
+    (* WHILE1 *)
     - exists pc'. exists G'. exists G'.
       split. now apply (sec_level_join_le_l pc p pc') in H17.
       split; unfold cconfig2_ok; auto.
+    (* WHILE2 *)
     - exists pc. exists G'. exists G'.
       split. now apply sec_level_le_refl.
-      split; unfold cconfig2_ok; unfold_cfgs; auto.
+      assert (cconfig2_ok pc' md G' d m0 (c,r,m) G').
+      unfold cconfig2_ok; split; unfold_cfgs; auto.
+      assert (cterm2_ok G' d m0 rmid mmid).
+      eapply impe2_final_config_preservation.
+      admit. (* XXX escape hatch mess *)
+      apply HGwt. apply H8. apply H4.
       split; auto.
-      split; auto.
-      
+      unfold cterm2_ok in *; unfold cconfig2_ok in *; destruct_pairs; unfold_cfgs; auto.
   Admitted.
 End Preservation.
 
