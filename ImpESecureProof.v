@@ -480,8 +480,9 @@ Section Preservation.
 
   Lemma esc_hatch_reg_irrelevance (e : esc_hatch) :
     forall G md d r m v r' x,
-    is_esc_hatch (Cdeclassify x e) G -> estep2 md d (e, r, m) v ->
-    estep2 md d (e, r', m) v.
+      is_esc_hatch (Cdeclassify x e) G ->
+      estep2 md d (e, r, m) v ->
+      estep2 md d (e, r', m) v.
   Proof.
     intros. unfold is_esc_hatch in *.
     remember (e, r, m) as ecfg2.
@@ -595,52 +596,53 @@ Section Preservation.
         cterm2_ok G' d m0 r' m'.
   Proof.
     intros G' c r m pc md r' m' t Hlocs Hcwt Hcfgok Hcstep.
-    remember (c,r,m) as ccfg2; subst.
-    unfold cconfig2_ok in Hcfgok; destruct_pairs.
-    induction c; unfold cterm2_ok; intros; subst; simpl in *; unfold_cfgs.
+    generalize dependent G.
+    generalize dependent G'.
+    generalize dependent r.
+    generalize dependent m.
+    generalize dependent pc.
+    generalize dependent r'.
+    generalize dependent m'.
+    generalize dependent t.
+    generalize dependent m0.
+    induction c; unfold cterm2_ok; intros; subst; simpl in *; unfold_cfgs;
+    unfold cconfig2_ok in Hcfgok; destruct_pairs; unfold_cfgs.
     (* CSkip *)
     - inversion Hcstep; try discriminate; subst.
         inversion H; try discriminate; subst.
       split; [intros | split; intros]; simpl in *; auto.
       -- now apply H0 in H4.
       -- now apply H1 in H4.
-(*   (* CAssign *)
-    - inversion H3; try discriminate; subst;
-        inversion H4; try discriminate; subst.
+    (* CAssign *)
+    - inversion H; try discriminate; subst.
       split; [intros | split; intros]; simpl in *; auto; unfold_cfgs.
-      -- inversion H12; subst.
-         destruct (Nat.eq_dec x0 x).
-         --- rewrite <- (Nat.eqb_eq x0 x) in e; rewrite e in H9.
+      inversion Hcstep; try discriminate; unfold_cfgs; subst.
+      inversion H9; subst.
+      -- destruct (Nat.eq_dec x x0).
+         --- rewrite <- (Nat.eqb_eq x x0) in e; rewrite e in H4.
              destruct_pairs.
-             assert (protected p).
-             apply (econfig2_pair_protected
-                      md (Cntxt vc lc) d e0 p r m' K' v0 v1 v2 s H m0
-                      H9 H11 H16).
-             (* XXX ergh now we either have to pass in the assumption or *)
-             (* do something weird *)
-             ---- admit.
-             ---- unfold cterm2_ok; split; intros. now apply H5 in H13.
-             ----- split; intros. now apply H6 in H13.
-             ------ split; intros; auto.
-             ---- inversion H10; subst. now apply (join_protected_l p pc).
-         --- rewrite <- (Nat.eqb_neq x0 x) in n. rewrite n in H9.
-             apply H5 in H9; auto.
-      -- now apply H6 in H9.
+             assert (cterm2_ok (Cntxt vc lc) d m0 r m') as Hcterm.
+             unfold cterm2_ok; auto.
+             pose (econfig2_pair_protected
+                     md (Cntxt vc lc) d e0 p r m' v0 v1 v2 s m0
+                     H4 H6 H13 Hcterm)
+               as Heconfig.
+             inversion H5; subst.
+             now apply (join_protected_l p pc).
+         --- rewrite <- (Nat.eqb_neq x x0) in n. rewrite n in H4.
+             now apply H0 in H4.
+      -- inversion Hcstep; subst; try discriminate; unfold_cfgs. now apply H1 in H4.
       -- split; intros; auto.
-         apply (esc_hatch_reg_irrelevance
-                  e1 md' d r m' K' v1
-                  (fun var : var => if var =? x then v0 else r var)); auto.
+         inversion Hcstep; subst; try discriminate; unfold_cfgs.
+         assert (is_esc_hatch (Cdeclassify x e0) (Cntxt vc lc)).
+         unfold is_esc_hatch in *. destruct H4. destruct H4. destruct_pairs.
+         exists x1. exists x2. split; auto.
+         destruct H10; subst.
+         remember (fun var : var => if var =? x0 then v1 else r var) as r'.
+         assert (estep2 md' d (e0,r,m') v0). apply (H2 _ _ _ _ H7 H5).
+         apply (esc_hatch_reg_irrelevance e0 (Cntxt vc lc) md' d r m' v0 r' x H4 H9).
     (* Cdeclassify *)
-    - inversion H3; try discriminate; subst;
-        inversion H4; try discriminate; subst.
-      split; [intros | split; intros]; simpl in *; auto; unfold_cfgs.
-      inversion_clear H12; subst.
-      
-      destruct (Nat.eq_dec x0 x).
-      --- rewrite <- (Nat.eqb_eq x0 x) in e; rewrite e in *.
-          
-          inversion H11; try discriminate; subst.
-*)
+    - 
   Admitted.
 
   Lemma impe2_type_preservation 
