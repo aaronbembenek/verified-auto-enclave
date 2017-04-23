@@ -266,6 +266,8 @@ Section Adequacy.
       + admit.
   Admitted.
 
+  (* XXX: these assumptions are gross, but the semantics become a mess if we
+     dont' have them... *)
   Lemma project_nat_contains_nat : forall v n is_left,
       project_value v is_left = Vnat n ->
       contains_nat v.
@@ -275,6 +277,12 @@ Section Adequacy.
   Lemma no_location_pairs : forall v l is_left,
       project_value v is_left = Vloc l ->
       v = VSingle (Vloc l).
+  Proof.
+  Admitted.
+
+  Lemma no_lambda_pairs : forall v e c is_left,
+      project_value v is_left = Vlambda e c ->
+      v = VSingle (Vlambda e c).
   Proof.
   Admitted.
   
@@ -354,8 +362,18 @@ Section Adequacy.
       exists r; exists m; exists [Mem2 m; Out2 sl x]; repeat split; try congruence.
       apply Cstep2_output with (e := e); auto.
       cbn; now rewrite H0.
-    - admit.
-    - admit.
+    - destruct IHcstep with (c0 := c) (m'i := m') (r'i := r'); auto.
+      do 3 destruct H; destruct_conjs.
+      exists x; exists x0; exists x1; repeat split; auto.
+      apply Cstep2_call with (e := e) (c := c); auto.
+      apply impe2_exp_complete in H0; destruct H0; destruct_conjs.
+      apply no_lambda_pairs in H5; rewrite <- H5; auto.
+      all: congruence.
+    - destruct IHcstep with (c0 := c) (m'i := m') (r'i := r'); auto.
+      do 3 destruct H; destruct_conjs.
+      exists x; exists x0; exists x1; repeat split; auto.
+      apply Cstep2_enclave with (enc := enc) (c := c); auto.
+      all: congruence.
     - exists r; exists m; exists []; repeat split.
       apply Cstep2_seq_nil; auto.
       all: congruence.
