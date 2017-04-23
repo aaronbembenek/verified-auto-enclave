@@ -295,22 +295,19 @@ Section Semantics.
       cstep md d (Cseq tl, r, m) (r', m') tr' ->
       t = tr ++ tr' ->
       cstep md d ccfg (r', m') t
-  | Cstep_if : forall md d ccfg e c1 c2 v r' m' tr,
+  | Cstep_if : forall md d ccfg e c1 c2 r' m' tr,
       ccfg_com ccfg = Cif e c1 c2 ->
-      estep md d (ccfg_to_ecfg e ccfg) v ->
-      ~(v = (Vnat 0)) ->
+      estep md d (ccfg_to_ecfg e ccfg) (Vnat 1) ->
       cstep md d (ccfg_update_com c1 ccfg) (r', m') tr ->
       cstep md d ccfg (r', m') tr
-  | Cstep_else : forall md d ccfg e c1 c2 v r' m' tr,
+  | Cstep_else : forall md d ccfg e c1 c2 r' m' tr,
       ccfg_com ccfg = Cif e c1 c2 ->
-      estep md d (ccfg_to_ecfg e ccfg) v ->
-      v = (Vnat 0) ->
+      estep md d (ccfg_to_ecfg e ccfg) (Vnat 0) ->
       cstep md d (ccfg_update_com c2 ccfg) (r', m') tr ->
       cstep md d ccfg (r', m') tr
-  | Cstep_while_t : forall md d ccfg e c v r m tr r' m' tr',
+  | Cstep_while_t : forall md d ccfg e c r m tr r' m' tr',
       ccfg_com ccfg = Cwhile e c ->
-      estep md d (ccfg_to_ecfg e ccfg) v ->
-      ~(v = (Vnat 0)) ->
+      estep md d (ccfg_to_ecfg e ccfg) (Vnat 1) ->
       cstep md d (ccfg_update_com c ccfg) (r, m) tr ->
       cstep md d (Cwhile e c,r,m) (r', m') tr' ->
       cstep md d ccfg (r', m') (tr++tr')

@@ -27,8 +27,9 @@ Ltac unfold_cfgs :=
   unfold ecfg_update_exp2 in *;
   unfold ccfg_update_com2 in *;
   unfold ccfg_update_mem in *;
-  unfold ccfg_update_reg in *.
-
+  unfold ccfg_update_reg in *;
+  unfold ccfg_update_com in *;
+  unfold ccfg_to_ecfg in *.
 
 (*******************************************************************************
 *
@@ -42,6 +43,11 @@ Section Adequacy.
     | VPair _ _ => False
     | _ => True
     end.
+
+  Lemma l2_zero_or_one (n : nat) : n < 2 -> n = 0 \/ n = 1.
+  Proof.
+    omega.
+  Qed.    
 
   (* XXX: thought I needed this for exp_output_wf, didn't use it. Might still be useful...? *)
   Lemma estep2_deterministic : forall md d e r m v1 v2,
@@ -218,29 +224,24 @@ Section Adequacy.
       (* XXX: getting stuck with a weird induction hypothesis... maybe generalizing wrong *)
       now apply project_app_trace.
     - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *.
-      apply Cstep_if with (e:=e) (c1:=c1) (c2:=c2) (v := (Vnat 1)); auto. discriminate.
+      apply Cstep_if with (e:=e) (c1:=c1) (c2:=c2); auto.
       apply IHcstep2 with (c0 := c1); auto.
     - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *.
-      apply Cstep_else with (e:=e) (c1:=c1) (c2:=c2) (v := (Vnat 0)); auto.
+      apply Cstep_else with (e:=e) (c1:=c1) (c2:=c2); auto.
       apply IHcstep2 with (c0 := c2); auto.
-    - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
-        apply project_merge_inv_reg in H3; apply project_merge_inv_mem in H4;
-          destruct_conjs; subst.
-      destruct is_left; [destruct n1 | destruct n2].
-      1,3: apply Cstep_else with (e := e) (c1 := c1) (c2 := c2) (v := Vnat 0); auto;
-        rewrite project_merge_inv_trace; auto.
-      apply Cstep_if with (e := e) (c1 := c1) (c2 := c2) (v := Vnat (S n1)); auto.
-      discriminate.
-      rewrite project_merge_inv_trace; auto.
-      apply Cstep_if with (e := e) (c1 := c1) (c2 := c2) (v := Vnat (S n2)); auto.
-      discriminate.
-      rewrite project_merge_inv_trace; auto.
+    - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *.
+      destruct H1; apply l2_zero_or_one in H1; apply l2_zero_or_one in H6.
+        apply project_merge_inv_reg in H4; apply project_merge_inv_mem in H5;
+          destruct_conjs; unfold cleft in *; unfold cright in *; subst.
+        destruct is_left; [destruct H1 | destruct H6]; rewrite H in *.
+        1,3: apply Cstep_else with (e := e) (c1 := c1) (c2 := c2).
+        7,8: apply Cstep_if with (e := e) (c1 := c1) (c2 := c2).
+        all: auto; unfold_cfgs; simpl in *; try rewrite project_merge_inv_trace; auto.
     - rewrite project_app_trace; simpl in *; subst.
-      apply Cstep_while_t with (e := e) (c := c) (v := (Vnat 1))
+      apply Cstep_while_t with (e := e) (c := c)
                                         (r := (project_reg r0 is_left))
                                         (m := (project_mem m0 is_left)); auto.
       now apply impe2_exp_sound with (is_left := is_left) in H0.
-      now discriminate.
       now apply IHcstep2_1 with (c0 := c).
       (* XXX problem with inductive hypothesis *)
       apply IHcstep2_2 with (c0 := (Cwhile e c)); auto.
@@ -248,10 +249,14 @@ Section Adequacy.
     - apply Cstep_while_f with (e := e) (c := c); auto.
       now apply impe2_exp_sound with (is_left := is_left) in H0.
     - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
-        apply project_merge_inv_reg in H3; apply project_merge_inv_mem in H4;
+        apply project_merge_inv_reg in H4; apply project_merge_inv_mem in H5;
           destruct_conjs; subst.
-          destruct is_left; [destruct n1 | destruct n2]; rewrite project_merge_inv_trace.
-      +  assert (t1 = [] /\
+      destruct is_left; [destruct n1 | destruct n2]; rewrite project_merge_inv_trace.
+      admit.
+      admit.
+      admit.
+      admit.
+      (* +  assert (t1 = [] /\
                  (project_reg r true) = (project_reg r' true) /\
                  (project_mem m true) = (project_mem m' true)) by
             (inversion H1; subst; auto; try discriminate); destruct_conjs; subst.
@@ -263,7 +268,7 @@ Section Adequacy.
             (inversion H2; subst; auto; try discriminate); destruct_conjs; subst.
         rewrite <- H3; rewrite <- H4.
         apply Cstep_while_f with (e := e) (c := c); auto.
-      + admit.
+      + admit.*)
   Admitted.
 
   (* XXX: these assumptions are gross, but the semantics become a mess if we
