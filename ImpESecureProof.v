@@ -792,22 +792,23 @@ Section Guarantees.
                           (Cenclave enc c) Normal r m r'0 m'0 tr d)
         as HIP by now apply IPencl.
       pose (impe2_type_preservation G d m0 pc Normal (Cenclave enc c) r m G' HGwt Hccfg2ok
-                                    (Encl enc) c r m r'0 m'0 tr _ _ _ HIP) as Lemma6.
+                                    (Encl enc) c r m r'0 m'0 tr _ _ _ Hcstep Hcstep2 HIP) as Lemma6.
       destruct Lemma6; repeat destruct H; destruct_pairs. 
       apply (IHHcstep Hcstep x0 H0 x1 x H1 m r c); auto.
    (* SEQ *)
-    - assert (imm_premise (cstep2 md d (hd, r0, m1) (r, m) tr)
-                          (cstep2 md d (Cseq (hd::tl), r0, m1) (r'0, m'0) (tr++tr')))
-        as HIP1 by apply (IPseq1 _ _ _ _ _ _ _ _ _ _ _ _ Hcstep1 Hcstep3).
+    - assert (imm_premise hd md r0 m1 r m tr
+                          (Cseq (hd::tl)) md r0 m1 r'0 m'0 (tr++tr') d)
+        as HIP1 by apply (IPseq1 _ _ _ _ _ _ _ _ _ _ _ _ Hcstep1 Hcstep3 Hcstep2).
       pose (impe2_type_preservation G d m0 pc md (Cseq (hd::tl)) r0 m1 G' HGwt Hccfg2ok
-                                    md hd r0 m1 r m tr _ _ _ HIP1) as Lemma61.
+                                    md hd r0 m1 r m tr _ _ _ Hcstep1 Hcstep2 HIP1) as Lemma61.
       destruct Lemma61; repeat destruct H; destruct_pairs. 
       pose (IHHcstep1 Hcstep1 x0 H0 x1 x H1 m1 r0 hd) as tr_same.
-      assert (imm_premise (cstep2 md d (Cseq tl, r, m) (r'0, m'0) tr')
-                          (cstep2 md d (Cseq (hd::tl), r0, m1) (r'0, m'0) (tr++tr')))
-        as HIP2 by apply (IPseq2 _ _ _ _ _ _ _ _ _ _ _ _ Hcstep1 Hcstep3).
+      assert (imm_premise (Cseq tl) md r m r'0 m'0 tr'
+                          (Cseq (hd::tl)) md r0 m1 r'0 m'0 (tr++tr') d)
+        as HIP2 by apply (IPseq2 _ _ _ _ _ _ _ _ _ _ _ _ Hcstep1 Hcstep3 Hcstep2).
       pose (impe2_type_preservation G d m0 pc md (Cseq (hd::tl)) r0 m1 G' HGwt Hccfg2ok
-                                    md (Cseq tl) r m r'0 m'0 tr' _ _ _ HIP2) as Lemma62.
+                                    md (Cseq tl) r m r'0 m'0 tr' _ _ _ Hcstep3 Hcstep2 HIP2)
+        as Lemma62.
       destruct Lemma62; repeat destruct H2; destruct_pairs. 
       pose (IHHcstep2 Hcstep3 x3 H3 x4 x2 H4 m r (Cseq tl)) as tr'_same; auto.
       rewrite <- project_trace_app.
@@ -815,19 +816,19 @@ Section Guarantees.
       rewrite tr'_same, tr_same; auto.
       rewrite tobs_sec_level_app. rewrite project_trace_app; auto.
     (* IF *)
-    - assert (imm_premise (cstep2 md d (c1, r, m) (r'0, m'0) tr)
-                          (cstep2 md d (Cif e c1 c2, r, m) (r'0, m'0) tr))
-        as HIP by apply (IPif  _ _ _ _ _ _ _ _ _ _ H0 Hcstep Hcstep2).
+    - assert (imm_premise c1 md r m r'0 m'0 tr
+                          (Cif e c1 c2) md r m r'0 m'0 tr d)
+        as HIP by apply (IPif  _ _ _ _ _ _ _ _ _ _ H0 Hcstep Hcstep2 Hcstep2).
       pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m G' HGwt Hccfg2ok
-                                    md c1 r m r'0 m'0 tr _ _ _ HIP) as Lemma6.
+                                    md c1 r m r'0 m'0 tr _ _ _ Hcstep Hcstep2 HIP) as Lemma6.
       destruct Lemma6; repeat destruct H; destruct_pairs. 
       apply (IHHcstep Hcstep x0 H1 x1 x H2 m r c1); auto.
    (* ELSE *)
-    - assert (imm_premise (cstep2 md d (c2, r, m) (r'0, m'0) tr)
-                          (cstep2 md d (Cif e c1 c2, r, m) (r'0, m'0) tr))
+    - assert (imm_premise c2 md r m r'0 m'0 tr
+                          (Cif e c1 c2) md r m r'0 m'0 tr d)
         as HIP by apply (IPelse  _ _ _ _ _ _ _ _ _ _ H0 Hcstep Hcstep2).
       pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m G' HGwt Hccfg2ok
-                                    md c2 r m r'0 m'0 tr _ _ _ HIP) as Lemma6.
+                                    md c2 r m r'0 m'0 tr _ _ _ Hcstep Hcstep2 HIP) as Lemma6.
       destruct Lemma6; repeat destruct H; destruct_pairs. 
       apply (IHHcstep Hcstep x0 H1 x1 x H2 m r c2); auto.
     (* IFELSE-DIV *)
@@ -851,17 +852,18 @@ Section Guarantees.
       pose (project_merge_inv_trace t1 t2 false) as Ht2; simpl in *.
       now rewrite Ht1, Ht2, H10, H14.
     (* WHILE *)
-    - assert (imm_premise (cstep2 md d (c, r0, m1) (r, m) tr)
-                          (cstep2 md d (Cwhile e c, r0, m1) (r'0, m'0) (tr++tr')))
-        as HIP1 by apply (IPwhilet1 _ _ _ _ _ _ _ _ _ _ _ _ H0 Hcstep1 Hcstep3). 
+    - assert (imm_premise c md r0 m1 r m tr
+                          (Cwhile e c) md r0 m1 r'0 m'0 (tr++tr') d)
+        as HIP1 by apply (IPwhilet1 _ _ _ _ _ _ _ _ _ _ _ _ H0 Hcstep1 Hcstep3 Hcstep2). 
       pose (impe2_type_preservation G d m0 pc md (Cwhile e c) r0 m1 G' HGwt Hccfg2ok
-                                    md c r0 m1 r m tr _ _ _ HIP1) as Lemma61.
+                                    md c r0 m1 r m tr _ _ _ Hcstep1 Hcstep2 HIP1) as Lemma61.
       destruct Lemma61; repeat destruct H; destruct_pairs.
-      assert (imm_premise (cstep2 md d (Cwhile e c, r, m) (r'0, m'0) tr')
-                          (cstep2 md d (Cwhile e c, r0, m1) (r'0, m'0) (tr++tr')))
-        as HIP2 by apply (IPwhilet2 _ _ _ _ _ _ _ _ _ _ _ _ H0 Hcstep1 Hcstep3).
+      assert (imm_premise (Cwhile e c) md r m r'0 m'0 tr'
+                          (Cwhile e c) md r0 m1 r'0 m'0 (tr++tr') d)
+        as HIP2 by apply (IPwhilet2 _ _ _ _ _ _ _ _ _ _ _ _ H0 Hcstep1 Hcstep3 Hcstep2).
       pose (impe2_type_preservation G d m0 pc md (Cwhile e c) r0 m1 G' HGwt Hccfg2ok
-                                    md (Cwhile e c) r m r'0 m'0 tr' _ _ _ HIP2) as Lemma62.
+                                    md (Cwhile e c) r m r'0 m'0 tr' _ _ _ Hcstep3 Hcstep2 HIP2)
+        as Lemma62.
       destruct Lemma62; repeat destruct H3; destruct_pairs; auto.
       pose (IHHcstep1 Hcstep1 x0 H1 x1 x H2 m1 r0 c) as tr'_same.
       pose (IHHcstep2 Hcstep3 x3 H4 x4 x2 H5 m r (Cwhile e c)) as tr_same; auto.
