@@ -466,15 +466,15 @@ Section Typing.
     forall_loc G (fun l t _ =>
                     let (_, p) := t in
                     (fun p =>
-                       base_policy_le p (LevelP L) \/
+                       policy0_le p (LevelP L) \/
                        (p <> (LevelP T) /\ exists i, d l = Encl i))
-                      (to_base_policy p)) /\
+                      (lowerp p)) /\
     forall_var G (fun x t =>
                     let (_, p) := t in
-                    (fun p => p <> LevelP T) (to_base_policy p)).
+                    (fun p => p <> LevelP T) (lowerp p)).
   
   Definition is_var_low_context (G: context) : Prop :=
-    forall_var G (fun _ t => let (_, p) := t in to_base_policy p = LevelP L).
+    forall_var G (fun _ t => let (_, p) := t in lowerp p = LevelP L).
 
   Definition all_loc_immutable (e: exp) (G: context) : Prop :=
     forall_subexp e (fun e =>
@@ -496,38 +496,43 @@ Section Typing.
 
   (* XXX need this for using List.nth... maybe better option *)
   Definition mt := Cntxt (fun _ => None) (fun _ => None).
+
+  Notation low := (SingleP (LevelP L)).
   
   (* FIXME: don't have subsumption rule *)
   Inductive exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
   | ETnat : forall md g d n,
-      exp_type md g d (Enat n) (Typ Tnat (liftp (LevelP L)))
+      exp_type md g d (Enat n) (Typ Tnat low)
   | ETvar : forall md g d x t,
       var_context g x = Some t -> exp_type md g d (Evar x) t
   | ETcnd : forall md g d a md',
       let l := Cnd a in
       d l = md' ->
-      exp_type md g d (Eloc l) (Typ (Tcond md') (liftp (LevelP L)))
+      exp_type md g d (Eloc l) (Typ (Tcond md') low)
   | ETloc : forall md g d a md' t rt,
       let l := Not_cnd a in
       d l = md' ->
       loc_context g l = Some (t, rt) ->
-      exp_type md g d (Eloc l) (Typ (Tref t md' rt) (liftp (LevelP L)))
-  | ETderef : forall md g d e md' s p rt q p',
+      exp_type md g d (Eloc l) (Typ (Tref t md' rt) low)
+  | ETderef : forall md g d e md' s p rt q p'
+                     (wf: lub (lowerp p) (lowerp q) p'),
       exp_type md g d e (Typ (Tref (Typ s p) md' rt) q) ->
       md' = Normal \/ md' = md ->
-      exp_type md g d (Ederef e) (Typ s (JoinP p q p'))
+      exp_type md g d (Ederef e) (Typ s (JoinP (lowerp p) (lowerp q) p' wf))
   | ETunset : forall md g d cnd md',
       md' = d (Cnd cnd) ->
       md' = Normal \/ md' = md ->
-      exp_type md g d (Eisunset cnd) (Typ Tnat (liftp (LevelP L)))
+      exp_type md g d (Eisunset cnd) (Typ Tnat low)
   | ETlambda : forall md g d c p k u g' g'' k',
       com_type p md g' k u d c g'' k' ->
       exp_type md g d (Elambda md c)
-               (Typ (Tlambda g' k u p md g'' k') (liftp (LevelP L)))
-  | ETbinop : forall md g d e1 e2 p q f p',
+               (Typ (Tlambda g' k u p md g'' k') low)
+  | ETbinop : forall md g d e1 e2 p q f p' p0 q0 (wf: lub p0 q0 p'),
       exp_type md g d e1 (Typ Tnat p) ->
       exp_type md g d e2 (Typ Tnat q) ->
-      exp_type md g d (Ebinop e1 e2 f) (Typ Tnat (JoinP p q p'))
+      p0 = lowerp p ->
+      q0 = lowerp q ->
+      exp_type md g d (Ebinop e1 e2 f) (Typ Tnat (JoinP p0 q0 p' wf))
 
   with com_type : policy -> mode -> context -> set enclave ->
                   set condition -> loc_mode -> com ->
@@ -537,17 +542,21 @@ Section Typing.
       com_type pc md g k u d Cskip g k
   | CTkill : forall i g d k u,
       mode_alive (Encl i) k ->
-      com_type (LevelP L) Normal g k u d (Ckill i) g (set_add Nat.eq_dec i k)
-  | CTassign : forall pc md g k u d x e s p q vc lc vc' g',
+      com_type low Normal g k u d (Ckill i) g (set_add Nat.eq_dec i k)
+  | CTassign : forall pc md g k u d x e s p q vc lc vc' g' p0 pc0
+                      (wf: lub pc0 p0 q),
       exp_type md g d e (Typ s p) ->
-      q = policy_join pc p ->
+      pc0 = lowerp pc ->
+      p0 = lowerp p ->
       q <> LevelP T ->
-      policy_le q (LevelP L) \/ md <> Normal ->
+      policy0_le q (LevelP L) \/ md <> Normal ->
       mode_alive md k ->
       g = Cntxt vc lc ->
-      vc' = (fun y => if y =? x then Some (Typ s q) else vc y) ->
+      vc' = (fun y => if y =? x
+                      then Some (Typ s (JoinP pc0 p0 q wf))
+                      else vc y) ->
       g' = Cntxt vc' lc ->
-      com_type pc md g k u d (Cassign x e) g' k
+      com_type pc md g k u d (Cassign x e) g' k. (*
   | CTdeclassify : forall md g k u d x e s p vc lc vc',
       exp_type md g d e (Typ s p) ->
       p <> LevelP T ->
@@ -638,9 +647,9 @@ Section Typing.
                     loc_in_dom Gout l t rt) ->
       com_type pc md G km u d (Ccall e) Gout kp.
   Hint Constructors exp_type com_type.
-  
+  *)
 End Typing.
-
+(*
 
 (*******************************************************************************
 *
@@ -743,5 +752,5 @@ Section Guarantees.
       secure_prog H (g_prime d g I) (cstep_e_chaos I) estep c.
   Proof.
   Admitted.
-       
 End Guarantees.
+*)

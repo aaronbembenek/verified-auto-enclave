@@ -56,7 +56,7 @@ Section TypeTrans.
                           ttrans t d t' /\ E.loc_in_dom G' x t' rt) ->
       S.forall_loc G (fun x t rt =>
                         let (s, p) := t in
-                        policy_le p (LevelP L) \/ d x <> E.Normal) ->
+                        policy0_le (lowerp p) (LevelP L) \/ d x <> E.Normal) ->
       context_trans G d G'.
 End TypeTrans.
 
@@ -64,55 +64,115 @@ Section TransDef.
   Inductive exp_trans : S.context -> S.exp -> S.type -> E.mode -> E.context ->
     E.loc_mode -> E.exp -> E.type -> Prop :=
   | TRnat : forall sG n p md eG d,
+      S.exp_wt sG (S.Enat n) (S.Typ S.Tnat p) ->
       exp_trans sG (S.Enat n) (S.Typ S.Tnat p)
                 md eG d (E.Enat n) (E.Typ E.Tnat p)
   | TRvar : forall sG x t t' eG md d,
+      S.exp_wt sG (S.Evar x) t ->
       ttrans t d t' ->
       E.var_context eG x = Some t' ->
       exp_trans sG (S.Evar x) t
                 md eG d (E.Evar x) t'
   | TRcnd : forall sG cnd p d md md' eG,
+      S.exp_wt sG (S.Eloc (Cnd cnd)) (S.Typ S.Tcond p) ->
       d (Cnd cnd) = md' ->
       exp_trans sG (S.Eloc (Cnd cnd)) (S.Typ S.Tcond p)
                 md eG d (E.Eloc (Cnd cnd)) (E.Typ (E.Tcond md') p)
   | TRisunset : forall sG cnd md' md eG d p,
+      S.exp_wt sG (S.Eisunset cnd) (S.Typ S.Tnat p) ->
       d (Cnd cnd) = md' ->
       md' = E.Normal \/ md = md' ->
       exp_trans sG (S.Eisunset cnd) (S.Typ S.Tnat p)
                 md eG d (E.Eisunset cnd) (E.Typ E.Tnat p)
   | TRloc : forall sG l t rt (q: sec_level) t' md' md eG d q,
+      S.exp_wt sG (S.Eloc (Not_cnd l)) (S.Typ (S.Tref t rt) q) ->
       ttrans (S.Typ (S.Tref t rt) q) d (E.Typ (E.Tref t' md' rt) q) ->
       E.loc_context eG (Not_cnd l) = Some (t', rt) ->
       d (Not_cnd l) = md' ->
       exp_trans sG (S.Eloc (Not_cnd l)) (S.Typ (S.Tref t rt) q)
                 md eG d (E.Eloc (Not_cnd l)) (E.Typ (E.Tref t' md' rt) q)
-  | TRderef : forall sG (eG: E.context) e s p s' rt q md eG d e' md' p',
+  | TRderef : forall sG (eG: E.context) e s p s' rt q md eG d e' md' p'
+                     (wf: lub (lowerp p) (lowerp q) p'),
+      S.exp_wt sG (S.Ederef e) (S.Typ s (JoinP (lowerp p) (lowerp q) p' wf)) ->
       exp_trans sG e (S.Typ (S.Tref (S.Typ s p) rt) q)
                 md eG d e' (E.Typ (E.Tref (E.Typ s' p) md' rt) q) ->
       md' = E.Normal \/ md = md' ->
-      p' = policy_join p q ->
-      exp_trans sG (S.Ederef e) (S.Typ s p')
-                md eG d (E.Ederef e') (E.Typ s' p').
+      exp_trans sG (S.Ederef e) (S.Typ s (JoinP (lowerp p) (lowerp q) p' wf))
+                md eG d (E.Ederef e')
+                (E.Typ s' (JoinP (lowerp p) (lowerp q) p' wf))
+  | TRop : forall sG op e1 s p s' md eG d e1' e2 q e2' p'
+                  (wf: lub (lowerp p) (lowerp q) p'),
+      S.exp_wt sG (S.Ebinop e1 e2 op)
+               (S.Typ s (JoinP (lowerp p) (lowerp q) p' wf)) ->
+      exp_trans sG e1 (S.Typ s p) md eG d e1' (E.Typ s' p) ->
+      exp_trans sG e2 (S.Typ s q) md eG d e2' (E.Typ s' q) ->
+      exp_trans sG (S.Ebinop e1 e2 op)
+                (S.Typ s (JoinP (lowerp p) (lowerp q) p' wf))
+                md eG d (E.Ebinop e1' e2' op)
+                (E.Typ s' (JoinP (lowerp p) (lowerp q) p' wf))
+  | TRlambda : forall sG sGm sGp (U: set condition) p d eG eGm Km
+                      md eGp Kp c c' q,
+      S.exp_wt sG (S.Elambda c) (S.Typ (S.Tlambda sGm U p sGp) q) ->
+      btrans (S.Tlambda sGm U p sGp) d (E.Tlambda eGm Km U p md eGp Kp) ->
+      prog_trans p sGm U c sGp md eGm Km d c' eGp Kp ->
+      E.is_var_low_context eGp \/ md <> E.Normal ->
+      exp_trans sG (S.Elambda c) (S.Typ (S.Tlambda sGm U p sGp) q)
+                md eG d (E.Elambda md c')
+                (E.Typ (E.Tlambda eGm Km U p md eGp Kp) q)
+
+  with prog_trans : policy -> S.context -> set condition -> S.prog ->
+                    S.context -> E.mode -> E.context -> set E.enclave ->
+                    E.loc_mode -> E.com -> E.context -> set E.enclave ->
+                    Prop := .
+
+  Scheme exp_trans_mut := Induction for exp_trans Sort Prop
+  with prog_trans_mut := Induction for prog_trans Sort Prop.
 End TransDef.
 
-Section TransProof.  
+Section TransLemmas.
+  Hint Constructors btrans ttrans context_trans.
+  
+  Lemma trans_exp_ttrans : forall sG e t md eG d e' t',
+      exp_trans sG e t md eG d e' t' ->
+      ttrans t d t'.
+  Proof.
+    intros. induction H; eauto.
+    - inversion IHexp_trans. inversion H5. now constructor.
+    - inversion IHexp_trans1. now constructor.
+  Qed.
+
+  Lemma trans_exp_btrans : forall sG e s p md eG d e' s' q,
+      exp_trans sG e (S.Typ s p) md eG d e' (E.Typ s' q) ->
+      btrans s d s'.
+  Proof.
+    intros. apply trans_exp_ttrans in H. now inversion H.
+  Qed.
+End TransLemmas.
+
+Section TransProof.
+  (* Just admitting this so for now that I can get expressions and
+     commands sorted out before trying this hard case. *)
+  Lemma prog_trans_sound : forall p sGm U c sGp md eGm Km d c' eGp Kp,
+    prog_trans p sGm U c sGp md eGm Km d c' eGp Kp ->
+    E.com_type p md eGm Km U d c' eGp Kp.
+  Admitted.
+  
   Lemma exp_trans_sound : forall e sG t md eG d e' t',
-    S.exp_wt sG e t ->
     exp_trans sG e t md eG d e' t' ->
     E.exp_type md eG d e' t'.
   Proof.
     intros.
-    induction H0.
+    induction H.
     - inversion H. eapply E.ETnat.
     - now eapply E.ETvar.
     - inversion H. now eapply E.ETcnd.
     - inversion H. eapply E.ETunset with (md':=md'); intuition.
     - inversion H. now eapply E.ETloc.
-    - eapply E.ETderef with (md':=md') (rt:=rt) (p:=p) (q:=q). inversion H. subst.
-      Restart.
-      induction e. Focus 5. intros.
-      inversion H. inversion H0. subst.
-      
-  Admitted.
+    - eapply E.ETderef with (md':=md') (rt:=rt); intuition.
+    - inversion H. subst. apply trans_exp_btrans in H1.
+      inversion H1. subst. now eapply E.ETbinop with (p:=p) (q:=q).
+    - inversion H. subst. eapply E.ETlambda.
+      now eapply prog_trans_sound with (sGp:=sGp) (c:=c) (sGm:=sGm).
+  Qed.
   
 End TransProof.

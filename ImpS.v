@@ -186,11 +186,11 @@ Section Typing.
   | Tnat : base_type
   | Tcond : base_type
   | Tref : type -> ref_type -> base_type
-  | Tlambda (G: context) (U: set condition) (p: sec_policy)
+  | Tlambda (G: context) (U: set condition) (p: policy)
             (G': context) : base_type
                            
   with type : Type :=
-  | Typ : base_type -> sec_policy -> type
+  | Typ : base_type -> policy -> type
                                             
   with context : Type :=
   | Cntxt (var_cntxt: var -> option type)
@@ -266,33 +266,38 @@ Section Typing.
 
   (* XXX need this for using List.nth... maybe better option *)
   Definition mt := Cntxt (fun _ => None) (fun _ => None).
+
+  Notation low := (SingleP (LevelP L)).
   
   Inductive exp_wt : context -> exp -> type -> Prop :=
   | STnat : forall G n,
-      exp_wt G (Enat n) (Typ Tnat (LevelP L))
+      exp_wt G (Enat n) (Typ Tnat low)
   | STcond : forall G x,
-      exp_wt G (Eloc (Cnd x)) (Typ Tcond (LevelP L))
+      exp_wt G (Eloc (Cnd x)) (Typ Tcond low)
   | STvar : forall G x t,
       var_context G x = Some t ->
       exp_wt G (Evar x) t
   | STloc : forall G x t rt,
       loc_context G (Not_cnd x) = Some (t, rt) ->
-      exp_wt G (Eloc (Not_cnd x)) (Typ (Tref t rt) (LevelP L))
-  | STderef : forall G e s p q rt,
+      exp_wt G (Eloc (Not_cnd x)) (Typ (Tref t rt) low)
+  | STderef : forall G e s p q rt p' (wf: lub (lowerp p) (lowerp q) p'),
       exp_wt G e (Typ (Tref (Typ s p) rt) q) ->
-      exp_wt G (Ederef e) (Typ s (policy_join p q))
+      exp_wt G (Ederef e) (Typ s (JoinP (lowerp p) (lowerp q) p' wf))
   | STisunset : forall G x,
-      exp_wt G (Eisunset x) (Typ Tnat (LevelP L))
-  | STlambda : forall p G U c G' G'',
-      prog_wt p G' U c G'' ->
-      exp_wt G (Elambda c) (Typ (Tlambda G' U p G'') (LevelP L))
-  | STbinop : forall G e1 e2 p q op,
+      exp_wt G (Eisunset x) (Typ Tnat low)
+  | STbinop : forall G e1 e2 p q op p0 q0 p' (wf: lub p0 q0 p'),
       exp_wt G e1 (Typ Tnat p) ->
       exp_wt G e2 (Typ Tnat q) ->
-      exp_wt G (Ebinop e1 e2 op) (Typ Tnat (policy_join p q))
+      p0 = lowerp p ->
+      q0 = lowerp q ->
+      exp_wt G (Ebinop e1 e2 op) (Typ Tnat (JoinP p0 q0 p' wf))
+             
+  | STlambda : forall p G U c G' G'',
+      prog_wt p G' U c G'' ->
+      exp_wt G (Elambda c) (Typ (Tlambda G' U p G'') low)
 
-  with com_wt : sec_policy -> context -> set condition -> com ->
-                context -> Prop :=
+  with com_wt : policy -> context -> set condition -> com ->
+                context -> Prop := (*
   | STskip : forall pc G U,
       com_wt pc G U Cskip G
   | STassign : forall pc U x e s p q vc lc vc',
@@ -368,8 +373,8 @@ Section Typing.
                     (forall t' rt', ~loc_in_dom Gplus l t' rt') ->
                     loc_in_dom Gout l t rt) ->
       com_wt pc G U (Ccall e) Gout
-
-  with prog_wt : sec_policy -> context -> set condition -> prog ->
+*)
+  with prog_wt : policy -> context -> set condition -> prog ->
                  context -> Prop :=
   | STprog : forall pc G U coms (Gs: list context),
       (* There might be a better way to write this with a function
@@ -380,8 +385,10 @@ Section Typing.
           i < length coms ->
           com_wt pc (nth i Gs mt) U (nth i coms Cskip) (nth (i + 1) Gs mt)) ->
       prog_wt pc G U (Prog coms) (nth (length coms) Gs mt).
+  (*
 
   Scheme exp_wt_mut := Induction for exp_wt Sort Prop
   with com_wt_mut := Induction for com_wt Sort Prop
   with prog_wt_mut := Induction for prog_wt Sort Prop.
+*)
 End Typing.

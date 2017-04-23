@@ -102,45 +102,49 @@ Section Security.
     | L, L => L
     end.
 
-  Inductive base_policy : Type :=
-  | LevelP : sec_level -> base_policy
+  Inductive policy0 : Type :=
+  | LevelP : sec_level -> policy0
   | ErasureP (l1: sec_level) (cnd: condition) (l2: sec_level)
-             (l1_le_l2: sec_level_le l1 l2) : base_policy.
-
-  Inductive policy : Type :=
-  | SingleP : base_policy -> policy
-  (* `JoinP p q r` means that `r` is the join of `p` and `q`. *)
-  | JoinP : policy -> policy -> base_policy -> policy.
-  
-  Definition sec_spec : Type :=  location -> policy.
+             (l1_le_l2: sec_level_le l1 l2) : policy0.
 
   (*
   Definition well_formed_spec (g : sec_spec) : Prop :=
     forall l, g l <> LevelP T /\ forall cnd sl pf, g l <> ErasureP T cnd sl pf.
 *)
 
-  Inductive base_policy_le : relation base_policy :=
+  Inductive policy0_le : relation policy0 :=
   | BPLE1 : forall l1 l2,
       sec_level_le l1 l2 ->
-      base_policy_le (LevelP l1) (LevelP l2)
+      policy0_le (LevelP l1) (LevelP l2)
   | BPLE2 : forall p1 l2 l2' cnd pf,
-      base_policy_le p1 (LevelP l2) ->
-      base_policy_le p1 (ErasureP l2 cnd l2' pf)
+      policy0_le p1 (LevelP l2) ->
+      policy0_le p1 (ErasureP l2 cnd l2' pf)
   | BPLE3 : forall l1 l1' p2 cnd pf,
-      base_policy_le (LevelP l1') p2 ->
-      base_policy_le (ErasureP l1 cnd l1' pf) p2
+      policy0_le (LevelP l1') p2 ->
+      policy0_le (ErasureP l1 cnd l1' pf) p2
   | BPLE4 : forall l1 l1' l2 l2' cnd pf1 pf2,
       sec_level_le l1 l2 ->
       sec_level_le l1' l2' ->
-      base_policy_le (ErasureP l1 cnd l1' pf1) (ErasureP l2 cnd l2' pf2).
+      policy0_le (ErasureP l1 cnd l1' pf1) (ErasureP l2 cnd l2' pf2).
 
-  Definition to_base_policy (p: policy) : base_policy :=
+  Definition ub x y z := policy0_le x z /\ policy0_le y z.
+
+  Definition lub x y z :=
+    ub x y z /\ (forall z0, ub x y z0 -> policy0_le z z0).
+  
+  Inductive policy : Type :=
+  | SingleP : policy0 -> policy
+  | JoinP (p q r: policy0) (wf: lub p q r) : policy.
+  
+  Definition sec_spec : Type :=  location -> policy.
+
+  Definition lowerp (p: policy) : policy0 :=
     match p with
-    | SingleP q | JoinP _ _ q => q
+    | SingleP q | JoinP _ _ q _ => q
     end.
 
   Definition policy_le (p q: policy) : Prop :=
-    base_policy_le (to_base_policy p) (to_base_policy q).
+    policy0_le (lowerp p) (lowerp q).
 
   Definition liftp p := SingleP p.
 
