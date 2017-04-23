@@ -29,7 +29,8 @@ Ltac unfold_cfgs :=
   unfold ccfg_update_mem in *;
   unfold ccfg_update_reg in *;
   unfold ccfg_update_com in *;
-  unfold ccfg_to_ecfg in *.
+  unfold ccfg_to_ecfg in *;
+  unfold project_ccfg.
 
 (*******************************************************************************
 *
@@ -131,6 +132,18 @@ Section Adequacy.
     - cbn; rewrite IHt1; now destruct (event2_to_event a is_left).
   Qed.
 
+  (* Executing a singleton sequence is the same as executing the command *)
+  Lemma cstep_seq_singleton : forall md d c r m r' m' t,
+      cstep md d (Cseq [c], r, m) (r', m') t ->
+      cstep md d (c, r, m) (r', m') t.
+    intros.
+    inversion H; subst; try discriminate; unfold_cfgs.
+    simpl in H3.
+    simpl in H2; assert (tl = []) by congruence.
+    rewrite H0 in H7. inversion H7; subst; try discriminate.
+    rewrite app_nil_r; congruence.    
+  Qed.
+    
   Lemma contains_nat_project_nat : forall v is_left,
       contains_nat v -> exists n, project_value v is_left = Vnat n.
   Proof.
@@ -250,25 +263,18 @@ Section Adequacy.
       now apply impe2_exp_sound with (is_left := is_left) in H0.
     - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
         apply project_merge_inv_reg in H4; apply project_merge_inv_mem in H5;
-          destruct_conjs; subst.
-      destruct is_left; [destruct n1 | destruct n2]; rewrite project_merge_inv_trace.
-      admit.
-      admit.
-      admit.
-      admit.
-      (* +  assert (t1 = [] /\
-                 (project_reg r true) = (project_reg r' true) /\
-                 (project_mem m true) = (project_mem m' true)) by
-            (inversion H1; subst; auto; try discriminate); destruct_conjs; subst.
-         rewrite <- H3; rewrite <- H4.
-         apply Cstep_while_f with (e := e) (c := c); auto.
-      + admit.
-      + assert (t2 = [] /\ (project_reg r false) = (project_reg r' false) /\
-                (project_mem m false) = (project_mem m' false)) by
-            (inversion H2; subst; auto; try discriminate); destruct_conjs; subst.
-        rewrite <- H3; rewrite <- H4.
-        apply Cstep_while_f with (e := e) (c := c); auto.
-      + admit.*)
+          destruct_conjs; apply l2_zero_or_one in H1; apply l2_zero_or_one in H8;
+            unfold cleft in *; unfold cright in *.
+      destruct is_left; [destruct H1; rewrite H1 in * | destruct H8; rewrite H8 in *];
+        rewrite project_merge_inv_trace; subst; unfold_cfgs; simpl in *.
+      1,2: inversion H2; subst; try discriminate.
+      3,4: inversion H3; subst; try discriminate.
+      1,3: apply Cstep_while_f with (e := e) (c := c); auto.
+      all: apply Cstep_while_t with (e := e) (c := c) (r := r0) (m := m0); auto;
+        unfold_cfgs; simpl in *;
+          assert (c = hd) by congruence; rewrite H; auto;
+            assert ([Cwhile e c] = tl) by congruence; subst;
+              now apply cstep_seq_singleton in H10.
   Admitted.
 
   (* XXX: these assumptions are gross, but the semantics become a mess if we

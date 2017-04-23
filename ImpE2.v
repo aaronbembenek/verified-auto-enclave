@@ -361,7 +361,7 @@ Section Semantics.
   | Cstep2_while_div : forall md d ccfg e c n1 n2 r1 m1 t1 r2 m2 t2 rmerge mmerge,
       ccfg_com2 ccfg = Cwhile e c ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VPair (Vnat n1) (Vnat n2)) ->
-      n1 < 2 /\ n1 < 2 ->
+      n1 < 2 /\ n2 < 2 ->
       let cleft := (match n1 with
                     | 0 => Cskip
                     | _ => Cseq [c; Cwhile e c] end) in
