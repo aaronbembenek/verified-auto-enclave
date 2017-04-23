@@ -399,8 +399,21 @@ End Adequacy.
 
 Section Security.
   Definition esc_hatch : Type := exp.
-  Definition is_esc_hatch (c: com) (G: context) := exists x e',
-      c = Cdeclassify x e' /\ exp_novars e' /\ all_loc_immutable e' G.
+  Definition is_esc_hatch (e: exp) (m: mem2) :=
+    forall d c m r' m' t v G,
+     cstep2 Normal d (c, reg_init2, m) (r', m') t ->
+      (exists mdecl md,
+          In (Decl e mdecl) (project_trace t true) ->
+          (* something is only an escape hatch if it evaluates to the same value *)
+          (* when the memory from the original memory evalutes at the time of declassification *)
+          (* also evaluates to the same value. *)
+          (* In this case, we know that the paired memory value *)
+          (* has to also evaluate to the same value *)
+          estep md d (e,reg_init,(project_mem m true)) v
+          /\ estep md d (e,reg_init,mdecl) v
+          /\ estep md d (e,reg_init,(project_mem m false)) v
+          -> estep2 md d (e,reg_init2,m) (VSingle v))
+      /\ exp_novars e /\ all_loc_immutable e G.
 
   Lemma filter_app (f:event -> bool) l1 l2:
     filter f (l1 ++ l2) = filter f l1 ++ filter f l2.
@@ -524,7 +537,7 @@ Section Preservation.
       auto.
   Qed.
 
-  (*Lemma esc_hatch_nopairs_equivalent (e : esc_hatch) : *)
+  Lemma esc_hatch_nopairs_equivalent : True.
 
   (* XXX assume that if the value is a location, then the policy on the location *)
   (* is protected by S. This should be fine because we're assuming this for *)
@@ -588,8 +601,9 @@ Section Preservation.
 
   Lemma impe2_final_config_preservation (G: context) (d: loc_mode) (m0: mem2) :
       forall G' c r m pc md r' m' t,
-        (forall l e v, (exists x, is_esc_hatch (Cdeclassify x e) G) ->
-                       loc_in_exp e G l -> m0 l = VSingle v) -> 
+        (forall e, (exists x, is_esc_hatch (Cdeclassify x e) G) ->
+                   (forall l, loc_in_exp e G l ->
+                              exists v, m0 l = VSingle v)) -> 
         context_wt G d ->
         cconfig2_ok pc md G d m0 (c,r,m) G' ->
         cstep2 md d (c,r,m) (r', m') t ->
@@ -606,7 +620,7 @@ Section Preservation.
     generalize dependent t.
     generalize dependent m0.
     induction c; unfold cterm2_ok; intros; subst; simpl in *; unfold_cfgs;
-    unfold cconfig2_ok in Hcfgok; destruct_pairs; unfold_cfgs.
+      unfold cconfig2_ok in Hcfgok; destruct_pairs; unfold_cfgs.
     (* CSkip *)
     - inversion Hcstep; try discriminate; subst.
         inversion H; try discriminate; subst.
@@ -642,7 +656,28 @@ Section Preservation.
          assert (estep2 md' d (e0,r,m') v0). apply (H2 _ _ _ _ H7 H5).
          apply (esc_hatch_reg_irrelevance e0 (Cntxt vc lc) md' d r m' v0 r' x H4 H9).
     (* Cdeclassify *)
-    - 
+    - inversion H; try discriminate; subst.
+      split; [intros | split; intros]; simpl in *; auto; unfold_cfgs.
+      inversion Hcstep; try discriminate; unfold_cfgs; subst.
+      inversion H10; subst.
+      -- destruct (Nat.eq_dec x x0).
+         --- rewrite <- (Nat.eqb_eq x x0) in e; rewrite e in H4.
+             destruct_pairs.
+             assert (exists x0, is_esc_hatch (Cdeclassify x0 e0) (Cntxt vc lc)).
+             exists x0. unfold is_esc_hatch; exists x0; exists e0; auto.
+             pose (Hlocs e0 H9).
+             admit.
+         --- rewrite <- (Nat.eqb_neq x x0) in n. rewrite n in H4.
+             now apply H0 in H4.
+      -- inversion Hcstep; subst; try discriminate; unfold_cfgs. now apply H1 in H4.
+      -- split; intros; auto.
+         inversion Hcstep; subst; try discriminate; unfold_cfgs.
+         assert (is_esc_hatch (Cdeclassify x e0) (Cntxt vc lc)).
+         unfold is_esc_hatch in *. destruct H4. destruct H4. destruct_pairs.
+         exists x1. exists x2. split; auto.
+         remember (fun var : var => if var =? x0 then v1 else r var) as r'.
+         assert (estep2 md' d (e0,r,m') v0). apply (H2 _ _ _ _ H9 H5).
+         apply (esc_hatch_reg_irrelevance e0 (Cntxt vc lc) md' d r m' v0 r' x H4 H10).
   Admitted.
 
   Lemma impe2_type_preservation 

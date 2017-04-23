@@ -474,6 +474,7 @@ Section Typing.
       exp_type md g d e (Typ s p) ->
       exp_novars e ->
       all_loc_immutable e g ->
+      g = Cntxt vc lc ->
       vc' = (fun y => if y =? x then Some (Typ s (L)) else vc y) ->
       com_type (L) md g d (Cdeclassify x e) (Cntxt vc' lc)
   | CToutput : forall pc md g d e l s p,
