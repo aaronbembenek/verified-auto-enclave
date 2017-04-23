@@ -399,20 +399,12 @@ End Adequacy.
 
 Section Security.
   Definition esc_hatch : Type := exp.
-  Definition is_esc_hatch (e: exp) (m: mem2) :=
-    forall d c m r' m' t v G,
-     cstep2 Normal d (c, reg_init2, m) (r', m') t ->
-      (exists mdecl md,
-          In (Decl e mdecl) (project_trace t true) ->
-          (* something is only an escape hatch if it evaluates to the same value *)
-          (* when the memory from the original memory evalutes at the time of declassification *)
-          (* also evaluates to the same value. *)
-          (* In this case, we know that the paired memory value *)
-          (* has to also evaluate to the same value *)
-          estep md d (e,reg_init,(project_mem m true)) v
-          /\ estep md d (e,reg_init,mdecl) v
-          /\ estep md d (e,reg_init,(project_mem m false)) v
-          -> estep2 md d (e,reg_init2,m) (VSingle v))
+  Definition is_esc_hatch (e: exp) (c: com) (m: mem2) (md: mode) (mdecl: mem) d G v :=
+    forall r' m' t,
+      (cstep2 Normal d (c, reg_init2, m) (r', m') t ->
+       In (Decl e mdecl) (project_trace t true) ->
+       estep md d (e,reg_init,(project_mem m true)) v
+       /\ estep md d (e,reg_init,mdecl) v)
       /\ exp_novars e /\ all_loc_immutable e G.
 
   Lemma filter_app (f:event -> bool) l1 l2:
@@ -438,66 +430,65 @@ Section Security.
   Definition corresponds (G: context) : Prop :=
     (forall l p bt rt, g0 l = p -> (loc_context G) l = Some (Typ bt p, rt))
     /\ (forall x, (var_context G) x = Some (Typ Tnat (L))).
+
+  Definition mem_sl_ind (m: mem2) (sl: sec_level) :=
+    forall l : location,
+      sec_level_le (g0 l) sl ->
+      (project_mem m true) l = (project_mem m false) l.
+
+  Definition mem_esc_hatch_ind (m: mem2) c d G :=
+    forall e v, (exists md mdecl,
+                    is_esc_hatch e c m md mdecl d G v ->
+                    estep md d (e, reg_init, (project_mem m false)) v).
   
-  Definition knowledge_ind (m: mem) (sl: sec_level) (m': mem) : Prop :=
-    forall m2 l sl',
-      merge_mem m m' m2 ->
-      g0 l = sl' ->
-      sec_level_le sl' sl ->
-      (project_mem m2 true) l = (project_mem m2 false) l.
-
-  Definition knowledge_esc (m0 m: mem) (e: esc_hatch) (m': mem) : Prop :=
-    exists md, forall d v,
-        estep md d (e, reg_init, m0) v /\
-        estep md d (e, reg_init, m) v ->
-        estep md d (e, reg_init, m') v.
-
-  Definition secure_prog (sl: sec_level) (d: loc_mode) (c: com) : Prop :=
+  Definition secure_prog (sl: sec_level) (d: loc_mode) (c: com) (G: context) : Prop :=
     forall m0 mknown m r' m' t tobs,
       merge_mem m0 mknown m ->
       cstep2 Normal d (c, reg_init2, m) (r', m') t ->
       tobs = project_trace t true ->
-      knowledge_ind m0 sl mknown ->
-      (forall mdecl e,
-          In (Decl e mdecl) tobs ->
-          (estep md d (e, reg_init, m0) v /\ estep md d (e, reg_init, mdecl) ->
-           is_esc_hatch e m)) ->
+      mem_sl_ind m sl ->
+      mem_esc_hatch_ind m c d G ->
       tobs_sec_level sl tobs = tobs_sec_level sl (project_trace t false).
 End Security.
 
 Section Preservation.
-  Definition cterm2_ok (G: context) (d: loc_mode) (m0: mem2) (r: reg2) (m: mem2) : Prop :=
+  Definition cterm2_ok (c: com) (G: context) (d: loc_mode) (m0: mem2) (r: reg2) (m: mem2) : Prop :=
       (forall x v1 v2 bt p,
           (r x = VPair v1 v2 /\ (var_context G) x = Some (Typ bt p)) -> protected p) 
       /\ (forall l v1 v2 bt p rt,
           (m l = VPair v1 v2 /\ (loc_context G) l = Some (Typ bt p, rt))
           -> protected p)
-      /\ (forall x e v md', is_esc_hatch (Cdeclassify x e) G ->
-                          (estep2 md' d (e, reg_init2, m0) v ->
-                           estep2 md' d (e, r, m) v))
-      /\ knowledge_ind (project_mem m0 true) L (project_mem m0 false).
+      /\ (forall e v,
+             (exists mdecl md', is_esc_hatch e c m0 md' mdecl d G v ->
+                                estep2 md' d (e, reg_init2, m0) (VSingle v) ->
+                                estep2 md' d (e, r, m) (VSingle v)))
+      /\ mem_sl_ind m0 L.
 
   Definition cconfig2_ok (pc: sec_level) (md: mode) (G: context) (d: loc_mode)
-             (m0: mem2) (ccfg2: cconfig2) (G': context) : Prop :=
-    com_type pc md G d (ccfg_com2 ccfg2) G'
+             (m0: mem2) (c: com) (r: reg2) (m: mem2) (G': context) : Prop :=
+    com_type pc md G d c G'
     /\ (forall x v1 v2 bt p,
-           ((ccfg_reg2 ccfg2) x = VPair v1 v2
+           (r x = VPair v1 v2
             /\ (var_context G) x = Some (Typ bt p))
            -> protected p)
     /\ (forall l v1 v2 bt p rt,
-           ((ccfg_mem2 ccfg2) (l) = VPair v1 v2 /\ (loc_context G) (l) = Some (Typ bt p, rt))    
+           ((m l) = VPair v1 v2 /\ (loc_context G) (l) = Some (Typ bt p, rt))    
            -> protected p)
-    /\ (forall x e v md', is_esc_hatch (Cdeclassify x e) G ->
-                        (estep2 md' d  (e, reg_init2, m0) v ->
-                         estep2 md' d (e, ccfg_reg2 ccfg2, ccfg_mem2 ccfg2) v))
-    /\ knowledge_ind (project_mem m0 true) L (project_mem m0 false).
+    /\ (forall e v,
+           (exists mdecl md', is_esc_hatch e c m0 md' mdecl d G v ->
+                              estep2 md' d (e, reg_init2, m0) (VSingle v) ->
+                              estep2 md' d (e, r, m) (VSingle v)))
+    /\ mem_sl_ind m0 L
+    /\ mem_esc_hatch_ind m0 c d G.
 
-  Lemma esc_hatch_reg_irrelevance (e : esc_hatch) :
-    forall G md d r m v r' x,
-      is_esc_hatch (Cdeclassify x e) G ->
-      estep2 md d (e, r, m) v ->
-      estep2 md d (e, r', m) v.
+  Lemma esc_hatch_reg_irrelevance (e : esc_hatch) (c: com) (m0: mem2) :
+    forall v md d r m r' G mdecl v2,
+      mem_esc_hatch_ind m0 c d G ->
+      is_esc_hatch e c m0 md mdecl d G v ->
+      estep2 md d (e, r, m) v2 ->
+      estep2 md d (e, r', m) v2.
   Proof.
+   (*
     intros. unfold is_esc_hatch in *.
     remember (e, r, m) as ecfg2.
     generalize dependent e.
@@ -536,16 +527,15 @@ Section Preservation.
       unfold exp_novars in *; destruct_pairs; inversion H1; auto.
       unfold all_loc_immutable in *; inversion H3; auto.
       auto.
-  Qed.
-
-  Lemma esc_hatch_nopairs_equivalent : True.
+  Qed.    *)
+    Admitted.
 
   (* XXX assume that if the value is a location, then the policy on the location *)
   (* is protected by S. This should be fine because we're assuming this for *)
   (* memories that are indistinguishable *)
   Lemma econfig2_locs_protected (e: exp) (m0: mem2):
     forall G d r m v v1 v2 bt bt' p p' q md md' rt e',
-      knowledge_ind (project_mem m0 true) L (project_mem m0 false) ->
+      mem_sl_ind m0 L ->
       v = VPair v1 v2 ->
       exp_type md G d e (Typ bt p) ->
       estep2 md d (e,r,m) v ->
@@ -555,11 +545,11 @@ Section Preservation.
   Proof.
   Admitted.
 
-  Lemma econfig2_pair_protected : forall md G d e p r m v v1 v2 bt m0,
+  Lemma econfig2_pair_protected (c: com) : forall md G d e p r m v v1 v2 bt m0,
       v = VPair v1 v2 ->
       exp_type md G d e (Typ bt p) ->
       estep2 md d (e,r,m) v ->
-      cterm2_ok G d m0 r m ->
+      cterm2_ok c G d m0 r m ->
       protected p.
   Proof.
     intros.
@@ -600,17 +590,24 @@ Section Preservation.
        apply (join_protected_r p0 q); auto.
   Qed.
 
+  Lemma esc_hatch_locations_single (e : exp) (c : com) (m0: mem2) d G :
+    mem_esc_hatch_ind m0 c d G ->
+    forall e v,
+      (exists md mdecl, is_esc_hatch e c m0 md mdecl d G v) ->
+      (forall l, loc_in_exp e G l -> exists v, m0 l = VSingle v).
+  Proof.
+    intros.
+    unfold mem_esc_hatch_ind in H; unfold is_esc_hatch in *.
+  Admitted.
+                                             
   Lemma impe2_final_config_preservation (G: context) (d: loc_mode) (m0: mem2) :
       forall G' c r m pc md r' m' t,
-        (forall e, (exists x, is_esc_hatch (Cdeclassify x e) G) ->
-                   (forall l, loc_in_exp e G l ->
-                              exists v, m0 l = VSingle v)) -> 
         context_wt G d ->
-        cconfig2_ok pc md G d m0 (c,r,m) G' ->
+        cconfig2_ok pc md G d m0 c r m G' ->
         cstep2 md d (c,r,m) (r', m') t ->
-        cterm2_ok G' d m0 r' m'.
+        cterm2_ok c G' d m0 r' m'.
   Proof.
-    intros G' c r m pc md r' m' t Hlocs Hcwt Hcfgok Hcstep.
+    intros G' c r m pc md r' m' t Hcwt Hcfgok Hcstep.
     generalize dependent G.
     generalize dependent G'.
     generalize dependent r.
@@ -626,27 +623,27 @@ Section Preservation.
     - inversion Hcstep; try discriminate; subst.
         inversion H; try discriminate; subst.
       split; [intros | split; intros]; simpl in *; auto.
-      -- now apply H0 in H4.
-      -- now apply H1 in H4.
+      -- now apply H0 in H5.
+      -- now apply H1 in H5.
     (* CAssign *)
     - inversion H; try discriminate; subst.
       split; [intros | split; intros]; simpl in *; auto; unfold_cfgs.
       inversion Hcstep; try discriminate; unfold_cfgs; subst.
-      inversion H9; subst.
+      inversion H10; subst.
       -- destruct (Nat.eq_dec x x0).
-         --- rewrite <- (Nat.eqb_eq x x0) in e; rewrite e in H4.
+         --- rewrite <- (Nat.eqb_eq x x0) in e; rewrite e in H5.
              destruct_pairs.
-             assert (cterm2_ok (Cntxt vc lc) d m0 r m') as Hcterm.
+             assert (cterm2_ok (Cassign x0 e0) (Cntxt vc lc) d m0 r m') as Hcterm.
              unfold cterm2_ok; auto.
              pose (econfig2_pair_protected
-                     md (Cntxt vc lc) d e0 p r m' v0 v1 v2 s m0
-                     H4 H6 H13 Hcterm)
+                     (Cassign x0 e0) md (Cntxt vc lc) d e0 p r m' v0 v1 v2 s m0
+                     H5 H7 H14 Hcterm)
                as Heconfig.
-             inversion H5; subst.
+             inversion H6; subst.
              now apply (join_protected_l p pc).
-         --- rewrite <- (Nat.eqb_neq x x0) in n. rewrite n in H4.
-             now apply H0 in H4.
-      -- inversion Hcstep; subst; try discriminate; unfold_cfgs. now apply H1 in H4.
+         --- rewrite <- (Nat.eqb_neq x x0) in n. rewrite n in H5.
+             now apply H0 in H5.
+      -- inversion Hcstep; subst; try discriminate; unfold_cfgs. now apply H1 in H5.
       -- split; intros; auto.
          inversion Hcstep; subst; try discriminate; unfold_cfgs.
          assert (is_esc_hatch (Cdeclassify x e0) (Cntxt vc lc)).
@@ -989,7 +986,7 @@ Section Guarantees.
     corresponds G ->
     context_wt G d ->
     com_type (L) Normal G d c G' ->
-    secure_prog L d c.
+    secure_prog L d c G
   Proof.
     unfold secure_prog.
     intros G G' d c Hg0wf Hcorr HGwt Hcomtype
