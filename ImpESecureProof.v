@@ -460,7 +460,8 @@ Section Security.
       knowledge_ind m0 sl mknown ->
       (forall mdecl e,
           In (Decl e mdecl) tobs ->
-          knowledge_esc m0 mdecl e mknown) ->
+          (estep md d (e, reg_init, m0) v /\ estep md d (e, reg_init, mdecl) ->
+           is_esc_hatch e m)) ->
       tobs_sec_level sl tobs = tobs_sec_level sl (project_trace t false).
 End Security.
 
