@@ -435,13 +435,88 @@ Section Adequacy.
                                              (r2 := r'2) (m2 := m'2); auto.
         unfold_cfgs; simpl in *; now subst.
         1,2: inversion Heqcterm1; subst; auto.
-        all: destruct_merge_inv. 
+        all: destruct_merge_inv.
+    (* ENCLAVE *)
+    - inversion H9; subst.
+      destruct IHcstep with (c := c1) (m'1 := m') (r'1 := r') (m'2 := m'2) (r'2 := r'2); auto.
+      do 3 destruct H; destruct_conjs.
+      exists x; exists x0; exists x1; repeat split; auto.
+      apply Cstep2_enclave with (enc := enc0) (c := c1); auto.
+      all: inversion Heqcterm1; subst; auto.
+    (* SEQ_NIL *)
+    - exists r; exists m; exists []; repeat split.
+      apply Cstep2_seq_nil; auto.
+      all: inversion Heqcterm1; now subst.
+    (* SEQ_HD *)
     - admit.
+    (* IF BOTH TRUE *)
+    - inversion H5; subst.
+      e2_determinism x x0 H.
+      destruct x0; subst.
+      + simpl in *; subst.
+        destruct IHcstep with (c := c0) (m'1 := m') (r'1 := r') (m'2 := m'2) (r'2 := r'2); auto.
+        do 3 destruct H4; destruct_conjs.
+        exists x; exists x0; exists x1; repeat split; auto.
+        apply Cstep2_if with (e := e0) (c1 := c0) (c2 := c3); auto.
+        all: inversion Heqcterm1; subst; auto.
+      + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
+        pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
+        exists mr; exists mm; exists (merge_trace (tr, t'2)); repeat split.
+        apply Cstep2_if_div with (e := e0) (c1 := c0) (c2 := c3) (n1 := 1) (n2 := 1)
+                                           (r1 := r') (m1 := m') (r2 := r'2) (m2 := m'2); auto.
+        unfold_cfgs; simpl in *; now subst.
+        all: inversion Heqcterm1; subst; auto; destruct_merge_inv.
+    (* IF TRUE, FALSE *)
+    - inversion H5; subst.
+      e2_determinism x x0 H.
+      destruct x0; subst.
+      + simpl in *; subst; discriminate.
+      + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
+        pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
+        exists mr; exists mm; exists (merge_trace (tr, t'2)); repeat split.
+        apply Cstep2_if_div with (e := e0) (c1 := c0) (c2 := c3) (n1 := 1) (n2 := 0)
+                                           (r1 := r') (m1 := m') (r2 := r'2) (m2 := m'2); auto.
+        unfold_cfgs; simpl in *; now subst.
+        all: inversion Heqcterm1; subst; auto; destruct_merge_inv.
+    (* IF FALSE, TRUE *)
+    - inversion H5; subst.
+      e2_determinism x x0 H.
+      destruct x0; subst.
+      + simpl in *; subst; discriminate.
+      + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
+        pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
+        exists mr; exists mm; exists (merge_trace (tr, t'2)); repeat split.
+        apply Cstep2_if_div with (e := e0) (c1 := c0) (c2 := c3) (n1 := 0) (n2 := 1)
+                                           (r1 := r') (m1 := m') (r2 := r'2) (m2 := m'2); auto.
+        unfold_cfgs; simpl in *; now subst.
+        all: inversion Heqcterm1; subst; auto; destruct_merge_inv.    
+    - inversion H5; subst.
+      e2_determinism x x0 H.
+      destruct x0; subst.
+      + simpl in *; subst.
+        destruct IHcstep with (c := c3) (m'1 := m') (r'1 := r') (m'2 := m'2) (r'2 := r'2); auto.
+        do 3 destruct H4; destruct_conjs.
+        exists x; exists x0; exists x1; repeat split; auto.
+        apply Cstep2_else with (e := e0) (c1 := c0) (c2 := c3); auto.
+        all: inversion Heqcterm1; subst; auto.
+      + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
+        pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
+        exists mr; exists mm; exists (merge_trace (tr, t'2)); repeat split.
+        apply Cstep2_if_div with (e := e0) (c1 := c0) (c2 := c3) (n1 := 0) (n2 := 0)
+                                           (r1 := r') (m1 := m') (r2 := r'2) (m2 := m'2); auto.
+        unfold_cfgs; simpl in *; now subst.
+        all: inversion Heqcterm1; subst; auto; destruct_merge_inv.
+    (* WHILE BOTH TRUE *)
+    - inversion H6; subst.
+      e2_determinism x x0 H.
+      destruct x0; subst.
+      admit.
+      admit.
+    (* WHILE TRUE, FALSE *)
     - admit.
+    (* WHILE FALSE, TRUE *)
     - admit.
-    - admit.
-    - admit.
-    - admit.
+    (* WHILE BOTH FALSE *)
     - admit.
   Admitted.
   
