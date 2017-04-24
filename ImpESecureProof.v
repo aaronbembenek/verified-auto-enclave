@@ -451,11 +451,11 @@ End Adequacy.
 
 (*******************************************************************************
 *
-* SECURITY
+* SECURITY DEFINITIONS
 *
 *******************************************************************************)
 
-Section Security.
+Section Security_Defn.
   
   Parameter g0: sec_spec.
   Parameter immutable_locs: sec_spec -> set location.
@@ -474,13 +474,6 @@ Section Security.
          estep md d (e,reg_init,(project_mem m true)) v
          /\ estep md d (e, reg_init, mdecl) v
          /\ exp_novars e /\ exp_locs_immutable e).
-                                                                                        
-  Lemma filter_app (f:event -> bool) l1 l2:
-    filter f (l1 ++ l2) = filter f l1 ++ filter f l2.
-  Proof.
-    induction l1; simpl; auto. rewrite IHl1. destruct (f a); auto.
-  Qed.
-  
   Definition tobs_sec_level (sl: sec_level) : trace -> trace :=
     filter (fun event => match event with
                          | Out sl' v => sec_level_le_compute sl' sl
@@ -488,12 +481,6 @@ Section Security.
                          | ANonEnc c => true
                          | _ => false                           
                          end).
-
-  Lemma tobs_sec_level_app (sl: sec_level) (l l': trace) :
-    tobs_sec_level sl l ++ tobs_sec_level sl l' = tobs_sec_level sl (l ++ l').
-  Proof.
-    unfold tobs_sec_level. now rewrite (filter_app _ l l').
-  Qed.
 
   Definition corresponds (G: context) : Prop :=
     (forall l p bt rt, g0 l = p -> (loc_context G) l = Some (Typ bt p, rt))
@@ -519,10 +506,8 @@ Section Security.
       mem_sl_ind m sl ->
       mem_esc_hatch_ind m d (escape_hatches_of (project_trace t true) m d) ->
       tobs_sec_level sl tobs = tobs_sec_level sl (project_trace t false).
-End Security.
 
-Section Preservation.
-  Definition cterm2_ok (G: context) (d: loc_mode) (m0: mem2) (r: reg2) (m: mem2)
+    Definition cterm2_ok (G: context) (d: loc_mode) (m0: mem2) (r: reg2) (m: mem2)
              (H: Ensemble esc_hatch)
   : Prop :=
       (forall x v1 v2 bt p,
@@ -547,6 +532,80 @@ Section Preservation.
            -> protected p)
     /\ mem_sl_ind m0 L
     /\ mem_esc_hatch_ind m0 d H.
+End Security_Defn.
+
+(*******************************************************************************
+*
+* SECURITY HELPER LEMMAS
+*
+*******************************************************************************)
+
+Section Security_Helpers.
+  Lemma filter_app (f:event -> bool) l1 l2:
+    filter f (l1 ++ l2) = filter f l1 ++ filter f l2.
+  Proof.
+    induction l1; simpl; auto. rewrite IHl1. destruct (f a); auto.
+  Qed.
+
+  Lemma tobs_sec_level_app (sl: sec_level) (l l': trace) :
+    tobs_sec_level sl l ++ tobs_sec_level sl l' = tobs_sec_level sl (l ++ l').
+  Proof.
+    unfold tobs_sec_level. now rewrite (filter_app _ l l').
+  Qed.
+
+  Lemma esc_hatches_union_eq  (t t' : trace) : forall md d,
+    (Union esc_hatch (escape_hatches_of t md d) (escape_hatches_of t' md d)) = 
+    (escape_hatches_of (t ++ t') md d).
+  Proof.
+    intros.
+    assert (Same_set esc_hatch
+               (Union esc_hatch (escape_hatches_of t md d) (escape_hatches_of t' md d))
+               (escape_hatches_of (t ++ t') md d)) as s.
+       unfold Same_set; split;
+    induction t, t'; simpl; unfold escape_hatches_of; simpl;
+      unfold Included; unfold In; intros.
+    - destruct H; unfold In in *; destruct H; destruct H; destruct H; destruct_pairs; omega.
+    - destruct H; unfold In in *; destruct H; destruct H; destruct H; destruct_pairs;
+        [omega | exists x0; exists x1; exists x2; auto].
+    - destruct H; unfold In in *; destruct H; destruct H; destruct H; destruct_pairs;
+        [exists x0; exists x1; exists x2; rewrite app_nil_r; auto | omega].
+    - destruct H; unfold In in *; destruct H; destruct H; destruct H; destruct_pairs;
+        exists x0; exists x1; exists x2; split; auto.
+      destruct H; [left | right; apply in_app_iff; left]; auto.
+      destruct H; right;
+        [ rewrite H; apply in_app_iff; right; apply in_eq |
+          apply in_app_iff; right; apply in_cons; auto].
+    - destruct H; destruct H; destruct H; omega.
+    - destruct H; destruct H; destruct H; destruct_pairs. apply Union_intror. unfold In.
+      exists x0; exists x1; exists x2; split; auto.
+    - destruct H; destruct H; destruct H; destruct_pairs. apply Union_introl. unfold In.
+      rewrite app_nil_r in H.
+      exists x0; exists x1; exists x2; split; auto.
+    - destruct H; destruct H; destruct H; destruct_pairs. destruct H.
+      apply Union_introl. unfold In.
+      exists x0; exists x1; exists x2; split; auto.
+      apply in_app_or in H; destruct H;
+        [apply Union_introl | apply Union_intror]; unfold In;
+          exists x0; exists x1; exists x2; split; auto.
+    - apply Extensionality_Ensembles in s; auto.
+  Qed.
+
+  Lemma cconfig2_ok_smaller_EH : forall pc md G d m0 c r m G' EH1 EH2,
+    cconfig2_ok pc md G d m0 c r m G' (Union esc_hatch EH1 EH2) ->
+    cconfig2_ok pc md G d m0 c r m G' EH1
+    /\ cconfig2_ok pc md G d m0 c r m G' EH2.
+  Proof.
+    intros.
+    unfold cconfig2_ok in *; destruct_pairs; repeat (split; auto).
+    unfold mem_esc_hatch_ind in *.
+  Admitted.
+
+  Lemma mem_esc_hatch_ind_trace_app (tr tr' : trace) (m0: mem2) : forall d, 
+    mem_esc_hatch_ind m0 d (escape_hatches_of (tr ++ tr') m0 d) ->
+    mem_esc_hatch_ind m0 d (escape_hatches_of (tr) m0 d)
+    /\ mem_esc_hatch_ind m0 d (escape_hatches_of (tr') m0 d).
+  Proof.
+  Admitted.
 
   (* XXX assume that if the value is a location, then the policy on the location *)
   (* is protected by S. This should be fine because we're assuming this for *)
@@ -608,6 +667,40 @@ Section Preservation.
        apply (join_protected_r p0 q); auto.
   Qed.
   
+  Lemma protected_typ_no_obs_output : forall pc md d G c G' r m r' m' tr,
+    com_type pc md G d c G' ->
+    protected pc ->
+    cstep md d (c,r,m) (r',m') tr ->
+    tobs_sec_level L tr = [].
+  Proof.
+    intros.
+  Admitted.
+
+  Lemma protected_while_no_obs_output : forall pc pc' md d G e c r m r' m' tr,
+      com_type pc md G d (Cwhile e c) G ->
+      com_type pc' md G d c G ->
+      protected pc' ->
+      cstep md d (Cseq [c; Cwhile e c],r,m) (r',m') tr ->
+      tobs_sec_level L tr = [].
+  Proof.
+    intros.
+  Admitted.
+
+  Lemma diff_loc_protected : forall m l,
+      mem_sl_ind m L ->
+      (project_mem m true) l <> (project_mem m false) l ->
+      protected (g0 l).
+  Proof.
+  Admitted.
+  
+  Lemma vpair_iff_diff : forall m1 m2 m v1 v2 l,
+      merge_mem m1 m2 m ->
+      m l = VPair v1 v2 <-> m1 l <> m2 l.
+  Proof.
+  Admitted.
+End Security_Helpers.
+
+Section Preservation.
   Lemma impe2_final_config_preservation (G: context) (d: loc_mode) (m0: mem2) :
     forall G' c r m pc md r' m' t H,
       H = escape_hatches_of (project_trace t true) m0 d ->
@@ -680,13 +773,6 @@ Section Preservation.
          
   Admitted.
 
-  Lemma mem_esc_hatch_ind_trace_app (tr tr' : trace) (m0: mem2) : forall d, 
-    mem_esc_hatch_ind m0 d (escape_hatches_of (tr ++ tr') m0 d) ->
-    mem_esc_hatch_ind m0 d (escape_hatches_of (tr) m0 d)
-    /\ mem_esc_hatch_ind m0 d (escape_hatches_of (tr') m0 d).
-  Proof.
-  Admitted.
-  
   Lemma impe2_type_preservation 
         (G: context) (d: loc_mode) (m0: mem2) :
     forall pc md c r m G' H mdmid cmid rmid mmid rmid' mmid' tmid rfin mfin tfin,
@@ -773,63 +859,13 @@ Section Preservation.
   Admitted.
 End Preservation.
 
-(***********************************)
+(*******************************************************************************
+*
+* SECURITY_PASSIVE
+*
+*******************************************************************************)
 
-Section Guarantees.
-  Lemma protected_typ_no_obs_output : forall pc md d G c G' r m r' m' tr,
-    com_type pc md G d c G' ->
-    protected pc ->
-    cstep md d (c,r,m) (r',m') tr ->
-    tobs_sec_level L tr = [].
-  Proof.
-    intros.
-  Admitted.
-
-  Lemma protected_while_no_obs_output : forall pc pc' md d G e c r m r' m' tr,
-      com_type pc md G d (Cwhile e c) G ->
-      com_type pc' md G d c G ->
-      protected pc' ->
-      cstep md d (Cseq [c; Cwhile e c],r,m) (r',m') tr ->
-      tobs_sec_level L tr = [].
-  Proof.
-    intros.
-  Admitted.
-
-  Lemma esc_hatches_union (t t' : trace) : forall md d,
-      Same_set esc_hatch
-               (Union esc_hatch (escape_hatches_of t md d) (escape_hatches_of t' md d))
-               (escape_hatches_of (t ++ t') md d).
-  Proof.
-    intros. unfold Same_set; split;
-    induction t, t'; simpl; unfold escape_hatches_of; simpl;
-      unfold Included; unfold In; intros.
-    - destruct H; unfold In in *; destruct H; destruct H; destruct H; destruct_pairs; omega.
-    - destruct H; unfold In in *; destruct H; destruct H; destruct H; destruct_pairs;
-        [omega | exists x0; exists x1; exists x2; auto].
-    - destruct H; unfold In in *; destruct H; destruct H; destruct H; destruct_pairs;
-        [exists x0; exists x1; exists x2; rewrite app_nil_r; auto | omega].
-    - 
-  Admitted.
-
-  Lemma cconfig2_ok_smaller_EH : forall pc md G d m0 c r m G' EH1 EH2,
-    cconfig2_ok pc md G d m0 c r m G' (Union esc_hatch EH1 EH2) ->
-    cconfig2_ok pc md G d m0 c r m G' EH1
-    /\ cconfig2_ok pc md G d m0 c r m G' EH2.
-  Proof.
-    intros.
-    unfold cconfig2_ok in *; destruct_pairs; repeat (split; auto).
-    unfold mem_esc_hatch_ind in *.
-  Admitted.
-
-  Lemma esc_hatches_union_eq  (t t' : trace) : forall md d,
-       (Union esc_hatch (escape_hatches_of t md d) (escape_hatches_of t' md d)) = 
-       (escape_hatches_of (t ++ t') md d).
-  Proof.
-    intros.
-    pose (esc_hatches_union t t' md d).
-    apply Extensionality_Ensembles in s; auto.
-  Qed.
-  
+Section Secure_Passive.
   Lemma config2_ok_implies_obs_equal (m: mem2) (c: com) (t: trace2) :
     forall pc md G d m0 r G' r' m',
       context_wt G d ->
@@ -1074,19 +1110,7 @@ Section Guarantees.
          pose (project_merge_inv_trace t1 t2 false) as Ht2; simpl in *.
          now rewrite Ht1, Ht2, H12, H16.
   Qed.
-      
-  Lemma diff_loc_protected : forall m l,
-      mem_sl_ind m L ->
-      (project_mem m true) l <> (project_mem m false) l ->
-      protected (g0 l).
-  Proof.
-  Admitted.
-
-  Lemma vpair_iff_diff : forall m1 m2 m v1 v2 l,
-      merge_mem m1 m2 m ->
-      m l = VPair v1 v2 <-> m1 l <> m2 l.
-  Proof.
-  Admitted.
+ 
   
   Lemma secure_passive : forall G G' d c,
     well_formed_spec g0 ->
@@ -1116,16 +1140,5 @@ Section Guarantees.
          apply project_merge_inv_mem in Hmmerge; destruct_pairs; subst; auto.
       -- split; intros; auto.
   Qed.
-         
-(*
-  Lemma secure_n_chaos : forall g G G' K' d c,
-      well_formed_spec g ->
-      corresponds G g ->
-      context_wt G d ->
-      com_type (LevelP L) Normal G nil nil d c G' K' ->
-      secure_prog L g cstep_n_chaos estep c.
-  Proof.
-  Admitted.
-*)       
-End Guarantees.
+End Secure_Passive.
 
