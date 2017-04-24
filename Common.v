@@ -107,11 +107,6 @@ Section Security.
   | ErasureP (l1: sec_level) (cnd: condition) (l2: sec_level)
              (l1_le_l2: sec_level_le l1 l2) : policy0.
 
-  (*
-  Definition well_formed_spec (g : sec_spec) : Prop :=
-    forall l, g l <> LevelP T /\ forall cnd sl pf, g l <> ErasureP T cnd sl pf.
-*)
-
   Inductive policy0_le : relation policy0 :=
   | BPLE1 : forall l1 l2,
       sec_level_le l1 l2 ->
@@ -134,17 +129,23 @@ Section Security.
   
   Inductive policy : Type :=
   | SingleP : policy0 -> policy
-  | JoinP (p q r: policy0) (wf: lub p q r) : policy.
+  | JoinP : policy -> policy -> policy.
+
+  Inductive pdenote : policy -> policy0 -> Prop :=
+  | Psingle : forall p0, pdenote (SingleP p0) p0
+  | Pjoin : forall p p0 p' p'0 q,
+      pdenote p p0 ->
+      pdenote p' p'0 ->
+      lub p0 p'0 q ->
+      pdenote (JoinP p p') q.
   
   Definition sec_spec : Type :=  location -> policy.
 
-  Definition lowerp (p: policy) : policy0 :=
-    match p with
-    | SingleP q | JoinP _ _ q _ => q
-    end.
-
   Definition policy_le (p q: policy) : Prop :=
-    policy0_le (lowerp p) (lowerp q).
+    forall p0 q0,
+      pdenote p p0 ->
+      pdenote q q0 ->
+      policy0_le p0 q0.
 
   Definition liftp p := SingleP p.
 

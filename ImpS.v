@@ -280,18 +280,15 @@ Section Typing.
   | STloc : forall G x t rt,
       loc_context G (Not_cnd x) = Some (t, rt) ->
       exp_wt G (Eloc (Not_cnd x)) (Typ (Tref t rt) low)
-  | STderef : forall G e s p q rt p' (wf: lub (lowerp p) (lowerp q) p'),
+  | STderef : forall G e s p q rt,
       exp_wt G e (Typ (Tref (Typ s p) rt) q) ->
-      exp_wt G (Ederef e) (Typ s (JoinP (lowerp p) (lowerp q) p' wf))
+      exp_wt G (Ederef e) (Typ s (JoinP p q))
   | STisunset : forall G x,
       exp_wt G (Eisunset x) (Typ Tnat low)
-  | STbinop : forall G e1 e2 p q op p0 q0 p' (wf: lub p0 q0 p'),
+  | STbinop : forall G e1 e2 p q op,
       exp_wt G e1 (Typ Tnat p) ->
       exp_wt G e2 (Typ Tnat q) ->
-      p0 = lowerp p ->
-      q0 = lowerp q ->
-      exp_wt G (Ebinop e1 e2 op) (Typ Tnat (JoinP p0 q0 p' wf))
-             
+      exp_wt G (Ebinop e1 e2 op) (Typ Tnat (JoinP p q))
   | STlambda : forall p G U c G' G'',
       prog_wt p G' U c G'' ->
       exp_wt G (Elambda c) (Typ (Tlambda G' U p G'') low)

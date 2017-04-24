@@ -465,16 +465,20 @@ Section Typing.
   Definition context_wt (G: context) (d: loc_mode) : Prop :=
     forall_loc G (fun l t _ =>
                     let (_, p) := t in
-                    (fun p =>
-                       policy0_le p (LevelP L) \/
-                       (p <> (LevelP T) /\ exists i, d l = Encl i))
-                      (lowerp p)) /\
+                    forall p0,
+                      pdenote p p0 ->
+                      policy0_le p0 (LevelP L) \/
+                      (p0 <> (LevelP T) /\ exists i, d l = Encl i)) /\
     forall_var G (fun x t =>
                     let (_, p) := t in
-                    (fun p => p <> LevelP T) (lowerp p)).
+                    forall p0,
+                      pdenote p p0 -> p0 <> LevelP T).
   
   Definition is_var_low_context (G: context) : Prop :=
-    forall_var G (fun _ t => let (_, p) := t in lowerp p = LevelP L).
+    forall_var G (fun _ t => let (_, p) := t in
+                             forall p0,
+                               pdenote p p0 ->
+                               p0 = LevelP L).
 
   Definition all_loc_immutable (e: exp) (G: context) : Prop :=
     forall_subexp e (fun e =>
@@ -514,11 +518,10 @@ Section Typing.
       d l = md' ->
       loc_context g l = Some (t, rt) ->
       exp_type md g d (Eloc l) (Typ (Tref t md' rt) low)
-  | ETderef : forall md g d e md' s p rt q p'
-                     (wf: lub (lowerp p) (lowerp q) p'),
+  | ETderef : forall md g d e md' s p q rt,
       exp_type md g d e (Typ (Tref (Typ s p) md' rt) q) ->
       md' = Normal \/ md' = md ->
-      exp_type md g d (Ederef e) (Typ s (JoinP (lowerp p) (lowerp q) p' wf))
+      exp_type md g d (Ederef e) (Typ s (JoinP p q))
   | ETunset : forall md g d cnd md',
       md' = d (Cnd cnd) ->
       md' = Normal \/ md' = md ->
@@ -527,12 +530,10 @@ Section Typing.
       com_type p md g' k u d c g'' k' ->
       exp_type md g d (Elambda md c)
                (Typ (Tlambda g' k u p md g'' k') low)
-  | ETbinop : forall md g d e1 e2 p q f p' p0 q0 (wf: lub p0 q0 p'),
+  | ETbinop : forall md g d e1 e2 p q op,
       exp_type md g d e1 (Typ Tnat p) ->
       exp_type md g d e2 (Typ Tnat q) ->
-      p0 = lowerp p ->
-      q0 = lowerp q ->
-      exp_type md g d (Ebinop e1 e2 f) (Typ Tnat (JoinP p0 q0 p' wf))
+      exp_type md g d (Ebinop e1 e2 op) (Typ Tnat (JoinP p q))
 
   with com_type : policy -> mode -> context -> set enclave ->
                   set condition -> loc_mode -> com ->
@@ -546,14 +547,12 @@ Section Typing.
   | CTassign : forall pc md g k u d x e s p q vc lc vc' g' p0 pc0
                       (wf: lub pc0 p0 q),
       exp_type md g d e (Typ s p) ->
-      pc0 = lowerp pc ->
-      p0 = lowerp p ->
-      q <> LevelP T ->
+      ~pdenote (JoinP pc p) (LevelP T) ->
       policy0_le q (LevelP L) \/ md <> Normal ->
       mode_alive md k ->
       g = Cntxt vc lc ->
       vc' = (fun y => if y =? x
-                      then Some (Typ s (JoinP pc0 p0 q wf))
+                      then Some (Typ s (JoinP pc p))
                       else vc y) ->
       g' = Cntxt vc' lc ->
       com_type pc md g k u d (Cassign x e) g' k. (*
