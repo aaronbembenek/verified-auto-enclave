@@ -553,6 +553,17 @@ Section Security_Helpers.
     Focus 3.
   Admitted.
 
+  (* XXX nothing connecting loc_context to atual type at location *)
+  Lemma ref_type : forall pc md md' d e1 e2 r m G bt s p0 p p' q l rt,
+    com_type pc md G d (Cupdate e1 e2) G ->
+    estep2 md d (e1, r, m) (VSingle (Vloc l)) ->
+    exp_type md G d e1 (Typ (Tref (Typ s p) md' Mut) q) ->
+    exp_type md G d e2 (Typ s p') ->
+    loc_context G l = Some (Typ bt p0, rt) ->
+    s = bt /\ p = p0.
+  Proof.
+  Admitted.
+  
   Lemma subsumption : forall pc1 pc2 md d G c,
       com_type pc1 md G d c G ->
       sec_level_le pc2 pc1 ->
@@ -716,87 +727,96 @@ Section Security_Helpers.
       m l = VPair v1 v2 <-> m1 l <> m2 l.
   Proof.
   Admitted.
+
 End Security_Helpers.
 
 Section Preservation.
   Lemma impe2_final_config_preservation (G: context) (d: loc_mode) (m0: mem2) :
     forall G' c r m pc md r' m' t H,
+      cstep2 md d (c,r,m) (r', m') t ->
       H = escape_hatches_of (project_trace t true) m0 d ->
       cconfig2_ok pc md G d m0 c r m G' H ->
-      cstep2 md d (c,r,m) (r', m') t ->
       cterm2_ok G' d m0 r' m' H.
   Proof.
-    intros G' c r m pc md r' m' t H Heh Hcfgok Hcstep.
+    intros G' c r m pc md r' m' t H Hcstep Heh Hcfgok.
+    remember (c,r,m) as ccfg.
+    remember (r',m') as cterm.
     generalize dependent G.
     generalize dependent G'.
+    generalize dependent pc.
+    generalize dependent m0.
+    generalize dependent c.
     generalize dependent r.
     generalize dependent m.
-    generalize dependent pc.
     generalize dependent r'.
     generalize dependent m'.
-    generalize dependent t.
-    generalize dependent m0.
-    induction c; unfold cterm2_ok; intros; subst; simpl in *; unfold_cfgs;
-      unfold cconfig2_ok in Hcfgok; destruct_pairs; unfold_cfgs.
+    pose Hcstep as Hcstep'.
+    induction Hcstep'; unfold cterm2_ok; intros; subst; simpl in *; unfold_cfgs;
+      unfold cconfig2_ok in Hcfgok; destruct_pairs; unfold_cfgs; subst;
+        inversion Heqcterm; subst.
     (* CSkip *)
-    - inversion Hcstep; try discriminate; subst.
-        inversion H; try discriminate; subst.
-      split; [intros | split; intros]; simpl in *; auto.
-      -- now apply H0 in H4.
-      -- now apply H1 in H4.
+    - inversion H; try discriminate; subst. split; [intros | split; intros]; simpl in *; auto.
+      -- now apply H1 in H0.
+      -- now apply H2 in H0.
     (* CAssign *)
     - inversion H; try discriminate; subst.
       split; [intros | split; intros]; simpl in *; auto; unfold_cfgs.
-      inversion Hcstep; try discriminate; unfold_cfgs; subst.
-      inversion H9; subst.
       remember (escape_hatches_of (project_trace [] true) m0 d) as esc_hatches.
-      -- destruct (Nat.eq_dec x x0).
-         --- rewrite <- (Nat.eqb_eq x x0) in e; rewrite e in H4.
+      -- destruct (Nat.eq_dec x0 x).
+         --- rewrite <- (Nat.eqb_eq x0 x) in e0; rewrite e0 in H0.
              destruct_pairs.
+             simpl in *; rewrite <- Heqesc_hatches in *.
              assert (cterm2_ok (Cntxt vc lc) d m0 r m' esc_hatches) as Hcterm.
              unfold cterm2_ok; auto.
              pose (econfig2_pair_protected
-                     (Cassign x0 e0) md (Cntxt vc lc) d e0 p r m' v0 v1 v2 s m0 esc_hatches
-                     H4 H6 H13 Hcterm)
+                     (Cassign x e) md (Cntxt vc lc) d e p r m' v v1 v2 s m0 esc_hatches
+                     H0 H7 H1 Hcterm)
                as Heconfig.
-             inversion H5; subst.
+             inversion H6; subst.
              now apply (join_protected_l p pc).
-         --- rewrite <- (Nat.eqb_neq x x0) in n. rewrite n in H4.
-             now apply H0 in H4.
-      -- inversion Hcstep; subst; try discriminate; unfold_cfgs. now apply H1 in H4.
+         --- rewrite <- (Nat.eqb_neq x0 x) in n. rewrite n in H0.
+             now apply H2 in H0.
+      -- inversion Hcstep; subst; try discriminate; unfold_cfgs. now apply H3 in H0.
     (* Cdeclassify *)
     - inversion H; try discriminate; subst.
       split; [intros | split; intros]; simpl in *; auto; unfold_cfgs.
-      inversion Hcstep; try discriminate; unfold_cfgs; subst.
-      inversion H10; subst.
-      -- destruct (Nat.eq_dec x x0).
-         --- rewrite <- (Nat.eqb_eq x x0) in e; rewrite e in H4.
+      -- destruct (Nat.eq_dec x0 x).
+         --- rewrite <- (Nat.eqb_eq x0 x) in e0; rewrite e0 in H0.
              destruct_pairs.
-             unfold mem_esc_hatch_ind in *.
-             unfold escape_hatches_of in *.
-             pose (H3 e0 (project_value v0 true)) as HEH.
-             destruct HEH.
-             unfold In in H9.
-             assert (exists (v : val) (mdecl : mem) (md : mode),
-                        List.In (Decl e0 mdecl) (project_trace [Decl2 e0 m'] true) /\
-                        estep md d (e0, reg_init, project_mem m0 true) v /\
-                        estep md d (e0, reg_init, mdecl) v
-                        /\ exp_novars e0 /\ exp_locs_immutable e0).
-             exists (project_value v0 true). exists (project_mem m' true). exists md.
              (* XXX If m0 is mem_esc_hatch_ind, that means that all locations to compute e *)
              (* must be VSingle vs in the initial memory. furthermore, they are immutable *)
              (* therefore, they must still be VSingle vs and then e must be a Single *)
              admit.
-         --- rewrite <- (Nat.eqb_neq x x0) in n. rewrite n in H4.
-             now apply H0 in H4.
-      -- inversion Hcstep; subst; try discriminate; unfold_cfgs. now apply H1 in H4.
+         --- rewrite <- (Nat.eqb_neq x0 x) in n. rewrite n in H0.
+             now apply H3 in H0.
+      -- now apply H4 in H0.
    (* Cupdate *)
     - inversion H; try discriminate; subst.
-      split; [intros | split; intros]; simpl in *; auto; unfold_cfgs;
-      inversion Hcstep; try discriminate; unfold_cfgs; subst.
-      -- now apply H0 in H4.
-      -- unfold_cfgs. inversion H9; subst; destruct_pairs.
-         
+      split; [intros | split; intros]; simpl in *; auto; unfold_cfgs; subst.
+      -- now apply H3 in H0.
+      -- destruct (Nat.eq_dec l0 l).
+         remember (escape_hatches_of (project_trace [] true) m0 d) as esc_hatches.
+         --- pose e as e'. rewrite <- (Nat.eqb_eq l0 l) in e'; rewrite e' in H0.
+             destruct_pairs.
+             pose (econfig2_pair_protected (Cupdate e1 e2) md G' d e2 p' r' m v v1 v2 s m0
+                                           esc_hatches H0 H9 H2) as Hprotected.
+             simpl in *; rewrite <- Heqesc_hatches in *.
+             assert (cterm2_ok G' d m0 r' m esc_hatches) as cterm2ok by now unfold cterm2_ok in *.
+             apply Hprotected in cterm2ok.
+             assert (p = p0) as peq. eapply ref_type. apply H. apply H1. apply H8. apply H9.
+             rewrite e in H7; apply H7.
+             rewrite <- peq.
+             apply sec_level_join_le_l in H14. apply sec_level_join_le_l in H14.
+             inversion cterm2ok; subst. unfold sec_level_le in *.
+             destruct p0; auto; try omega.
+         --- rewrite <- (Nat.eqb_neq l0 l) in n. rewrite n in H0.
+             now apply H4 in H0.
+    (* Coutput *)
+    - inversion H; try discriminate; subst.
+      inversion Hcstep; try discriminate; subst.
+      split; auto.
+    (* CCall *)
+    - 
   Admitted.
 
   Lemma impe2_type_preservation 
