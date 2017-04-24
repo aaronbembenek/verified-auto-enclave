@@ -528,13 +528,6 @@ Section Typing.
                     loc_in_dom Gout l t rt) ->
       com_type pc md G d (Ccall e) Gout.
 
-  Lemma subsumption : forall pc1 pc2 md d G c,
-      com_type pc1 md G d c G ->
-      sec_level_le pc2 pc1 ->
-      context_wt G d ->
-      com_type pc2 md G d c G.
-    Admitted.
-
 End Typing.
 
 

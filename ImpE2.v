@@ -434,30 +434,3 @@ Section Semantics.
   .
   Hint Constructors imm_premise.
 End Semantics.
-
-Section Typing.
-
-  (* XXX I feel like this should be provable from something... but our typing *)
-  (* system seems to be lacking something *)
-  Lemma call_div_fxn_typ : forall pc md G d e r m Gm p Gp q c1 c2 Gout,
-    com_type pc md G d (Ccall e) Gout ->
-    exp_type md G d e (Typ (Tlambda Gm p md Gp) q) ->
-    estep2 md d (e,r,m) (VPair (Vlambda md c1) (Vlambda md c2)) ->
-    com_type p md Gm d c1 Gp /\ com_type p md Gm d c2 Gp.
-  Admitted.
-
-  (* XXX I feel like this should be provable from something... but our typing *)
-  (* system seems to be lacking something *)
-  Lemma call_fxn_typ : forall pc md G d e r m Gm p Gp q c Gout,
-    com_type pc md G d (Ccall e) Gout ->
-    exp_type md G d e (Typ (Tlambda Gm p md Gp) q) ->
-    estep2 md d (e,r,m) (VSingle (Vlambda md c)) ->
-    com_type p md Gm d c Gp.
-  Proof.
-    intros.
-    inversion H0; try discriminate; subst.
-    inversion H1; try discriminate; subst.
-    Focus 3.
-  Admitted.
-
-End Typing.

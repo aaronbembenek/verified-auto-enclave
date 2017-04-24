@@ -541,6 +541,35 @@ End Security_Defn.
 *******************************************************************************)
 
 Section Security_Helpers.
+  (* XXX I feel like this should be provable from something... but our typing *)
+  (* system seems to be lacking something *)
+  Lemma call_div_fxn_typ : forall pc md G d e r m Gm p Gp q c1 c2 Gout,
+    com_type pc md G d (Ccall e) Gout ->
+    exp_type md G d e (Typ (Tlambda Gm p md Gp) q) ->
+    estep2 md d (e,r,m) (VPair (Vlambda md c1) (Vlambda md c2)) ->
+    com_type p md Gm d c1 Gp /\ com_type p md Gm d c2 Gp.
+  Admitted.
+
+  (* XXX I feel like this should be provable from something... but our typing *)
+  (* system seems to be lacking something *)
+  Lemma call_fxn_typ : forall pc md G d e r m Gm p Gp q c Gout,
+    com_type pc md G d (Ccall e) Gout ->
+    exp_type md G d e (Typ (Tlambda Gm p md Gp) q) ->
+    estep2 md d (e,r,m) (VSingle (Vlambda md c)) ->
+    com_type p md Gm d c Gp.
+  Proof.
+    intros.
+    inversion H0; try discriminate; subst.
+    inversion H1; try discriminate; subst.
+    Focus 3.
+  Admitted.
+
+  Lemma subsumption : forall pc1 pc2 md d G c,
+      com_type pc1 md G d c G ->
+      sec_level_le pc2 pc1 ->
+      com_type pc2 md G d c G.
+    Admitted.
+
   Lemma filter_app (f:event -> bool) l1 l2:
     filter f (l1 ++ l2) = filter f l1 ++ filter f l2.
   Proof.
@@ -704,12 +733,11 @@ Section Preservation.
   Lemma impe2_final_config_preservation (G: context) (d: loc_mode) (m0: mem2) :
     forall G' c r m pc md r' m' t H,
       H = escape_hatches_of (project_trace t true) m0 d ->
-      context_wt G d ->
       cconfig2_ok pc md G d m0 c r m G' H ->
       cstep2 md d (c,r,m) (r', m') t ->
       cterm2_ok G' d m0 r' m' H.
   Proof.
-    intros G' c r m pc md r' m' t H Heh Hcwt Hcfgok Hcstep.
+    intros G' c r m pc md r' m' t H Heh Hcfgok Hcstep.
     generalize dependent G.
     generalize dependent G'.
     generalize dependent r.
@@ -777,35 +805,33 @@ Section Preservation.
         (G: context) (d: loc_mode) (m0: mem2) :
     forall pc md c r m G' H mdmid cmid rmid mmid rmid' mmid' tmid rfin mfin tfin,
       H = escape_hatches_of (project_trace tfin true) m0 d -> 
-      context_wt G d ->
       cconfig2_ok pc md G d m0 c r m G' H ->
         cstep2 mdmid d (cmid, rmid, mmid) (rmid', mmid') tmid
         -> cstep2 md d (c, r, m) (rfin, mfin) tfin
         -> imm_premise cmid mdmid rmid mmid rmid' mmid' tmid
                        c md r m rfin mfin tfin d ->
         exists pcmid Gmid Gmid',
-          sec_level_le pc pcmid /\ context_wt Gmid d /\
-          cconfig2_ok pcmid mdmid Gmid d m0 cmid rmid mmid Gmid' H.
+          sec_level_le pc pcmid /\ cconfig2_ok pcmid mdmid Gmid d m0 cmid rmid mmid Gmid' H.
   Proof.
     intros pc md c r m G' esc_hatches mdmid cmid rmid mmid rmid' mmid' tmid rfin mfin tfin
-           Heh HGwt Hccfg2ok HIP.
-    revert tfin mfin rfin tmid mmid' rmid' mmid rmid cmid mdmid r m G' Hccfg2ok HGwt HIP Heh.
+           Heh Hccfg2ok HIP.
+    revert tfin mfin rfin tmid mmid' rmid' mmid rmid cmid mdmid r m G' Hccfg2ok HIP Heh.
     induction c; intros; destruct_pairs; inversion H0; try discriminate; subst; unfold_cfgs;
       inversion Hccfg2ok; try discriminate; subst; destruct_pairs;
         inversion H1; try discriminate; subst; unfold_cfgs.
     (* CALL *)
     - exists p. exists Gm. exists Gp. split. now apply sec_level_join_le_l in H10.
       unfold cconfig2_ok; split; auto; unfold_cfgs.
-      admit. (* XXX ew contexts *)
-      split.
       eapply (call_fxn_typ _ _ _ _ _ _ _ _ _ _ _ _ _ H1 H9 H2).
+      split; auto.
       admit. (* XXX ew contexts *)
+      split; auto.
+      admit.
     (* ENCLAVE *)
     - exists pc. exists G. exists G'. split. apply sec_level_le_refl.
-      split. apply HGwt.
-      inversion Hccfg2ok; unfold_cfgs; subst; try discriminate; destruct_pairs.
+      split. inversion Hccfg2ok; unfold_cfgs; subst; try discriminate; destruct_pairs.
       inversion H1; try discriminate; unfold_cfgs; subst. inversion H6; subst.
-      inversion H15; subst.
+      inversion H15; subst; auto.
       unfold cconfig2_ok; split; unfold_cfgs; auto.
     (* SEQ1 *)
     - exists pc. exists G. exists g'.
@@ -815,8 +841,6 @@ Section Preservation.
     (* SEQ2 *)
     - exists pc. exists g'. exists G'.
       split. apply sec_level_le_refl.
-      split.
-      admit. (* XXX context-wt *)
       assert (cconfig2_ok pc md G d m0 c r m g'
                           (escape_hatches_of (project_trace tr' true) m0 d))
         as c_ok.
@@ -868,13 +892,12 @@ End Preservation.
 Section Secure_Passive.
   Lemma config2_ok_implies_obs_equal (m: mem2) (c: com) (t: trace2) :
     forall pc md G d m0 r G' r' m',
-      context_wt G d ->
       cconfig2_ok pc md G d m0 c r m G'
                   (escape_hatches_of (project_trace t true) m0 d) ->
       cstep2 md d (c,r,m) (r',m') t ->
       tobs_sec_level L (project_trace t true) = tobs_sec_level L (project_trace t false).
   Proof.
-    intros pc md G d m0 r G' r' m' HGwt Hccfg2ok Hcstep2.
+    intros pc md G d m0 r G' r' m' Hccfg2ok Hcstep2.
     remember (c,r,m) as ccfg.
     generalize dependent c.
     generalize dependent r.
@@ -906,11 +929,11 @@ Section Secure_Passive.
         as HIP by now apply IPcall.
       pose (impe2_type_preservation G d m0 pc md (Ccall e) r m G' EH
                                     md c r m r'0 m'0 tr r'0 m'0 tr 
-                                    HeqEH HGwt Hccfg2ok
+                                    HeqEH Hccfg2ok
                                     Hcstep Hcstep2 HIP)
         as Lemma6.
       destruct Lemma6 as [pcmid [Gmid [Gmid' Lemma6]]]; destruct_pairs; subst.
-      apply (IHHcstep Hcstep Gmid H1 Gmid' pcmid m r c H2); auto.
+      apply (IHHcstep Hcstep Gmid Gmid' pcmid m r c H1); auto.
     (* CALL-DIV *)
     - remember (VPair (Vlambda md c1) (Vlambda md c2)) as v.
       inversion Hccfg2ok; destruct_pairs; unfold_cfgs; subst; auto; try discriminate.
@@ -944,9 +967,9 @@ Section Secure_Passive.
         as HIP by now apply IPencl.
       pose (impe2_type_preservation G d m0 pc Normal (Cenclave enc c) r m G' EH
                                     (Encl enc) c r m r'0 m'0 tr _ _ _ 
-                                    HeqEH HGwt Hccfg2ok Hcstep Hcstep2 HIP) as Lemma6.
+                                    HeqEH Hccfg2ok Hcstep Hcstep2 HIP) as Lemma6.
       destruct Lemma6 as [pcmid [Gmid [Gmid' Lemma6]]]; destruct_pairs; subst.
-      apply (IHHcstep Hcstep Gmid H0 Gmid' pcmid m r c H1); auto.
+      apply (IHHcstep Hcstep Gmid Gmid' pcmid m r c H0); auto.
    (* SEQ *)
     - remember (escape_hatches_of (project_trace tr true) m0 d) as EH1.
       remember (escape_hatches_of (project_trace tr' true) m0 d) as EH2.
@@ -962,26 +985,26 @@ Section Secure_Passive.
       rewrite <- EHapp in *.
       pose (impe2_type_preservation G d m0 pc md (Cseq (hd::tl)) r0 m1 G' EHall
                                     md hd r0 m1 r m tr _ _ _ 
-                                    EHapp HGwt Hccfg2ok Hcstep1 Hcstep2 HIP1) as Lemma61.
+                                    EHapp Hccfg2ok Hcstep1 Hcstep2 HIP1) as Lemma61.
 
       assert (imm_premise (Cseq tl) md r m r'0 m'0 tr'
                           (Cseq (hd::tl)) md r0 m1 r'0 m'0 (tr++tr') d)
         as HIP2 by apply (IPseq2 _ _ _ _ _ _ _ _ _ _ _ _ Hcstep1 Hcstep3 Hcstep2).
       pose (impe2_type_preservation G d m0 pc md (Cseq (hd::tl)) r0 m1 G' EHall
                                     md (Cseq tl) r m r'0 m'0 tr' _ _ _
-                                    EHapp HGwt Hccfg2ok Hcstep3 Hcstep2 HIP2)
+                                    EHapp Hccfg2ok Hcstep3 Hcstep2 HIP2)
         as Lemma62.
 
       destruct Lemma61 as [pcmid1 [Gmid1 [Gmid1' Lemma6]]]; destruct_pairs; subst.
       destruct Lemma62 as [pcmid2 [Gmid2 [Gmid2' Lemma6]]]; destruct_pairs; subst.
       assert (cconfig2_ok pcmid1 md Gmid1 d m0 hd r0 m1 Gmid1'
                           (escape_hatches_of (project_trace tr true) m0 d)) as seq1OK
-          by now apply cconfig2_ok_smaller_EH in H1.
+          by now apply cconfig2_ok_smaller_EH in H0.
       assert (cconfig2_ok pcmid2 md Gmid2 d m0 (Cseq tl) r m Gmid2'
                           (escape_hatches_of (project_trace tr' true) m0 d)) as seq2OK
-          by now apply cconfig2_ok_smaller_EH in H4.
-      pose (IHHcstep1 Hcstep1 Gmid1 H0 Gmid1' pcmid1 m1 r0 hd seq1OK) as tr_same.
-      pose (IHHcstep2 Hcstep3 Gmid2 H3 Gmid2' pcmid2 m r (Cseq tl) seq2OK) as tr'_same.
+          by now apply cconfig2_ok_smaller_EH in H2.
+      pose (IHHcstep1 Hcstep1 Gmid1 Gmid1' pcmid1 m1 r0 hd seq1OK) as tr_same.
+      pose (IHHcstep2 Hcstep3 Gmid2 Gmid2' pcmid2 m r (Cseq tl) seq2OK) as tr'_same.
       rewrite <- project_trace_app.
       rewrite <- tobs_sec_level_app.
       rewrite tr'_same, tr_same; auto.
@@ -993,9 +1016,9 @@ Section Secure_Passive.
          as HIP by apply (IPif  _ _ _ _ _ _ _ _ _ _ H0 Hcstep Hcstep2 Hcstep2).
        pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m G' EH
                                      md c1 r m r'0 m'0 tr _ _ _
-                                     HeqEH HGwt Hccfg2ok Hcstep Hcstep2 HIP) as Lemma6.
+                                     HeqEH Hccfg2ok Hcstep Hcstep2 HIP) as Lemma6.
        destruct Lemma6 as [pcmid [Gmid [Gmid' Lemma6]]]; destruct_pairs; subst.
-       apply (IHHcstep Hcstep Gmid H1 Gmid' pcmid m r c1 H2); auto.
+       apply (IHHcstep Hcstep Gmid Gmid' pcmid m r c1 H1); auto.
     (* ELSE *)
     -  remember (escape_hatches_of (project_trace tr true) m0 d) as EH.
        assert (imm_premise c2 md r m r'0 m'0 tr
@@ -1003,9 +1026,9 @@ Section Secure_Passive.
          as HIP by apply (IPelse _ _ _ _ _ _ _ _ _ _ H0 Hcstep Hcstep2).
        pose (impe2_type_preservation G d m0 pc md (Cif e c1 c2) r m G' EH
                                      md c2 r m r'0 m'0 tr _ _ _
-                                     HeqEH HGwt Hccfg2ok Hcstep Hcstep2 HIP) as Lemma6.
+                                     HeqEH Hccfg2ok Hcstep Hcstep2 HIP) as Lemma6.
        destruct Lemma6 as [pcmid [Gmid [Gmid' Lemma6]]]; destruct_pairs; subst.
-       apply (IHHcstep Hcstep Gmid H1 Gmid' pcmid m r c2 H2); auto.
+       apply (IHHcstep Hcstep Gmid Gmid' pcmid m r c2 H1); auto.
     (* IFELSE-DIV *)
     - remember (VPair (Vnat n1) (Vnat n2)) as v.
       inversion Hccfg2ok; destruct_pairs; unfold_cfgs; subst; auto; try discriminate.
@@ -1042,26 +1065,26 @@ Section Secure_Passive.
       rewrite <- EHapp in *.
       pose (impe2_type_preservation G d m0 pc md (Cwhile e c) r0 m1 G' EHall
                                     md c r0 m1 r m tr _ _ _ 
-                                    EHapp HGwt Hccfg2ok Hcstep1 Hcstep2 HIP1) as Lemma61.
+                                    EHapp Hccfg2ok Hcstep1 Hcstep2 HIP1) as Lemma61.
 
       assert (imm_premise (Cwhile e c) md r m r'0 m'0 tr'
                           (Cwhile e c) md r0 m1 r'0 m'0 (tr++tr') d)
         as HIP2 by apply (IPwhilet2 _ _ _ _ _ _ _ _ _ _ _ _ H0 Hcstep1 Hcstep3 Hcstep2).
       pose (impe2_type_preservation G d m0 pc md (Cwhile e c) r0 m1 G' EHall
                                     md (Cwhile e c) r m r'0 m'0 tr' _ _ _
-                                    EHapp HGwt Hccfg2ok Hcstep3 Hcstep2 HIP2)
+                                    EHapp Hccfg2ok Hcstep3 Hcstep2 HIP2)
         as Lemma62.
 
       destruct Lemma61 as [pcmid1 [Gmid1 [Gmid1' Lemma6]]]; destruct_pairs; subst.
       destruct Lemma62 as [pcmid2 [Gmid2 [Gmid2' Lemma6]]]; destruct_pairs; subst.
       assert (cconfig2_ok pcmid1 md Gmid1 d m0 c r0 m1 Gmid1'
                           (escape_hatches_of (project_trace tr true) m0 d)) as seq1OK
-          by now apply cconfig2_ok_smaller_EH in H2.
+          by now apply cconfig2_ok_smaller_EH in H1.
       assert (cconfig2_ok pcmid2 md Gmid2 d m0 (Cwhile e c) r m Gmid2'
                           (escape_hatches_of (project_trace tr' true) m0 d)) as seq2OK
-          by now apply cconfig2_ok_smaller_EH in H5.
-      pose (IHHcstep1 Hcstep1 Gmid1 H1 Gmid1' pcmid1 m1 r0 c seq1OK) as tr_same.
-      pose (IHHcstep2 Hcstep3 Gmid2 H4 Gmid2' pcmid2 m r (Cwhile e c) seq2OK) as tr'_same.
+          by now apply cconfig2_ok_smaller_EH in H3.
+      pose (IHHcstep1 Hcstep1 Gmid1 Gmid1' pcmid1 m1 r0 c seq1OK) as tr_same.
+      pose (IHHcstep2 Hcstep3 Gmid2 Gmid2' pcmid2 m r (Cwhile e c) seq2OK) as tr'_same.
       rewrite <- project_trace_app.
       rewrite <- tobs_sec_level_app.
       rewrite tr'_same, tr_same; auto.
@@ -1115,12 +1138,11 @@ Section Secure_Passive.
   Lemma secure_passive : forall G G' d c,
     well_formed_spec g0 ->
     corresponds G ->
-    context_wt G d ->
     com_type L Normal G d c G' ->
     secure_prog L d c G.
   Proof.
     unfold secure_prog.
-    intros G G' d c Hg0wf Hcorr HGwt Hcomtype
+    intros G G' d c Hg0wf Hcorr Hcomtype
            m0 mknown m r' m' t tobs Hmmerge
            Hcstep2 Htobs Hind Hesc.
     rewrite Htobs.
@@ -1141,4 +1163,3 @@ Section Secure_Passive.
       -- split; intros; auto.
   Qed.
 End Secure_Passive.
-
