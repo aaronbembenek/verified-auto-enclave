@@ -352,13 +352,28 @@ Section Adequacy.
         (project_trace t' false) = t'2.
   Proof.
     Local Ltac destruct_merge_inv :=
-      repeat match goal with
-      | [ H : merge_mem _ _ _ |- _ ] => apply project_merge_inv_mem in H; destruct_conjs; auto
-      | [ H : merge_reg _ _ _ |- _ ] => apply project_merge_inv_reg in H; destruct_conjs; auto
-      | [ |- project_trace (merge_trace _) _ = _ ] => rewrite project_merge_inv_trace; auto
-      | _ => idtac
-      end.
+      repeat
+        match goal with
+        | [ H : merge_mem _ _ _ |- _ ] => apply project_merge_inv_mem in H; destruct_conjs; auto
+        | [ H : merge_reg _ _ _ |- _ ] => apply project_merge_inv_reg in H; destruct_conjs; auto
+        | [ |- project_trace (merge_trace _) _ = _ ] => rewrite project_merge_inv_trace; auto
+        | _ => idtac
+        end.
     
+    Local Ltac invert_cstep :=
+      match goal with
+      | [ H : cstep _ _ _ _ _ |- _ ] => inversion H; subst; try discriminate; simpl in *
+      end.
+
+    Local Ltac destruct_exp_complete :=
+      repeat
+        match goal with
+        | [ H : estep _ _ _ _ |- _ ] => apply impe2_exp_complete in H; destruct H; destruct_conjs
+        end.
+
+    Local Ltac e2_determinism x1 x2 H :=
+      assert (x1 = x2) by (apply estep2_deterministic with (v1 := x2) in H; auto); subst.
+
     intros.
     destruct H.
     remember (project_ccfg (c, r, m) true) as ccfg1.
@@ -366,19 +381,46 @@ Section Adequacy.
     generalize dependent r'1; generalize dependent m'1.
     generalize dependent r'2; generalize dependent m'2.
     generalize dependent c.
-    induction H; intros; unfold project_ccfg in *; rewrite Heqccfg1 in *; simpl in *.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-      (* CALL *)
-    - inversion H2; subst; try discriminate; unfold_cfgs; simpl in *.
-      apply impe2_exp_complete in H0; apply impe2_exp_complete in H9.
-      destruct H0; destruct H9; destruct_conjs.
-      assert (e = e0) by congruence; rewrite H6 in *.
-      assert (x = x0) by (now apply estep2_deterministic with (v1 := x0) in H); rewrite H7 in *.
-      destruct x; subst.
+    induction H; intros; unfold project_ccfg in *; rewrite Heqccfg1 in *; simpl in *;
+      invert_cstep; destruct_exp_complete.
+    (* SKIP *)
+    - exists r; exists m; exists []; repeat split; inversion Heqcterm1; auto.
+      now constructor.
+    (* ASSIGN *)
+    - inversion H5; subst.
+      e2_determinism x1 x2 H.
+      exists (ccfg_update_reg2 (Cassign x0 e0, r, m) x0 x2); exists m; exists []; repeat split.
+      apply Cstep2_assign with (x := x0) (e := e0) (v := x2); auto.
+      1,3: rewrite project_update_comm_reg; simpl; unfold project_ccfg; simpl.
+      all: congruence.
+    (* DECLASSIFY *)
+    - inversion H6; subst.
+      e2_determinism x1 x2 H.
+      exists (ccfg_update_reg2 (Cdeclassify x0 e0, r, m) x0 x2); exists m; exists [Decl2 e0 m]; repeat split.
+      apply Cstep2_declassify with (x := x0) (v := x2); auto.
+      1,3: rewrite project_update_comm_reg; simpl; unfold project_ccfg; simpl.
+      all: congruence.
+    (* UPDATE *)
+    - inversion H6; subst.
+      e2_determinism x x1 H; e2_determinism x0 x2 H4.
+      pose (no_location_pairs x1 l true H7).
+      exists r; exists (ccfg_update_mem2 (Cupdate e0 e3, r, m) l x2); exists []; repeat split.
+      apply Cstep2_update with (e1 := e0) (e2 := e3) (l := l) (v := x2); auto.
+      rewrite <- e; unfold ccfg_to_ecfg2; auto.
+      congruence.
+      inversion Heqcterm1. apply project_update_comm_mem.
+      rewrite e in H2; simpl in H2; inversion H2.
+      apply project_update_comm_mem.
+    (* OUTPUT *)
+    - inversion H5; subst.
+      e2_determinism x x0 H.
+      exists r; exists m; exists [Mem2 m; Out2 sl0 x0]; repeat split.
+      apply Cstep2_output with (e := e0); auto.
+      all: congruence.
+    (* CALL *)
+    - assert (e = e0) by congruence; rewrite H6 in *.
+      e2_determinism x x0 H.
+      destruct x0; subst.
       + simpl in *. assert (c = c1) by congruence.
         destruct IHcstep with (c0 := c) (m'1 := m') (r'1 := r') (m'2 := m'2) (r'2 := r'2); auto.
         rewrite H6; auto.
