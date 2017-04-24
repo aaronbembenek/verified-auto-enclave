@@ -813,10 +813,29 @@ Section Preservation.
              now apply H4 in H0.
     (* Coutput *)
     - inversion H; try discriminate; subst.
-      inversion Hcstep; try discriminate; subst.
       split; auto.
     (* CCall *)
-    - 
+    - inversion H; try discriminate; subst.
+      assert (cterm2_ok Gp d m0 r'0 m'0 (escape_hatches_of (project_trace tr true) m0 d)).
+      eapply (IHHcstep' Hcstep' m'0 r'0 Heqcterm m r c); auto.
+      unfold cconfig2_ok; split; auto.
+      eapply call_fxn_typ. apply H. apply H6. apply H1.
+      admit. (* XXX Gm and Gp contexts... *)
+      admit. (* XXX need subsumption, Gm/Gp context mess again *)
+    (* Call-Div *)
+    - inversion H; try discriminate; subst.
+      admit. (* XXX ergh more contexts *)
+    (* Cenclave *)
+    - inversion H; try discriminate; subst. inversion H1; subst.
+      eapply IHHcstep'; auto.
+      unfold cconfig2_ok; auto; split.
+      apply H5.
+      split; auto.
+    (* Cseq-Nil*)
+    - inversion H; try discriminate; subst.
+      split; auto.
+    (* Cseq *)
+    -
   Admitted.
 
   Lemma impe2_type_preservation 
