@@ -454,19 +454,7 @@ End Adequacy.
 *******************************************************************************)
 
 Section Security_Defn.
-  
-  Parameter g0: sec_spec.
-  Parameter immutable_locs: sec_spec -> set location.
-
-  Definition exp_locs_immutable (e: exp) :=
-    forall_subexp e (fun e =>
-                       match e with
-                       | Eloc n => set_In n (immutable_locs g0)
-                       | _ => True
-                       end).
-
   Definition esc_hatch : Type := exp.
-
   Function escape_hatches_of (t: trace) (m: mem2) d :
     Ensemble esc_hatch := 
     (fun e => exists v mdecl md,
@@ -569,7 +557,7 @@ Section Security_Helpers.
       com_type pc1 md G d c G ->
       sec_level_le pc2 pc1 ->
       com_type pc2 md G d c G.
-    Admitted.
+  Admitted.
 
   Lemma filter_app (f:event -> bool) l1 l2:
     filter f (l1 ++ l2) = filter f l1 ++ filter f l2.
@@ -786,6 +774,15 @@ Section Preservation.
              destruct_pairs.
              unfold mem_esc_hatch_ind in *.
              unfold escape_hatches_of in *.
+             pose (H3 e0 (project_value v0 true)) as HEH.
+             destruct HEH.
+             unfold In in H9.
+             assert (exists (v : val) (mdecl : mem) (md : mode),
+                        List.In (Decl e0 mdecl) (project_trace [Decl2 e0 m'] true) /\
+                        estep md d (e0, reg_init, project_mem m0 true) v /\
+                        estep md d (e0, reg_init, mdecl) v
+                        /\ exp_novars e0 /\ exp_locs_immutable e0).
+             exists (project_value v0 true). exists (project_mem m' true). exists md.
              (* XXX If m0 is mem_esc_hatch_ind, that means that all locations to compute e *)
              (* must be VSingle vs in the initial memory. furthermore, they are immutable *)
              (* therefore, they must still be VSingle vs and then e must be a Single *)

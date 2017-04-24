@@ -171,6 +171,9 @@ End Enclave_Equiv.
 *******************************************************************************)
 
 Section Semantics.
+  Parameter g0: sec_spec.
+  Parameter immutable_locs: sec_spec -> set location.
+
   Definition reg : Type := register val.
   Definition reg_init : reg := fun x => Vnat 0.
   Definition mem : Type := memory val.
@@ -435,6 +438,13 @@ Section Typing.
                        | _ => False
                        end).
 
+  Definition exp_locs_immutable (e: exp) :=
+    forall_subexp e (fun e =>
+                       match e with
+                       | Eloc n => set_In n (immutable_locs g0)
+                       | _ => True
+                       end).
+
   (* FIXME: don't have subsumption rule *)
   Inductive exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
   | ETnat : forall md g d n,
@@ -470,7 +480,7 @@ Section Typing.
   | CTdeclassify : forall md g d x e s p vc lc vc',
       exp_type md g d e (Typ s p) ->
       exp_novars e ->
-      all_loc_immutable e g ->
+      exp_locs_immutable e ->
       g = Cntxt vc lc ->
       vc' = (fun y => if y =? x then Some (Typ s (L)) else vc y) ->
       com_type (L) md g d (Cdeclassify x e) (Cntxt vc' lc)
