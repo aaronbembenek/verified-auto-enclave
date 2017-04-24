@@ -123,8 +123,6 @@ Section Adequacy.
   Proof.
   Admitted.
 
-
-  
   Lemma project_merge_inv_mem : forall m1 m2 m,
       merge_mem m1 m2 m -> (project_mem m true = m1) /\ (project_mem m false = m2).
   Proof.
@@ -459,6 +457,7 @@ Section Security_Defn.
   
   Parameter g0: sec_spec.
   Parameter immutable_locs: sec_spec -> set location.
+
   Definition exp_locs_immutable (e: exp) :=
     forall_subexp e (fun e =>
                        match e with
@@ -467,6 +466,7 @@ Section Security_Defn.
                        end).
 
   Definition esc_hatch : Type := exp.
+
   Function escape_hatches_of (t: trace) (m: mem2) d :
     Ensemble esc_hatch := 
     (fun e => exists v mdecl md,
@@ -474,6 +474,7 @@ Section Security_Defn.
          estep md d (e,reg_init,(project_mem m true)) v
          /\ estep md d (e, reg_init, mdecl) v
          /\ exp_novars e /\ exp_locs_immutable e).
+
   Definition tobs_sec_level (sl: sec_level) : trace -> trace :=
     filter (fun event => match event with
                          | Out sl' v => sec_level_le_compute sl' sl
@@ -1134,7 +1135,6 @@ Section Secure_Passive.
          now rewrite Ht1, Ht2, H12, H16.
   Qed.
  
-  
   Lemma secure_passive : forall G G' d c,
     well_formed_spec g0 ->
     corresponds G ->
