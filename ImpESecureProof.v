@@ -801,9 +801,7 @@ Section Security_Helpers.
       merge_mem m1 m2 m ->
       m l = VPair v1 v2 -> m1 l <> m2 l.
   Proof.
-    intros.
-    inversion H; subst.
-    apply (H1 l) in H0; destruct_pairs; auto.
+    intros. inversion H; subst. apply (H1 l) in H0; destruct_pairs; auto.
   Qed.
 
   (* We somehow need to know that if c performs an assignment or update of x, then *)
@@ -1124,10 +1122,23 @@ Section Preservation.
     - exists p. exists Gm. exists Gp. split. now apply sec_level_join_le_l in H10.
       unfold cconfig2_ok; split; auto; unfold_cfgs.
       eapply (call_fxn_typ _ _ _ _ _ _ _ _ _ _ _ _ _ H1 H9 H2).
-      split; auto.
-      admit. (* XXX ew contexts *)
-      split; auto.
-      admit.
+      split; auto; intros; unfold forall_dom in *;
+        unfold forall_var in *; unfold forall_loc in *; destruct_pairs.
+      -- assert (var_in_dom Gm x (Typ bt p0)) as xinGm
+            by now apply (Var_in_dom Gm x (Typ bt p0)).
+         apply H12 in xinGm; destruct xinGm; destruct_pairs.
+         inversion H19; subst. destruct x0.
+         assert (protected s) by now apply (H4 x v1 v2 b s).
+         inversion H22; subst. inversion H20; subst.
+         destruct p0; unfold sec_level_le in *; auto; try omega.
+      -- split; auto; intros.
+         assert (loc_in_dom Gm l (Typ bt p0) rt) as linGm
+            by now apply (Loc_in_dom Gm l (Typ bt p0) rt).
+         apply H16 in linGm; destruct linGm; destruct_pairs.
+         inversion H18; subst. destruct x.
+         assert (protected s) by now apply (H5 l v1 v2 b s rt).
+         inversion H22; subst. inversion H19; subst.
+         destruct p0; unfold sec_level_le in *; auto; try omega.
     (* ENCLAVE *)
     - exists pc. exists G. exists G'. split. apply sec_level_le_refl.
       split. inversion Hccfg2ok; unfold_cfgs; subst; try discriminate; destruct_pairs.
@@ -1181,7 +1192,8 @@ Section Preservation.
         as cterm2ok.
       apply (impe2_final_config_preservation G' d m0 G' c r m pc' md rmid mmid tr'); auto.
       unfold cconfig2_ok in *; unfold cterm2_ok in *; destruct_pairs; unfold_cfgs; auto.
-  Admitted.
+  Qed.
+  
 End Preservation.
 
 (*******************************************************************************
