@@ -345,7 +345,6 @@ Section Typing.
      finite maps instead of functions. *)
   Inductive base_type : Type :=
   | Tnat : base_type
-  | Tcond : mode -> base_type
   | Tref : type -> mode -> ref_type -> base_type
   | Tlambda (G: context) (p: sec_level) (md: mode) (G': context) : base_type
                            
@@ -355,7 +354,8 @@ Section Typing.
   with context : Type :=
   | Cntxt (var_cntxt: var -> option type)
           (loc_cntxt: location -> option (type * ref_type)) : context.
-                                      
+
+  
   Definition var_context (G: context) : var -> option type :=
     match G with Cntxt vc _ => vc end.
   
@@ -537,7 +537,6 @@ Section Typing.
                     (forall t' rt', ~loc_in_dom Gp l t' rt') ->
                     loc_in_dom Gout l t rt) ->
       com_type pc md G d (Ccall e) Gout.
-
 End Typing.
 
 
