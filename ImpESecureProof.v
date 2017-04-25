@@ -18,6 +18,9 @@ Require Import ImpE2.
 Ltac unfold_cfgs :=
   unfold ccfg_update_reg2 in *;
   unfold ccfg_to_ecfg2 in *;
+  unfold ccfg_reg in *;
+  unfold ccfg_mem in *;
+  unfold ccfg_com in *;
   unfold ccfg_reg2 in *;
   unfold ccfg_mem2 in *;
   unfold ccfg_com2 in *;
@@ -578,8 +581,7 @@ Section Security_Defn.
 
   Definition mem_sl_ind (m: mem2) (sl: sec_level) :=
     forall l : location,
-      sec_level_le (g0 l) sl ->
-      (project_mem m true) l = (project_mem m false) l.
+      sec_level_le (g0 l) sl <-> (project_mem m true) l = (project_mem m false) l.
 
   Definition mem_esc_hatch_ind (m: mem2) d H :=
     forall e v,
@@ -633,19 +635,10 @@ End Security_Defn.
 Section Security_Helpers.
   (* XXX I feel like this should be provable from something... but our typing *)
   (* system seems to be lacking something *)
-  Lemma call_div_fxn_typ : forall pc md G d e r m Gm p Gp q c1 c2 Gout,
-    com_type pc md G d (Ccall e) Gout ->
-    exp_type md G d e (Typ (Tlambda Gm p md Gp) q) ->
-    estep2 md d (e,r,m) (VPair (Vlambda md c1) (Vlambda md c2)) ->
-    com_type p md Gm d c1 Gp /\ com_type p md Gm d c2 Gp.
-  Admitted.
-
-  (* XXX I feel like this should be provable from something... but our typing *)
-  (* system seems to be lacking something *)
   Lemma call_fxn_typ : forall pc md G d e r m Gm p Gp q c Gout,
     com_type pc md G d (Ccall e) Gout ->
     exp_type md G d e (Typ (Tlambda Gm p md Gp) q) ->
-    estep2 md d (e,r,m) (VSingle (Vlambda md c)) ->
+    estep md d (e,r,m) (Vlambda md c) ->
     com_type p md Gm d c Gp.
   Proof.
     intros.
@@ -797,14 +790,60 @@ Section Security_Helpers.
        apply (join_protected_r p0 q); auto.
   Qed.
   
-  Lemma protected_typ_no_obs_output : forall pc md d G c G' r m r' m' tr,
+  Lemma protected_typ_no_obs_output r2 m2 is_left : forall pc md d G c G' r' m' tr,
     com_type pc md G d c G' ->
     protected pc ->
-    cstep md d (c,r,m) (r',m') tr ->
+    cstep md d (c,project_reg r2 is_left,project_mem m2 is_left) (r',m') tr ->
     tobs_sec_level L tr = [].
   Proof.
-    intros.
-  Admitted.
+    intros. remember (c,project_reg r2 is_left,project_mem m2 is_left) as ccfg.
+    generalize dependent pc. generalize dependent G. generalize dependent G'.
+    generalize dependent c. generalize dependent r2. generalize dependent m2.
+    induction H1; intros; inversion H; subst; auto;
+      unfold_cfgs; unfold_cfgs; unfold_cfgs; subst.
+    - inversion H2; try discriminate; subst.
+      rewrite join_protected_r in H12; auto.
+      unfold sec_level_le in H12; destruct sl; intuition.
+    - inversion H2; try discriminate; subst.
+      assert (com_type p md Gm d c Gp).
+      eapply call_fxn_typ; eauto. 
+      eapply (IHcstep m2 r2 c); eauto. 
+      rewrite join_protected_l in H6; auto.
+      unfold sec_level_le in H6; destruct p; intuition. unfold protected; auto.
+    - inversion H2; try discriminate; subst.
+      inversion H; subst.
+      eapply (IHcstep m2 r2 c'); eauto.
+    - inversion H1; try discriminate; subst.
+      assert (tobs_sec_level L tr = []).
+      eapply (IHcstep1 m2 r2 hd); eauto.
+      assert (tobs_sec_level L tr' = []).
+      pose (merge_reg_exists r r). destruct e.
+      pose (merge_mem_exists m m). destruct e.
+      eapply (IHcstep2 x0 x (Cseq tl)); eauto.
+      apply project_merge_inv_mem in H3. apply project_merge_inv_reg in H0. destruct_pairs.
+      destruct is_left. rewrite H0, H3; auto. rewrite H5, H6; auto.
+      rewrite <- tobs_sec_level_app. rewrite H; rewrite H0; auto.
+    - inversion H2; try discriminate; subst.
+      eapply (IHcstep m2 r2 c1); eauto.
+      rewrite join_protected_l in H15; auto.
+      unfold sec_level_le in H15; destruct pc'; intuition; now unfold protected.
+    - inversion H2; try discriminate; subst.
+      eapply (IHcstep m2 r2 c2); eauto.
+      rewrite join_protected_l in H15; auto.
+      unfold sec_level_le in H15; destruct pc'; intuition; now unfold protected.
+    - inversion H1; try discriminate; subst.
+      assert (tobs_sec_level L tr = []).
+      eapply (IHcstep1 m2 r2 c); eauto.
+      rewrite join_protected_l in H11; auto.
+      unfold sec_level_le in H11; destruct pc'; intuition; now unfold protected.
+      assert (tobs_sec_level L tr' = []).
+      pose (merge_reg_exists r r). destruct e0.
+      pose (merge_mem_exists m m). destruct e0.
+      eapply (IHcstep2 x0 x (Cwhile e c)); eauto.
+      apply project_merge_inv_reg in H3. apply project_merge_inv_mem in H7. destruct_pairs.
+      destruct is_left. rewrite H7, H3; auto. rewrite H8, H9; auto.
+      rewrite <- tobs_sec_level_app. rewrite H; rewrite H3; auto.
+  Qed.
 
   Lemma protected_while_no_obs_output : forall pc pc' md d G e c r m r' m' tr,
       com_type pc md G d (Cwhile e c) G ->
@@ -821,7 +860,12 @@ Section Security_Helpers.
       (project_mem m true) l <> (project_mem m false) l ->
       protected (g0 l).
   Proof.
-  Admitted.
+    intros. remember (g0 l) as p.
+    unfold mem_sl_ind in *.
+    rewrite <- (H l) in H0. unfold sec_level_le in H0. 
+    destruct p; rewrite <- Heqp in H0. intuition.
+    now unfold protected.
+  Qed.
   
   Lemma vpair_if_diff : forall m1 m2 m v1 v2 l,
       merge_mem m1 m2 m ->
@@ -843,10 +887,11 @@ Section Security_Helpers.
     | Cwhile e c => assign_in c x 
     | _ => False
     end.
+  (* XXX we need a custom induction principle on lists *)
   Lemma assign_in_dec : forall c x, {assign_in c x} + {~assign_in c x}.
   Proof.
-    intros. induction c; unfold assign_in;
-              [right | left | right| right | right | | | | | ]; auto.
+    intros. (*functional induction (assign_in c x). unfold assign_in;
+              [right | left | right| right | right | | | | | ]; auto.*)
   Admitted.
 
   Lemma assignment_more_secure : forall pc md d c G G' x bt q,
@@ -980,7 +1025,10 @@ Section Preservation.
       assert (cterm2_ok Gp d m0 r'0 m'0 (escape_hatches_of (project_trace tr true) m0 d)).
       eapply (IHHcstep' Hcstep' m'0 r'0 Heqcterm m r c); auto.
       unfold cconfig2_ok; split; auto.
-      eapply call_fxn_typ. apply H1. apply H6. apply H0.
+      eapply call_fxn_typ. apply H1. apply H6.
+      assert (estep md d (e,project_reg r true,project_mem m true) (Vlambda md c)).
+      apply (impe2_exp_sound md d e r m (VSingle (Vlambda md c))); auto.
+      apply H.
       admit. (* XXX Gm and Gp contexts... *)
       admit. (* XXX need subsumption, Gm/Gp context mess again *)
     (* Call-Div *)
@@ -1163,7 +1211,10 @@ Section Preservation.
     (* CALL *)
     - exists p. exists Gm. exists Gp. split. now apply sec_level_join_le_l in H10.
       unfold cconfig2_ok; split; auto; unfold_cfgs.
-      eapply (call_fxn_typ _ _ _ _ _ _ _ _ _ _ _ _ _ H1 H9 H2).
+      eapply call_fxn_typ. apply H1. apply H9.
+      assert (estep md d (e,project_reg r true,project_mem m true) (Vlambda md cmid)).
+      apply (impe2_exp_sound md d e r m (VSingle (Vlambda md cmid))); auto.
+      apply H8.
       split; auto; intros; unfold forall_dom in *;
         unfold forall_var in *; unfold forall_loc in *; destruct_pairs.
       -- assert (var_in_dom Gm x (Typ bt p0)) as xinGm
@@ -1303,9 +1354,18 @@ Section Secure_Passive.
       assert (protected p) as Hpprotected.
       unfold protected. unfold sec_level_le in H11; destruct p; intuition.
       clear H11 H14.
-      assert (com_type p md Gm d c1 Gp /\ com_type p md Gm d c2 Gp).
-      eapply call_div_fxn_typ. apply H. apply H10. apply H0.
-      destruct_pairs.
+      assert (com_type p md Gm d c1 Gp).
+      eapply call_fxn_typ. apply H. apply H10.
+      assert (estep md d (e,project_reg r true,project_mem m true) (Vlambda md c1))
+        as estepc1.
+      apply (impe2_exp_sound md d e r m (VPair (Vlambda md c1) (Vlambda md c2))); auto.
+      apply estepc1.
+      assert (com_type p md Gm d c2 Gp).
+      eapply call_fxn_typ. apply H. apply H10.
+      assert (estep md d (e,project_reg r false,project_mem m false) (Vlambda md c2))
+        as estepc2.
+      apply (impe2_exp_sound md d e r m (VPair (Vlambda md c1) (Vlambda md c2))); auto.
+      apply estepc2.
       assert (tobs_sec_level L t1 = []) as t1_empty.
       eapply protected_typ_no_obs_output in H1; auto.
       apply H9; auto. auto.
@@ -1398,8 +1458,8 @@ Section Secure_Passive.
       unfold protected. unfold sec_level_le in H22. destruct pc'; intuition.
       assert (tobs_sec_level L t1 = [] /\ tobs_sec_level L t2 = []).
       destruct n1, n2; simpl in *;
-        eapply protected_typ_no_obs_output in H2;
-        eapply protected_typ_no_obs_output in H3;
+        eapply (protected_typ_no_obs_output r m) in H2;
+        eapply (protected_typ_no_obs_output r m) in H3;
         try apply H14; try apply H15; auto.
       destruct_pairs.
       pose (project_merge_inv_trace t1 t2 true) as Ht1; simpl in *.
