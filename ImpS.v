@@ -294,17 +294,17 @@ Section Typing.
       exp_wt G (Elambda c) (Typ (Tlambda G' U p G'') low)
 
   with com_wt : policy -> context -> set condition -> com ->
-                context -> Prop := (*
+                context -> Prop :=
   | STskip : forall pc G U,
       com_wt pc G U Cskip G
   | STassign : forall pc U x e s p q vc lc vc',
       vc x = Some (Typ s q) ->
       exp_wt (Cntxt vc lc) e (Typ s p) ->
-      policy_join pc p <> LevelP T ->
+      ~pdenote (JoinP pc p) (LevelP T) ->
       vc' = (fun y => if y =? x
-                      then Some (Typ s (policy_join pc p))
+                      then Some (Typ s (JoinP pc p))
                       else vc y) ->
-      com_wt pc (Cntxt vc lc) U (Cassign x e) (Cntxt vc' lc)
+      com_wt pc (Cntxt vc lc) U (Cassign x e) (Cntxt vc' lc) (*
   | STdeclassify : forall U x e s q p vc lc vc',
       vc x = Some (Typ s q) ->
       exp_wt (Cntxt vc lc) e (Typ s p) ->
