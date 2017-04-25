@@ -833,9 +833,20 @@ Section Security_Helpers.
   (* We somehow need to know that if c performs an assignment or update of x, then *)
   (* the type of x in the env is at a higher security level than pc' *)
   (* Otherwise, the reg/mem and context does not change *)
-  Definition assign_in (c: com) (x: var) : Prop.
-  Admitted.
+  Function assign_in (c: com) (x: var) : Prop :=
+    match c with
+    | Cassign x _ => True
+    | Ccall (Elambda _ c') => assign_in c' x
+    | Cenclave _ c' => assign_in c' x
+    | Cseq ls => List.fold_left (fun b c' => b /\ (assign_in c' x)) ls False
+    | Cif e c1 c2 => assign_in c1 x \/ assign_in c2 x
+    | Cwhile e c => assign_in c x 
+    | _ => False
+    end.
   Lemma assign_in_dec : forall c x, {assign_in c x} + {~assign_in c x}.
+  Proof.
+    intros. induction c; unfold assign_in;
+              [right | left | right| right | right | | | | | ]; auto.
   Admitted.
 
   Lemma assignment_more_secure : forall pc md d c G G' x bt q,
@@ -854,8 +865,16 @@ Section Security_Helpers.
   Admitted.
 
   (* Same thing as assignments for updates *)
-  Definition update_in (c: com) (l: location) : Prop.
-  Admitted.
+  Function update_in (c: com) (l: location) : Prop :=
+    match c with
+    | Cupdate e1 e2 => exists md d r m, estep2 md d (e1, r, m) (VSingle (Vloc l))
+    | Ccall (Elambda _ c') => update_in c' l
+    | Cenclave _ c' => update_in c' l
+    | Cseq ls => List.fold_left (fun b c' => b /\ (update_in c' l)) ls False
+    | Cif e c1 c2 => update_in c1 l \/ update_in c2 l
+    | Cwhile e c => update_in c l
+    | _ => False
+    end.
   Lemma update_in_dec : forall c l, {update_in c l} + {~update_in c l}.
   Admitted.
   Lemma update_more_secure : forall pc md d c G G' x bt q rt,
@@ -872,7 +891,6 @@ Section Security_Helpers.
       m x = m' x /\ (loc_context G) x = (loc_context G') x.
   Proof.
   Admitted.
-
 End Security_Helpers.
 
 Section Preservation.
@@ -1032,12 +1050,12 @@ Section Preservation.
          --- pose (no_assign_reg_context_constant
                      md d (Cif e c1 c2) r m r' m' (merge_trace (t1, t2)) x pc G G'
                      Hcstep H6).
-             assert (~assign_in (Cif e c1 c2) x <-> ~assign_in c1 x /\ ~assign_in c2 x).
-             admit. (* XXX assign_in *)
-             rewrite H13 in a.
-             assert (~assign_in c1 x /\ ~assign_in c2 x) as noassign by now split.
+             assert (assign_in (Cif e c1 c2) x <-> assign_in c1 x \/ assign_in c2 x)
+               as assigncif.
+             split; intros; unfold assign_in; auto. rewrite assigncif in a.
+             assert (~(assign_in c1 x \/ assign_in c2 x)) as noassign by now apply and_not_or.
              apply a in noassign; destruct_pairs.
-             apply (H7 x v1 v2 bt p0). split. rewrite H16; auto. rewrite H17; auto.
+             apply (H7 x v1 v2 bt p0). split. rewrite H13; auto. rewrite H16; auto.
       -- split; auto. intros; destruct_pairs.
          destruct (update_in_dec c1 l), (update_in_dec c2 l).
          --- pose (update_more_secure Common.H md d c1 G G' l bt p0 rt H14 u H12).
@@ -1052,12 +1070,12 @@ Section Preservation.
          --- pose (no_update_mem_context_constant
                      md d (Cif e c1 c2) r m r' m' (merge_trace (t1, t2)) l pc G G'
                      Hcstep H6).
-             assert (~update_in (Cif e c1 c2) l <-> ~update_in c1 l /\ ~update_in c2 l).
-             admit. (* XXX update_in *)
-             rewrite H13 in a.
-             assert (~update_in c1 l /\ ~update_in c2 l) as noupdate by now split.
+             assert (update_in (Cif e c1 c2) l <-> update_in c1 l \/ update_in c2 l)
+               as updatecif.
+             split; intros; unfold update_in; auto. rewrite updatecif in a.
+             assert (~(update_in c1 l \/ update_in c2 l)) as noupdate by now apply and_not_or.
              apply a in noupdate; destruct_pairs.
-             apply (H8 l v1 v2 bt p0 rt). split. rewrite H16; auto. rewrite H17; auto.
+             apply (H8 l v1 v2 bt p0 rt). split. rewrite H13; auto. rewrite H16; auto.
     (* Cwhile-T *)
     - inversion H1; try discriminate; subst.
       rewrite <- project_trace_app in H5. Search (mem_esc_hatch_ind).
@@ -1108,8 +1126,7 @@ Section Preservation.
          --- pose (no_assign_reg_context_constant
                      md d (Cwhile e c) r m r' m' (merge_trace (t1, t2)) x pc G' G'
                      Hcstep H6).
-             assert (~assign_in (Cwhile e c) x <-> ~assign_in c x).
-             admit. (* XXX assign_in *)
+             assert (assign_in (Cwhile e c) x <-> assign_in c x) by now unfold assign_in.
              rewrite H18 in a. apply a in n; destruct_pairs.
              apply (H7 x v1 v2 bt p0). split; auto. rewrite H20; auto.
       -- split; auto. intros; destruct_pairs.
@@ -1120,8 +1137,7 @@ Section Preservation.
          --- pose (no_update_mem_context_constant
                      md d (Cwhile e c) r m r' m' (merge_trace (t1, t2)) l pc G' G'
                      Hcstep H6).
-             assert (~update_in (Cwhile e c) l <-> ~update_in c l).
-             admit. (* XXX update_in *)
+             assert (update_in (Cwhile e c) l <-> update_in c l) by now unfold update_in.
              rewrite H18 in a. apply a in n; destruct_pairs.
              apply (H8 l v1 v2 bt p0 rt). split; auto. rewrite H20; auto.
   Admitted.
