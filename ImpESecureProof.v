@@ -1145,8 +1145,8 @@ Section Preservation.
       unfold cconfig2_ok in *; destruct_pairs.
       split; auto. split; auto. split; auto. split; auto.
       rewrite <- project_trace_app in H7.
-      pose (mem_esc_hatch_ind_trace_app (project_trace tr' true) (project_trace tmid true)
-                                        m0 d H7); destruct_pairs; auto.
+      rewrite (mem_esc_hatch_ind_trace_app (project_trace tr' true) (project_trace tmid true)
+                                        m0 d) in H7; destruct_pairs; auto.
       assert (cterm2_ok g' d m0 rmid mmid (escape_hatches_of (project_trace tr' true) m0 d))
         as cterm2ok.
       apply (impe2_final_config_preservation G d m0 g' c r m pc md rmid mmid tr'); auto.
@@ -1172,8 +1172,8 @@ Section Preservation.
       unfold cconfig2_ok; split; unfold_cfgs; auto.
       split; auto. split; auto. split; auto. 
       rewrite <- project_trace_app in H7.
-      pose (mem_esc_hatch_ind_trace_app (project_trace tr' true) (project_trace tmid true)
-                                        m0 d H7); destruct_pairs; auto.
+      rewrite (mem_esc_hatch_ind_trace_app (project_trace tr' true) (project_trace tmid true)
+                                        m0 d) in H7; destruct_pairs; auto.
       assert (cterm2_ok G' d m0 rmid mmid (escape_hatches_of (project_trace tr' true) m0 d))
         as cterm2ok.
       apply (impe2_final_config_preservation G' d m0 G' c r m pc' md rmid mmid tr'); auto.
@@ -1215,8 +1215,8 @@ Section Secure_Passive.
                               m0 d) as EH.
       assert (cterm2_ok G' d m0 r m EH) as Hctermok; unfold cterm2_ok; auto.
       assert (protected p) by apply (econfig2_pair_protected
-                                          (Coutput e L) md G' d e p r m vpair v v0 s m0
-                                          EH Heqvpair H11 H0 Hctermok).
+                                       md G' d e p r m vpair v v0 s m0
+                                       EH Heqvpair H11 H0 Hctermok).
       pose (sec_level_join_ge p pc); destruct_pairs.
       apply (sec_level_le_trans p (sec_level_join p pc) L) in H13; auto.
       destruct p; inversion H5; inversion H13.
