@@ -46,6 +46,9 @@ Section MachineModel.
 
   Definition register (value_t: Type) : Type := var -> value_t.
   Definition memory (value_t: Type) : Type := location -> value_t.
+
+  Definition update {B: Type} (f: nat -> B) (x: nat) (y: B) :=
+    fun x0 => if x =? x0 then y else f x0.
 End MachineModel.
 
 Section Security.

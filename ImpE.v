@@ -544,16 +544,13 @@ Section Typing.
   | CTkill : forall i g d k u,
       mode_alive (Encl i) k ->
       com_type low Normal g k u d (Ckill i) g (set_add Nat.eq_dec i k)
-  | CTassign : forall pc md g k u d x e s p q vc lc vc' g' p0 pc0
-                      (wf: lub pc0 p0 q),
+  | CTassign : forall pc md g k u d x e s p vc lc vc' g',
       exp_type md g d e (Typ s p) ->
       ~pdenote (JoinP pc p) (LevelP T) ->
-      policy0_le q (LevelP L) \/ md <> Normal ->
+      policy_le (JoinP pc p) low \/ md <> Normal ->
       mode_alive md k ->
       g = Cntxt vc lc ->
-      vc' = (fun y => if y =? x
-                      then Some (Typ s (JoinP pc p))
-                      else vc y) ->
+      vc' = update vc x (Some (Typ s (JoinP pc p))) ->
       g' = Cntxt vc' lc ->
       com_type pc md g k u d (Cassign x e) g' k. (*
   | CTdeclassify : forall md g k u d x e s p vc lc vc',

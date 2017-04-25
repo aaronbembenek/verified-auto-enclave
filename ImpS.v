@@ -297,13 +297,11 @@ Section Typing.
                 context -> Prop :=
   | STskip : forall pc G U,
       com_wt pc G U Cskip G
-  | STassign : forall pc U x e s p q vc lc vc',
-      vc x = Some (Typ s q) ->
+  | STassign : forall pc U x e s p vc lc vc',
+      vc x = Some (Typ s (JoinP pc p)) ->
       exp_wt (Cntxt vc lc) e (Typ s p) ->
       ~pdenote (JoinP pc p) (LevelP T) ->
-      vc' = (fun y => if y =? x
-                      then Some (Typ s (JoinP pc p))
-                      else vc y) ->
+      vc' = update vc x (Some (Typ s (JoinP pc p))) ->
       com_wt pc (Cntxt vc lc) U (Cassign x e) (Cntxt vc' lc) (*
   | STdeclassify : forall U x e s q p vc lc vc',
       vc x = Some (Typ s q) ->
