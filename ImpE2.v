@@ -57,8 +57,8 @@ Section Semantics.
       -> merge_reg r1 r2 r.
   Inductive merge_mem (m1 m2: mem) : mem2 -> Prop :=
   | mmerge : forall m,
-      (forall x, m1 x <> m2 x -> m x = VPair (m1 x) (m2 x))
-      -> (forall y, m1 y = m2 y -> m y = val_to_val2 (m1 y))
+      (forall x v1 v2, m x = VPair v1 v2 <-> m1 x <> m2 x /\ (m1 x = v1) /\ (m2 x = v2))
+      -> (forall y, m1 y = m2 y <-> m y = VSingle (m1 y))
       -> merge_mem m1 m2 m.
   Definition event_to_event2 (e: event) : event2 :=
     match e with

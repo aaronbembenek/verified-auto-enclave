@@ -63,7 +63,7 @@ Section Adequacy.
     - rewrite H in H3; inversion H3; try discriminate; simpl in *;
         assert (e1 = e0) by congruence; assert (e2 = e3) by congruence;
           subst; apply IHestep2_1 in H5; apply IHestep2_2 in H6; congruence.
-    - rewrite H in H3; inversion H3; subst; try discriminate; simpl in *.
+   - rewrite H in H3; inversion H3; subst; try discriminate; simpl in *.
       assert (e0 = e1) by congruence.
       assert (r0 = r1) by congruence.
       assert (m0 = m1) by congruence.
@@ -823,11 +823,14 @@ Section Security_Helpers.
   Proof.
   Admitted.
   
-  Lemma vpair_iff_diff : forall m1 m2 m v1 v2 l,
+  Lemma vpair_if_diff : forall m1 m2 m v1 v2 l,
       merge_mem m1 m2 m ->
-      m l = VPair v1 v2 <-> m1 l <> m2 l.
+      m l = VPair v1 v2 -> m1 l <> m2 l.
   Proof.
-  Admitted.
+    intros.
+    inversion H; subst.
+    apply (H1 l) in H0; destruct_pairs; auto.
+  Qed.
 
   (* We somehow need to know that if c performs an assignment or update of x, then *)
   (* the type of x in the env is at a higher security level than pc' *)
@@ -1481,7 +1484,7 @@ Section Secure_Passive.
          pose H3 as Hg0. apply (H1 l x bt rt) in Hg0.
          rewrite H0 in Hg0. inversion Hg0; subst.
          apply (diff_loc_protected m l); auto.
-         apply (vpair_iff_diff m0 mknown m v1 v2 l) in H; auto.
+         apply (vpair_if_diff m0 mknown m v1 v2 l) in H; auto.
          apply project_merge_inv_mem in Hmmerge; destruct_pairs; subst; auto.
       -- split; intros; auto.
   Qed.
