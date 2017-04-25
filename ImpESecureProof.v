@@ -145,14 +145,17 @@ Section Adequacy.
 
   (* Executing a singleton sequence is the same as executing the command *)
   Lemma cstep_seq_singleton : forall md d c r m r' m' t,
-      cstep md d (Cseq [c], r, m) (r', m') t ->
+      cstep md d (Cseq [c], r, m) (r', m') t <->
       cstep md d (c, r, m) (r', m') t.
-    intros.
-    inversion H; subst; try discriminate; unfold_cfgs.
-    simpl in H3.
-    simpl in H2; assert (tl = []) by congruence.
-    rewrite H0 in H7. inversion H7; subst; try discriminate.
-    rewrite app_nil_r; congruence.    
+    split; intros.
+    - inversion H; subst; try discriminate; unfold_cfgs.
+      simpl in H3.
+      simpl in H2; assert (tl = []) by congruence.
+      rewrite H0 in H7. inversion H7; subst; try discriminate.
+      rewrite app_nil_r; congruence.
+    - eapply Cstep_seq_hd; simpl; eauto.
+      try econstructor; now simpl.
+      now rewrite app_nil_r.
   Qed.
     
   Lemma contains_nat_project_nat : forall v is_left,
@@ -285,7 +288,7 @@ Section Adequacy.
         unfold_cfgs; simpl in *;
           assert (c = hd) by congruence; rewrite H; auto;
             assert ([Cwhile e c] = tl) by congruence; subst;
-              now apply cstep_seq_singleton in H10.
+              now apply -> cstep_seq_singleton in H10. 
   Admitted.
 
   (* XXX: these assumptions are gross, but the semantics become a mess if we
@@ -378,32 +381,37 @@ Section Adequacy.
     remember (r'1, m'1) as cterm1.
     generalize dependent r'1; generalize dependent m'1.
     generalize dependent r'2; generalize dependent m'2.
-    generalize dependent c.
+    generalize dependent c; generalize dependent r; generalize dependent m.
+    revert t'2.
     induction H; intros; unfold project_ccfg in *; rewrite Heqccfg1 in *; simpl in *;
       invert_cstep; destruct_exp_complete.
     (* SKIP *)
-    - exists r; exists m; exists []; repeat split; inversion Heqcterm1; auto.
-      now constructor.
+    - do 3 eexists; repeat split; inversion Heqcterm1; subst; eauto.
+      econstructor; auto.
+      all: now cbn.
     (* ASSIGN *)
     - inversion H5; subst.
       e2_determinism x1 x2 H.
-      exists (ccfg_update_reg2 (Cassign x0 e0, r, m) x0 x2); exists m; exists []; repeat split.
-      apply Cstep2_assign with (x := x0) (e := e0) (v := x2); auto.
+      do 3 eexists; repeat split; eauto.
+      eapply Cstep2_assign with (x := x0) (e := e0) (v := x2); eauto.
+      all: simpl; auto.
       1,3: rewrite project_update_comm_reg; simpl; unfold project_ccfg; simpl.
       all: congruence.
     (* DECLASSIFY *)
     - inversion H6; subst.
       e2_determinism x1 x2 H.
-      exists (ccfg_update_reg2 (Cdeclassify x0 e0, r, m) x0 x2); exists m; exists [Decl2 e0 m]; repeat split.
-      apply Cstep2_declassify with (x := x0) (v := x2); auto.
+      do 3 eexists; repeat split; eauto.
+      eapply Cstep2_declassify with (x := x0) (v := x2); eauto.
+      all: simpl; auto.
       1,3: rewrite project_update_comm_reg; simpl; unfold project_ccfg; simpl.
       all: congruence.
     (* UPDATE *)
     - inversion H6; subst.
       e2_determinism x x1 H; e2_determinism x0 x2 H4.
       pose (no_location_pairs x1 l true H7).
-      exists r; exists (ccfg_update_mem2 (Cupdate e0 e3, r, m) l x2); exists []; repeat split.
-      apply Cstep2_update with (e1 := e0) (e2 := e3) (l := l) (v := x2); auto.
+      do 3 eexists; repeat split; eauto.
+      eapply Cstep2_update; eauto.
+      all: simpl; auto.
       rewrite <- e; unfold ccfg_to_ecfg2; auto.
       congruence.
       inversion Heqcterm1. apply project_update_comm_mem.
@@ -412,49 +420,52 @@ Section Adequacy.
     (* OUTPUT *)
     - inversion H5; subst.
       e2_determinism x x0 H.
-      exists r; exists m; exists [Mem2 m; Out2 sl0 x0]; repeat split.
-      apply Cstep2_output with (e := e0); auto.
-      all: congruence.
+      do 3 eexists; repeat split; eauto.
+      eapply Cstep2_output with (e := e0); eauto.
+      all: simpl; auto; congruence.
     (* CALL *)
     - assert (e = e0) by congruence; rewrite H6 in *.
       e2_determinism x x0 H.
       destruct x0; subst.
-      + simpl in *. assert (c = c1) by congruence.
-        destruct IHcstep with (c0 := c) (m'1 := m') (r'1 := r') (m'2 := m'2) (r'2 := r'2); auto.
-        rewrite H6; auto.
-        do 2 destruct H7; destruct_conjs.
+      + simpl in *. assert (c = c1) by congruence; subst.
+        edestruct IHcstep; unfold_cfgs; simpl; eauto. 
+        do 2 destruct H4; destruct_conjs.
         exists x; exists x0; exists x1; repeat split.
-        apply Cstep2_call with (e := e0) (c := c); auto.
+        apply Cstep2_call with (e := e0) (c := c1); auto.
         unfold ccfg_to_ecfg2; simpl in *; subst; auto.
         all: congruence.
       + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
         pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
         exists mr; exists mm; exists (merge_trace (tr, t'2)); repeat split.
-        apply Cstep2_call_div with (e := e0) (c1 := c) (c2 := c1)
-                                             (r1 := r') (m1 := m')
-                                             (r2 := r'2) (m2 := m'2); auto.
-        unfold_cfgs; simpl in *; now subst.
+        eapply Cstep2_call_div; unfold_cfgs; simpl in *; subst; eauto.
         1,2: inversion Heqcterm1; subst; auto.
         all: destruct_merge_inv.
     (* ENCLAVE *)
     - inversion H9; subst.
-      destruct IHcstep with (c := c1) (m'1 := m') (r'1 := r') (m'2 := m'2) (r'2 := r'2); auto.
+      edestruct IHcstep; eauto.
       do 3 destruct H; destruct_conjs.
       exists x; exists x0; exists x1; repeat split; auto.
-      apply Cstep2_enclave with (enc := enc0) (c := c1); auto.
-      all: inversion Heqcterm1; subst; auto.
+      eapply Cstep2_enclave; eauto.
     (* SEQ_NIL *)
     - exists r; exists m; exists []; repeat split.
       apply Cstep2_seq_nil; auto.
       all: inversion Heqcterm1; now subst.
     (* SEQ_HD *)
-    - admit.
+    - inversion H6; inversion Heqcterm1; subst; unfold_cfgs; simpl in *.
+      edestruct IHcstep1; eauto.
+      do 2 destruct H; destruct_conjs; subst.
+      edestruct IHcstep2; eauto.
+      do 2 destruct H2; destruct_conjs; subst.
+      do 3 eexists; repeat split; eauto.
+      eapply Cstep2_seq_hd; eauto.
+      all: rewrite project_app_trace; auto.
     (* IF BOTH TRUE *)
     - inversion H5; subst.
       e2_determinism x x0 H.
       destruct x0; subst.
       + simpl in *; subst.
-        destruct IHcstep with (c := c0) (m'1 := m') (r'1 := r') (m'2 := m'2) (r'2 := r'2); auto.
+        destruct IHcstep with (c := c0) (m'1 := m') (r'1 := r') (m'2 := m'2) (r'2 := r'2)
+                                        (t'2 := t'2) (m0 := m) (r0 := r); auto.
         do 3 destruct H4; destruct_conjs.
         exists x; exists x0; exists x1; repeat split; auto.
         apply Cstep2_if with (e := e0) (c1 := c0) (c2 := c3); auto.
@@ -494,7 +505,8 @@ Section Adequacy.
       e2_determinism x x0 H.
       destruct x0; subst.
       + simpl in *; subst.
-        destruct IHcstep with (c := c3) (m'1 := m') (r'1 := r') (m'2 := m'2) (r'2 := r'2); auto.
+        destruct IHcstep with (c := c3) (m'1 := m') (r'1 := r') (m'2 := m'2) (r'2 := r'2)
+                                        (t'2 := t'2) (m0 := m) (r0 := r); auto.
         do 3 destruct H4; destruct_conjs.
         exists x; exists x0; exists x1; repeat split; auto.
         apply Cstep2_else with (e := e0) (c1 := c0) (c2 := c3); auto.
@@ -510,12 +522,26 @@ Section Adequacy.
     - inversion H6; subst.
       e2_determinism x x0 H.
       destruct x0; subst.
-      admit.
-      admit.
+      + admit.
+      + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
+        pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
+        exists mr; exists mm; exists (merge_trace (tr ++ tr', tr0 ++ tr'0)); repeat split.
+        eapply Cstep2_while_div; eauto.
+        all: unfold_cfgs; simpl in *; inversion Heqcterm1; subst; auto.
+        1,2: eapply Cstep_seq_hd; simpl; eauto; apply cstep_seq_singleton; auto.
+        all: destruct_merge_inv.
     (* WHILE TRUE, FALSE *)
-    - admit.
+    - inversion H9; subst.
+      e2_determinism x x0 H.
+      destruct x0; subst.
+      + simpl in *; subst; discriminate.
+      + admit.
     (* WHILE FALSE, TRUE *)
-    - admit.
+    - inversion H4; subst.
+      e2_determinism x x0 H.
+      destruct x0; subst.
+      + simpl in *; subst; discriminate.
+      + admit.
     (* WHILE BOTH FALSE *)
     - admit.
   Admitted.
