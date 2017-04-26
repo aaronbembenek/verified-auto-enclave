@@ -264,42 +264,50 @@ Section Typing.
           loc_in_dom G2 l t rt -> exists t', loc_in_dom G1 l t' rt) ->
       context_le G1 G2.
 
+  Inductive ederiv : Type :=
+  | Ederiv_none : ederiv
+  | Ederiv_single : type -> ederiv -> ederiv
+  | Ederiv_double: type -> ederiv -> type -> ederiv -> ederiv
+  (* | Ederiv_prog : type stuff -> pderiv -> ederiv *).
+  
   (* XXX need this for using List.nth... maybe better option *)
   Definition mt := Cntxt (fun _ => None) (fun _ => None).
 
   Notation low := (SingleP (LevelP L)).
   
-  Inductive exp_wt : context -> exp -> type -> Prop :=
+  Inductive exp_wt : context -> exp -> type -> ederiv -> Prop :=
   | STnat : forall G n,
-      exp_wt G (Enat n) (Typ Tnat low)
+      exp_wt G (Enat n) (Typ Tnat low) Ederiv_none
   | STcond : forall G x,
-      exp_wt G (Eloc (Cnd x)) (Typ Tcond low)
+      exp_wt G (Eloc (Cnd x)) (Typ Tcond low) Ederiv_none
   | STvar : forall G x t,
       var_context G x = Some t ->
-      exp_wt G (Evar x) t
+      exp_wt G (Evar x) t Ederiv_none
   | STloc : forall G x t rt,
       loc_context G (Not_cnd x) = Some (t, rt) ->
-      exp_wt G (Eloc (Not_cnd x)) (Typ (Tref t rt) low)
-  | STderef : forall G e s p q rt,
-      exp_wt G e (Typ (Tref (Typ s p) rt) q) ->
+      exp_wt G (Eloc (Not_cnd x)) (Typ (Tref t rt) low) Ederiv_none
+  | STderef : forall G e s p q rt drv,
+      exp_wt G e (Typ (Tref (Typ s p) rt) q) drv ->
       exp_wt G (Ederef e) (Typ s (JoinP p q))
+             (Ederiv_single (Typ (Tref (Typ s p) rt) q) drv)
   | STisunset : forall G x,
-      exp_wt G (Eisunset x) (Typ Tnat low)
-  | STbinop : forall G e1 e2 p q op,
-      exp_wt G e1 (Typ Tnat p) ->
-      exp_wt G e2 (Typ Tnat q) ->
+      exp_wt G (Eisunset x) (Typ Tnat low) Ederiv_none
+  | STbinop : forall G e1 e2 p q op drv1 drv2,
+      exp_wt G e1 (Typ Tnat p) drv1 ->
+      exp_wt G e2 (Typ Tnat q) drv2 ->
       exp_wt G (Ebinop e1 e2 op) (Typ Tnat (JoinP p q))
+             (Ederiv_double (Typ Tnat p) drv1 (Typ Tnat q) drv2)
   | STlambda : forall p G U c G' G'',
       prog_wt p G' U c G'' ->
-      exp_wt G (Elambda c) (Typ (Tlambda G' U p G'') low)
+      exp_wt G (Elambda c) (Typ (Tlambda G' U p G'') low) Ederiv_none
 
   with com_wt : policy -> context -> set condition -> com ->
                 context -> Prop :=
   | STskip : forall pc G U,
       com_wt pc G U Cskip G
-  | STassign : forall pc U x e s p vc lc vc',
+  | STassign : forall pc U x e s p vc lc vc' drv,
       vc x = Some (Typ s (JoinP pc p)) ->
-      exp_wt (Cntxt vc lc) e (Typ s p) ->
+      exp_wt (Cntxt vc lc) e (Typ s p) drv ->
       ~pdenote (JoinP pc p) (LevelP T) ->
       vc' = update vc x (Some (Typ s (JoinP pc p))) ->
       com_wt pc (Cntxt vc lc) U (Cassign x e) (Cntxt vc' lc) (*
