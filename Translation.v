@@ -146,6 +146,7 @@ Section TransDef.
       prog_trans p sGm U c sGp md eGm Km d c' eGp Kp.     
 
   Scheme exp_trans_mut := Induction for exp_trans Sort Prop
+  with com_trans_mut := Induction for com_trans Sort Prop
   with prog_trans_mut := Induction for prog_trans Sort Prop.
 End TransDef.
 
@@ -170,44 +171,29 @@ End TransLemmas.
 
 Section TransProof.
   Hint Constructors E.exp_type E.com_type.
-  
-  (* Just admitting this so for now that I can get expressions and
-     commands sorted out before trying this hard case. *)
-  Lemma prog_trans_sound : forall p sGm U c sGp md eGm Km d c' eGp Kp,
-    prog_trans p sGm U c sGp md eGm Km d c' eGp Kp ->
-    E.com_type p md eGm Km U d c' eGp Kp.
-  Proof.
-  Admitted.
-  
-  Lemma exp_trans_sound : forall e sG t md eG d e' t' drv,
-      S.exp_wt sG e t drv ->
-      exp_trans sG e t drv md eG d e' t' ->
-      E.exp_type md eG d e' t'.
-  Proof.
-    intros. induction H0; inversion H; subst; eauto.
-    - eapply E.ETunset; intuition.
-    - eapply E.ETderef with (md':=md') (rt:=rt); intuition.
-    - eapply trans_exp_btrans in H0_0.
-      inversion H0_0. subst. constructor; eauto.
-    - constructor.
-      now eapply prog_trans_sound with (sGp:=sGp) (c:=c) (sGm:=sGm).
-  Qed.
 
-  (*
   Lemma com_trans_sound : forall pc sG U c sG' md eG K d c' eG' K',
+      S.com_wt pc sG U c sG' ->
       com_trans pc sG U c sG' md eG K d c' eG' K' ->
       E.com_type pc md eG K U d c' eG' K'.
   Proof.
-    intros. induction H.
-    - now constructor.
-    - inversion H. subst. simpl in H14. inversion H14.
-      pose (equal_f H5 x).
-      unfold update in e0. rewrite <- beq_nat_refl in e0.
-      inversion e0. subst.
-      eapply E.CTassign with (s:=s') (p:=q); auto.
-      + eapply exp_trans_sound with (sG:=S.Cntxt vc lc) (t:=S.Typ s q). eauto.
-      + now destruct eG.
-  Qed.
-  *)
+    intros.
+    induction H0 using com_trans_mut with
+    (P:=fun sG e t drv md eG d e' t'
+            (et:exp_trans sG e t drv md eG d e' t') =>
+          S.exp_wt sG e t drv ->
+          E.exp_type md eG d e' t')
+    (P1:=fun pc sG U c sG' md eG K d c' eG' K'
+            (ct:prog_trans pc sG U c sG' md eG K d c' eG' K') =>
+          S.prog_wt pc sG U c sG' ->
+          E.com_type pc md eG K U d c' eG' K'); eauto.
+    1-7: inversion H; subst; eauto.
+    (* Expressions *)
+    - eapply E.ETunset; intuition.
+    - eapply E.ETderef with (md':=md') (rt:=rt); intuition.
+    - eapply trans_exp_btrans in e.
+      inversion e. subst. constructor; eauto.
+    (* Commands. *)
+  Admitted.
   
 End TransProof.
