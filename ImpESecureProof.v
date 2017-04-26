@@ -658,10 +658,13 @@ Section Security_Helpers.
   Proof.
   Admitted.
   
-  Lemma subsumption : forall pc1 pc2 md d G c,
-      com_type pc1 md G d c G ->
+  Lemma subsumption : forall pc1 pc2 md d G1 G1' G2 G2' c,
+      com_type pc1 md G1 d c G1' ->
       sec_level_le pc2 pc1 ->
-      com_type pc2 md G d c G.
+      context_le G2 G1 ->
+      context_le G1' G2' ->
+      (* XXX not including well-typed contexts *)
+      com_type pc2 md G2 d c G2'.
   Admitted.
 
   Lemma filter_app (f:event -> bool) l1 l2:
@@ -845,6 +848,16 @@ Section Security_Helpers.
       rewrite <- tobs_sec_level_app. rewrite H; rewrite H3; auto.
   Qed.
 
+  Lemma protected_c_in_while_no_obs_output : forall pc pc' md d G e c r m r' m' tr,
+    com_type pc md G d (Cwhile e c) G ->
+    com_type pc' md G d c G ->
+    protected pc' ->
+    cstep md d (Cwhile e c, r, m) (r',m') tr ->
+    tobs_sec_level L tr = [].
+  Proof.
+    intros. inversion H; try discriminate; subst.
+  Admitted.
+    
   Lemma protected_while_no_obs_output : forall pc pc' md d G e c r m r' m' tr,
       com_type pc md G d (Cwhile e c) G ->
       com_type pc' md G d c G ->
@@ -853,7 +866,20 @@ Section Security_Helpers.
       tobs_sec_level L tr = [].
   Proof.
     intros.
-  Admitted.
+    inversion H2; try discriminate; subst; unfold_cfgs; unfold_cfgs.
+    inversion H5; subst.
+    assert (tobs_sec_level L tr0 = []).
+    pose (merge_reg_exists r r). pose (merge_mem_exists m m).
+    destruct e0, e1.
+    apply project_merge_inv_reg in H3; apply project_merge_inv_mem in H4; destruct_pairs.
+    assert (cstep md d (hd, project_reg x true, project_mem x0 true) (r0, m0) tr0).
+    rewrite H4, H3; auto.
+    pose (protected_typ_no_obs_output x x0 true pc' md d G hd G r0 m0 tr0); auto.
+    assert (tobs_sec_level L tr' = []).
+    rewrite cstep_seq_singleton in H10.
+    eapply protected_c_in_while_no_obs_output; eauto.
+    now rewrite <- tobs_sec_level_app, H3, H4.
+  Qed.
 
   Lemma diff_loc_protected : forall m l,
       mem_sl_ind m L ->
@@ -936,6 +962,7 @@ Section Security_Helpers.
       m x = m' x /\ (loc_context G) x = (loc_context G') x.
   Proof.
   Admitted.
+
 End Security_Helpers.
 
 Section Preservation.
@@ -993,6 +1020,7 @@ Section Preservation.
              (* XXX If m0 is mem_esc_hatch_ind, that means that all locations to compute e *)
              (* must be VSingle vs in the initial memory. furthermore, they are immutable *)
              (* therefore, they must still be VSingle vs and then e must be a Single *)
+             
              admit.
          --- rewrite <- (Nat.eqb_neq x0 x) in n. rewrite n in H.
              now apply H3 in H.
@@ -1022,15 +1050,31 @@ Section Preservation.
     - inversion H1; try discriminate; subst; split; auto.
     (* CCall *)
     - inversion H1; try discriminate; subst.
+      unfold forall_dom in *; unfold forall_var in *; unfold forall_loc in *;
+        destruct_pairs.
       assert (cterm2_ok Gp d m0 r'0 m'0 (escape_hatches_of (project_trace tr true) m0 d)).
-      eapply (IHHcstep' Hcstep' m'0 r'0 Heqcterm m r c); auto.
-      unfold cconfig2_ok; split; auto.
-      eapply call_fxn_typ. apply H1. apply H6.
-      assert (estep md d (e,project_reg r true,project_mem m true) (Vlambda md c)).
-      apply (impe2_exp_sound md d e r m (VSingle (Vlambda md c))); auto.
-      apply H.
-      admit. (* XXX Gm and Gp contexts... *)
-      admit. (* XXX need subsumption, Gm/Gp context mess again *)
+      -- eapply (IHHcstep' Hcstep' m'0 r'0 Heqcterm m r c); auto.
+         unfold cconfig2_ok; split; auto.
+         eapply call_fxn_typ. apply H1. apply H6.
+         assert (estep md d (e,project_reg r true,project_mem m true) (Vlambda md c)).
+         --- apply (impe2_exp_sound md d e r m (VSingle (Vlambda md c))); auto.
+         --- apply H13.
+         --- split; [|split]; auto; intros; destruct_pairs; [apply H8 in H14 | apply H12 in H14];
+             destruct H14; destruct_pairs;
+             inversion H15; subst.
+             assert (protected p1) by now apply (H2 x v1 v2 s1 p1).
+             inversion H16; subst. destruct p0; unfold sec_level_le in *; auto; try omega.
+             assert (protected p1) by now apply (H3 l v1 v2 s1 p1 rt).
+             inversion H16; subst. destruct p0; unfold sec_level_le in *; auto; try omega.
+      -- unfold cterm2_ok in *; destruct_pairs; auto;
+           split; [ | split]; auto; intros; destruct_pairs.
+         destruct (var_in_dom_dec Gp x); destruct e0. pose H19 as inGp.
+         apply H9 in inGp. destruct inGp; destruct_pairs. destruct H21.
+         assert (r'0 x = VPair v1 v2 /\ var_context Gp x = Some (Typ s2 p2)) as inGp by now split.
+         assert (protected p2) by now apply H13 in inGp.
+         
+         admit. admit. admit.
+          
     (* Call-Div *)
     - inversion H5; try discriminate; subst.
       admit. (* XXX ergh more contexts *)
@@ -1217,20 +1261,16 @@ Section Preservation.
       apply H8.
       split; auto; intros; unfold forall_dom in *;
         unfold forall_var in *; unfold forall_loc in *; destruct_pairs.
-      -- assert (var_in_dom Gm x (Typ bt p0)) as xinGm
-            by now apply (Var_in_dom Gm x (Typ bt p0)).
-         apply H12 in xinGm; destruct xinGm; destruct_pairs.
-         inversion H19; subst. destruct x0.
-         assert (protected s) by now apply (H4 x v1 v2 b s).
-         inversion H22; subst. inversion H20; subst.
+      -- apply H12 in H14; destruct H14; destruct_pairs.
+         inversion H19; subst.
+         assert (protected p1) by now apply (H4 x v1 v2 s1 p1).
+         inversion H20; subst. 
          destruct p0; unfold sec_level_le in *; auto; try omega.
-      -- split; auto; intros.
-         assert (loc_in_dom Gm l (Typ bt p0) rt) as linGm
-            by now apply (Loc_in_dom Gm l (Typ bt p0) rt).
-         apply H16 in linGm; destruct linGm; destruct_pairs.
+      -- split; auto; intros; destruct_pairs.
+         apply H16 in H18; destruct H18; destruct_pairs.
          inversion H18; subst. destruct x.
          assert (protected s) by now apply (H5 l v1 v2 b s rt).
-         inversion H22; subst. inversion H19; subst.
+         inversion H20; subst. inversion H19; subst.
          destruct p0; unfold sec_level_le in *; auto; try omega.
     (* ENCLAVE *)
     - exists pc. exists G. exists G'. split. apply sec_level_le_refl.
@@ -1520,7 +1560,7 @@ Section Secure_Passive.
       assert (com_type pc' md G' d Cskip G') as skip_typ by apply CTskip.
       assert (com_type pc md G' d (Cseq [c; Cwhile e c]) G') as seq_type.
       assert (com_type pc md G' d c G') as c_typ.
-      apply (subsumption pc' pc md d G' c) in H14; auto.
+      apply (subsumption pc' pc md d G' G' G' G' c) in H14; auto.
       destruct pc; simpl in *; auto.
       eapply Tseq. apply c_typ.
       eapply Tseq. apply H.

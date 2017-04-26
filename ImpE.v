@@ -355,30 +355,32 @@ Section Typing.
   | Cntxt (var_cntxt: var -> option type)
           (loc_cntxt: location -> option (type * ref_type)) : context.
 
-  
   Definition var_context (G: context) : var -> option type :=
     match G with Cntxt vc _ => vc end.
-  
+
+  Lemma var_in_dom_dec : forall G x, {exists t, var_context G x = Some t}
+                                     + {var_context G x = None}.
+  Proof.
+    intros. destruct G. simpl. destruct (var_cntxt x).
+    left; now exists t. right; auto.
+  Qed.
+                     
   Definition loc_context (G: context) : location -> option (type * ref_type) :=
     match G with Cntxt _ lc => lc end.
 
-  Inductive var_in_dom (G: context) : var -> type -> Prop :=
-  | Var_in_dom : forall x t,
-      var_context G x = Some t ->
-      var_in_dom G x t.
-
-  Inductive loc_in_dom (G: context) : location -> type -> ref_type -> Prop :=
-  | Loc_in_dom : forall l t rt,
-      loc_context G l = Some (t, rt) ->
-      loc_in_dom G l t rt.
-
+  Lemma loc_in_dom_dec : forall G l, {exists t rt, loc_context G l = Some (t, rt)}
+                                     + {loc_context G l = None}.
+  Proof.
+    intros. destruct G. simpl. destruct (loc_cntxt l). destruct p.
+    left; exists t; exists r; auto. right; auto.
+  Qed.
+      
   Definition forall_var (G: context) (P: var -> type -> Prop) : Prop :=
-    forall x t, var_in_dom G x t -> P x t.
+    forall x t, var_context G x = Some t -> P x t.
 
   Definition forall_loc (G: context)
              (P: location -> type -> ref_type -> Prop) : Prop :=
-    forall l t rt,
-      loc_in_dom G l t rt -> P l t rt.
+    forall l t rt, loc_context G l = Some (t, rt) -> P l t rt.
 
   Definition forall_dom (G: context)
              (P: var -> type -> Prop)
@@ -403,15 +405,15 @@ Section Typing.
   with context_le : context -> context -> Prop :=
   | Context_le : forall G1 G2,
       (forall x t,
-          var_in_dom G1 x t -> exists t',
-            var_in_dom G2 x t' /\ type_le t t') ->
+          var_context G1 x = Some t -> exists t',
+            var_context G2 x = Some t' /\ type_le t t') ->
       (forall x t,
-          var_in_dom G2 x t -> exists t', var_in_dom G1 x t') ->
+          var_context G2 x = Some t -> exists t', var_context G1 x = Some t') ->
       (forall l t rt,
-          loc_in_dom G1 l t rt -> exists t',
-            loc_in_dom G2 l t' rt /\ type_le t t') ->
+          loc_context G1 l = Some (t, rt) -> exists t',
+            loc_context G2 l = Some (t', rt) /\ type_le t t') ->
       (forall l t rt,
-          loc_in_dom G2 l t rt -> exists t', loc_in_dom G1 l t' rt) ->
+          loc_context G2 l = Some (t, rt) -> exists t', loc_context G1 l = Some (t', rt)) ->
       context_le G1 G2.
 
   Definition context_wt (G: context) (d: loc_mode) : Prop :=
@@ -522,22 +524,24 @@ Section Typing.
       exp_type md G d e (Typ (Tlambda Gm p md Gp) q) ->
       sec_level_le (sec_level_join pc q) p ->
       forall_dom Gm
-                 (fun x t => exists t', var_in_dom G x t' /\ type_le t' t)
+                 (fun x t => exists t', var_context G x = Some t' /\ type_le t' t)
                  (fun l t rt => exists t',
-                      loc_in_dom G l t' rt /\ type_le t' t) ->
+                      loc_context G l = Some (t', rt) /\ type_le t' t) ->
       forall_dom Gp
-                 (fun x t => exists t', var_in_dom Gout x t' /\ type_le t' t)
+                 (fun x t => exists t', var_context Gout x = Some t' /\ type_le t' t)
                  (fun l t rt => exists t',
-                      loc_in_dom Gout l t' rt /\ type_le t' t) ->
+                      loc_context Gout l = Some (t', rt) /\ type_le t' t) ->
       forall_dom G
                  (fun x t =>
-                    (forall t', ~var_in_dom Gp x t') ->
-                    var_in_dom Gout x t)
+                    (var_context Gp x = None) ->
+                    var_context Gout x = Some t)
                  (fun l t rt =>
-                    (forall t' rt', ~loc_in_dom Gp l t' rt') ->
-                    loc_in_dom Gout l t rt) ->
+                    (loc_context Gp l = None) ->
+                    loc_context Gout l = Some (t, rt)) ->
       com_type pc md G d (Ccall e) Gout.
 End Typing.
+
+
 
 
 
