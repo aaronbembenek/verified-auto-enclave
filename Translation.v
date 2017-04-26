@@ -116,17 +116,16 @@ Section TransDef.
                 (E.Typ (E.Tlambda eGm Km U p md eGp Kp) q)
 
   with com_trans : policy -> S.context -> set condition -> S.com ->
-                   S.context -> E.mode -> E.context -> set E.enclave ->
+                   S.context -> S.cderiv ->
+                   E.mode -> E.context -> set E.enclave ->
                    E.loc_mode -> E.com -> E.context -> set E.enclave ->
                    Prop :=
-  | TRskip : forall pc sG eG U md K d,
-      S.com_wt pc sG U S.Cskip sG ->     
+  | TRskip : forall pc sG eG U md K d drv,  
       context_trans sG d eG ->
       E.mode_alive md K ->
-      com_trans pc sG U S.Cskip sG
+      com_trans pc sG U S.Cskip sG drv
                 md eG K d E.Cskip eG K
   | TRassign : forall pc sG sG' U x e e' md eG K d eG' q s s' drv,
-      S.com_wt pc sG U (S.Cassign x e) sG' ->
       context_trans sG d eG ->
       exp_trans sG e (S.Typ s q) drv md eG d e' (E.Typ s' q) ->
       policy_le (JoinP pc q) (liftp (LevelP L)) \/ md <> E.Normal ->
@@ -135,8 +134,19 @@ Section TransDef.
                     (E.loc_context eG) ->
       sG' = S.Cntxt (update (S.var_context sG) x (Some (S.Typ s (JoinP pc q))))
                     (S.loc_context sG) ->
-      com_trans pc sG U (S.Cassign x e) sG'
+      com_trans pc sG U (S.Cassign x e) sG' (S.Cderiv_e1 (S.Typ s q) drv)
                 md eG K d (E.Cassign x e') eG' K
+  | TRdeclassify : forall pc sG sG' U x e e' md eG K d eG' q s s' drv,
+      context_trans sG d eG ->
+      exp_trans sG e (S.Typ s q) drv md eG d e' (E.Typ s' q) ->
+      policy_le (JoinP pc q) (liftp (LevelP L)) \/ md <> E.Normal ->
+      E.mode_alive md K ->
+      eG' = E.Cntxt (update (E.var_context eG) x (Some (E.Typ s' low)))
+                    (E.loc_context eG) ->
+      sG' = S.Cntxt (update (S.var_context sG) x (Some (S.Typ s low)))
+                    (S.loc_context sG) ->
+      com_trans pc sG U (S.Cdeclassify x e) sG' (S.Cderiv_e1 (S.Typ s q) drv)
+                md eG K d (E.Cdeclassify x e') eG' K
       
   with prog_trans : policy -> S.context -> set condition -> S.prog ->
                     S.context -> E.mode -> E.context -> set E.enclave ->
@@ -172,9 +182,9 @@ End TransLemmas.
 Section TransProof.
   Hint Constructors E.exp_type E.com_type.
 
-  Lemma com_trans_sound : forall pc sG U c sG' md eG K d c' eG' K',
-      S.com_wt pc sG U c sG' ->
-      com_trans pc sG U c sG' md eG K d c' eG' K' ->
+  Lemma com_trans_sound : forall pc sG U c sG' md eG K d c' eG' K' drv,
+      S.com_wt pc sG U c sG' drv ->
+      com_trans pc sG U c sG' drv md eG K d c' eG' K' ->
       E.com_type pc md eG K U d c' eG' K'.
   Proof.
     intros.
@@ -194,6 +204,13 @@ Section TransProof.
     - eapply trans_exp_btrans in e.
       inversion e. subst. constructor; eauto.
     (* Commands. *)
+    - inversion H. subst. eapply E.CTassign with (s:=s') (p:=q); eauto.
+      destruct eG. reflexivity.
+    - inversion H. subst. eapply E.CTdeclassify with (s:=s') (p:=q); eauto.
+      + admit. (* trans_pres_exp_novars *)
+      + admit. (* trans_pres_all_loc_immutable *)
+    (* Programs. *)
+    - admit.
   Admitted.
   
 End TransProof.

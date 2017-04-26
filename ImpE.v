@@ -500,8 +500,6 @@ Section Typing.
 
   (* XXX need this for using List.nth... maybe better option *)
   Definition mt := Cntxt (fun _ => None) (fun _ => None).
-
-  Notation low := (SingleP (LevelP L)).
   
   (* FIXME: don't have subsumption rule *)
   Inductive exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
@@ -552,15 +550,16 @@ Section Typing.
       g = Cntxt vc lc ->
       vc' = update vc x (Some (Typ s (JoinP pc p))) ->
       g' = Cntxt vc' lc ->
-      com_type pc md g k u d (Cassign x e) g' k. (*
+      com_type pc md g k u d (Cassign x e) g' k
   | CTdeclassify : forall md g k u d x e s p vc lc vc',
       exp_type md g d e (Typ s p) ->
-      p <> LevelP T ->
+      ~pdenote p (LevelP T) ->
       mode_alive md k ->
       exp_novars e ->
       all_loc_immutable e g ->
-      vc' = (fun y => if y =? x then Some (Typ s (LevelP L)) else vc y) ->
-      com_type (LevelP L) md g k u d (Cdeclassify x e) (Cntxt vc' lc) k
+      vc' = update vc x (Some (Typ s low)) ->
+      com_type low md g k u d (Cdeclassify x e) (Cntxt vc' lc) k
+               . (*
   | CToutput : forall pc md g k u d e l s p,
       exp_type md g d e (Typ s p) ->
       mode_alive md k ->

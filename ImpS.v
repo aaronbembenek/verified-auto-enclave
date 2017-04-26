@@ -267,13 +267,14 @@ Section Typing.
   Inductive ederiv : Type :=
   | Ederiv_none : ederiv
   | Ederiv_single : type -> ederiv -> ederiv
-  | Ederiv_double: type -> ederiv -> type -> ederiv -> ederiv
-  (* | Ederiv_prog : type stuff -> pderiv -> ederiv *).
+  | Ederiv_double: type -> ederiv -> type -> ederiv -> ederiv.
+
+  Inductive cderiv : Type :=
+  | Cderiv_none : cderiv
+  | Cderiv_e1 : type -> ederiv -> cderiv.
   
   (* XXX need this for using List.nth... maybe better option *)
   Definition mt := Cntxt (fun _ => None) (fun _ => None).
-
-  Notation low := (SingleP (LevelP L)).
   
   Inductive exp_wt : context -> exp -> type -> ederiv -> Prop :=
   | STnat : forall G n,
@@ -302,25 +303,26 @@ Section Typing.
       exp_wt G (Elambda c) (Typ (Tlambda G' U p G'') low) Ederiv_none
 
   with com_wt : policy -> context -> set condition -> com ->
-                context -> Prop :=
+                context -> cderiv -> Prop :=
   | STskip : forall pc G U,
-      com_wt pc G U Cskip G
+      com_wt pc G U Cskip G Cderiv_none
   | STassign : forall pc U x e s p vc lc vc' drv,
       vc x = Some (Typ s (JoinP pc p)) ->
       exp_wt (Cntxt vc lc) e (Typ s p) drv ->
       ~pdenote (JoinP pc p) (LevelP T) ->
       vc' = update vc x (Some (Typ s (JoinP pc p))) ->
-      com_wt pc (Cntxt vc lc) U (Cassign x e) (Cntxt vc' lc) (*
-  | STdeclassify : forall U x e s q p vc lc vc',
+      com_wt pc (Cntxt vc lc) U (Cassign x e) (Cntxt vc' lc)
+             (Cderiv_e1 (Typ s p) drv)
+  | STdeclassify : forall U x e s q p vc lc vc' drv,
       vc x = Some (Typ s q) ->
-      exp_wt (Cntxt vc lc) e (Typ s p) ->
-      p <> LevelP T ->
+      exp_wt (Cntxt vc lc) e (Typ s p) drv ->
+      ~pdenote p (LevelP T) ->
       exp_novars e ->
       all_loc_immutable e (Cntxt vc lc) ->
-      vc' = (fun y => if y =? x
-                      then Some (Typ s (LevelP L))
-                      else vc y) ->
-      com_wt (LevelP L) (Cntxt vc lc) U (Cdeclassify x e) (Cntxt vc' lc)
+      vc' = update vc x (Some (Typ s low)) ->
+      com_wt low (Cntxt vc lc) U (Cdeclassify x e) (Cntxt vc' lc)
+             (Cderiv_e1 (Typ s p) drv)
+             (*
   | STupdate : forall G e1 s p q e2 p' pc U,
       exp_wt G e1 (Typ (Tref (Typ s p) Mut) q) ->
       exp_wt G e2 (Typ s p') ->
@@ -379,14 +381,15 @@ Section Typing.
 *)
   with prog_wt : policy -> context -> set condition -> prog ->
                  context -> Prop :=
-  | STprog : forall pc G U coms (Gs: list context),
+  | STprog : forall pc G U coms (Gs: list context) drv,
       (* There might be a better way to write this with a function
          that recurses over the list of commands. *)
+      (* XXX fix drv part *)
       length Gs = length coms + 1 ->
       nth 0 Gs mt = G ->
       (forall (i: nat),
           i < length coms ->
-          com_wt pc (nth i Gs mt) U (nth i coms Cskip) (nth (i + 1) Gs mt)) ->
+          com_wt pc (nth i Gs mt) U (nth i coms Cskip) (nth (i + 1) Gs mt) drv) ->
       prog_wt pc G U (Prog coms) (nth (length coms) Gs mt).
   (*
 

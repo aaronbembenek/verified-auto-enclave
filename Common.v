@@ -151,6 +151,7 @@ Section Security.
       policy0_le p0 q0.
 
   Definition liftp p := SingleP p.
+  Definition low := SingleP (LevelP L).
 
   (* XXX might need axioms about sec policy lattice. *)
 
