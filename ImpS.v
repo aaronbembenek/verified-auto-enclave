@@ -340,10 +340,9 @@ Section Typing.
       pdenote pc pc0 ->
       sec_level_le (sec_level_join (cur p0 U) (cur pc0 U)) l ->
       com_wt pc G U (Coutput e l) G (Cderiv_e1 (Typ s p) drv)
-  (*
   | STsetcnd : forall G U cnd,
       ~set_In cnd U ->
-      com_wt (LevelP L) G U (Cset cnd) G
+      com_wt low G U (Cset cnd) G Cderiv_none (*
   | STifunset : forall pc G U cnd c1 c2 G',
       exp_wt G (Eisunset cnd) (Typ Tnat (LevelP L)) ->
       prog_wt pc G (set_add Nat.eq_dec cnd U) c1 G' ->

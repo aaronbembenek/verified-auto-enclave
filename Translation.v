@@ -70,26 +70,31 @@ Section TransDef.
   | TRnat : forall sG n p md eG d drv,
       exp_trans sG (S.Enat n) (S.Typ S.Tnat p) drv
                 md eG d (E.Enat n) (E.Typ E.Tnat p)
+                
   | TRvar : forall sG x t t' eG md d drv,
       ttrans t d t' ->
       E.var_context eG x = Some t' ->
       exp_trans sG (S.Evar x) t drv
                 md eG d (E.Evar x) t'
+                
   | TRcnd : forall sG cnd p d md md' eG drv,
       d (Cnd cnd) = md' ->
       exp_trans sG (S.Eloc (Cnd cnd)) (S.Typ S.Tcond p) drv
                 md eG d (E.Eloc (Cnd cnd)) (E.Typ (E.Tcond md') p)
+                
   | TRisunset : forall sG cnd md' md eG d p drv,
       d (Cnd cnd) = md' ->
       md' = E.Normal \/ md = md' ->
       exp_trans sG (S.Eisunset cnd) (S.Typ S.Tnat p) drv
                 md eG d (E.Eisunset cnd) (E.Typ E.Tnat p)
+                
   | TRloc : forall sG l t rt (q: sec_level) t' md' md eG d q drv,
       ttrans (S.Typ (S.Tref t rt) q) d (E.Typ (E.Tref t' md' rt) q) ->
       E.loc_context eG (Not_cnd l) = Some (t', rt) ->
       d (Not_cnd l) = md' ->
       exp_trans sG (S.Eloc (Not_cnd l)) (S.Typ (S.Tref t rt) q) drv
                 md eG d (E.Eloc (Not_cnd l)) (E.Typ (E.Tref t' md' rt) q)
+                
   | TRderef : forall sG (eG: E.context) e s p s' q md eG d e' md' rt drv,
       exp_trans sG e (S.Typ (S.Tref (S.Typ s p) rt) q) drv
                 md eG d e' (E.Typ (E.Tref (E.Typ s' p) md' rt) q) ->
@@ -98,6 +103,7 @@ Section TransDef.
                 (S.Ederiv_e1 (S.Typ (S.Tref (S.Typ s p) rt) q) drv)
                 md eG d (E.Ederef e')
                 (E.Typ s' (JoinP p q))
+                
   | TRop : forall sG op e1 s p s' md eG d e1' e2 q e2' drv1 drv2,
       exp_trans sG e1 (S.Typ s p) drv1 md eG d e1' (E.Typ s' p) ->
       exp_trans sG e2 (S.Typ s q) drv2 md eG d e2' (E.Typ s' q) ->
@@ -106,6 +112,7 @@ Section TransDef.
                 (S.Ederiv_e2 (S.Typ s p) drv1 (S.Typ s q) drv2)
                 md eG d (E.Ebinop e1' e2' op)
                 (E.Typ s' (JoinP p q))
+                
   | TRlambda : forall sG sGm sGp (U: set condition) p d eG eGm Km
                       md eGp Kp c c' q drv,
       btrans (S.Tlambda sGm U p sGp) d (E.Tlambda eGm Km U p md eGp Kp) ->
@@ -125,6 +132,7 @@ Section TransDef.
       E.mode_alive md K ->
       com_trans pc sG U S.Cskip sG drv
                 md eG K d E.Cskip eG K
+                
   | TRassign : forall pc sG sG' U x e e' md eG K d eG' q s s' drv,
       context_trans sG d eG ->
       exp_trans sG e (S.Typ s q) drv md eG d e' (E.Typ s' q) ->
@@ -136,6 +144,7 @@ Section TransDef.
                     (S.loc_context sG) ->
       com_trans pc sG U (S.Cassign x e) sG' (S.Cderiv_e1 (S.Typ s q) drv)
                 md eG K d (E.Cassign x e') eG' K
+                
   | TRdeclassify : forall pc sG sG' U x e e' md eG K d eG' q s s' drv,
       context_trans sG d eG ->
       exp_trans sG e (S.Typ s q) drv md eG d e' (E.Typ s' q) ->
@@ -147,6 +156,7 @@ Section TransDef.
                     (S.loc_context sG) ->
       com_trans pc sG U (S.Cdeclassify x e) sG' (S.Cderiv_e1 (S.Typ s q) drv)
                 md eG K d (E.Cdeclassify x e') eG' K
+                
   | TRupdate : forall pc sG U e1 e2 md eG K d e1' e2'
                       p q p' s s' drv1 drv2 md' rt,
       context_trans sG d eG ->
@@ -160,6 +170,7 @@ Section TransDef.
                 (S.Cderiv_e2 (S.Typ (S.Tref (S.Typ s p) rt) q) drv1
                              (S.Typ s p') drv2)
                 md eG K d (E.Cupdate e1' e2') eG K
+                
   | TRoutput : forall pc sG U e md eG K d e' p l drv s' s,
       exp_trans sG e (S.Typ s p) drv
                 md eG d e' (E.Typ s' p) ->
@@ -167,6 +178,13 @@ Section TransDef.
       E.mode_alive md K ->
       com_trans pc sG U (S.Coutput e l) sG (S.Cderiv_e1 (S.Typ s p) drv)
                 md eG K d (E.Coutput e' l) eG K
+                
+  | TRset : forall sG U cnd md' md eG K d drv,
+      d (Cnd cnd) = md' ->
+      md' = E.Normal \/ md = md' ->
+      E.mode_alive md K ->
+      com_trans low sG U (S.Cset cnd) sG drv
+                md eG K d (E.Cset cnd) eG K
       
   with prog_trans : policy -> S.context -> set condition -> S.prog ->
                     S.context -> E.mode -> E.context -> set E.enclave ->
@@ -276,8 +294,9 @@ Section TransProof.
     - inversion H. subst. eapply E.CTdeclassify; eauto.
       + eapply trans_pres_exp_novars; eauto.
       + eapply trans_pres_all_loc_immutable; eauto.
-    - inversion H. subst. eapply E.CTupdate; eauto.
-    - inversion H. subst. eapply E.CToutput; eauto.
+    - inversion H. subst. eauto.
+    - inversion H. subst. eauto.
+    - inversion H. subst. eauto.
     (* Programs. *)
     - admit.
   Admitted.

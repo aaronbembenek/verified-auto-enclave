@@ -616,13 +616,13 @@ Section Typing.
       pdenote p p0 ->
       pdenote pc pc0 ->
       sec_level_le (sec_level_join (cur p0 u) (cur pc0 u)) l ->
-      com_type pc md g k u d (Coutput e l) g k. (*
+      com_type pc md g k u d (Coutput e l) g k
   | CTset : forall md g k u d cnd md',
       md' = d (Cnd cnd) ->
       ~set_In cnd u ->
-      md' = Normal \/ md' = md ->
+      md' = Normal \/ md = md' ->
       mode_alive md k ->
-      com_type (LevelP L) md g k u d (Cset cnd) g k
+      com_type low md g k u d (Cset cnd) g k. (*
   | CTifunset : forall pc md g k u d cnd c1 c2 g' k',
       exp_type md g d (Eisunset cnd) (Typ Tnat (LevelP L)) ->
       com_type pc md g k (set_add Nat.eq_dec cnd u) d c1 g' k' ->
