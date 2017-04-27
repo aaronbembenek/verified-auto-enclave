@@ -558,11 +558,11 @@ Section Typing.
       exp_type md g d (Eloc l) (Typ (Tref t md' rt) low)
   | ETderef : forall md g d e md' s p q rt,
       exp_type md g d e (Typ (Tref (Typ s p) md' rt) q) ->
-      md' = Normal \/ md' = md ->
+      md' = Normal \/ md = md' ->
       exp_type md g d (Ederef e) (Typ s (JoinP p q))
   | ETunset : forall md g d cnd md',
       md' = d (Cnd cnd) ->
-      md' = Normal \/ md' = md ->
+      md' = Normal \/ md = md' ->
       exp_type md g d (Eisunset cnd) (Typ Tnat low)
   | ETlambda : forall md g d c p k u g' g'' k',
       com_type p md g' k u d c g'' k' ->
@@ -599,23 +599,22 @@ Section Typing.
       all_loc_immutable e g ->
       vc' = update vc x (Some (Typ s low)) ->
       com_type low md g k u d (Cdeclassify x e) (Cntxt vc' lc) k
-               . (*
+  | CTupdate : forall pc md g k u d e1 e2 s p md' q p',
+      exp_type md g d e1 (Typ (Tref (Typ s p) md' Mut) q) ->
+      exp_type md g d e2 (Typ s p') ->
+      policy_le (JoinP (JoinP p' q) pc) p ->
+      md' = Normal \/ md = md' ->
+      mode_alive md k ->
+      ~pdenote p (LevelP T) ->
+      ~pdenote p' (LevelP T) ->
+      ~pdenote q (LevelP T) ->
+      com_type pc md g k u d (Cupdate e1 e2) g k. (*
   | CToutput : forall pc md g k u d e l s p,
       exp_type md g d e (Typ s p) ->
       mode_alive md k ->
       p <> LevelP T ->
       sec_level_le (sec_level_join (cur p u) (cur pc u)) l ->
       com_type pc md g k u d (Coutput e l) g k
-  | CTupdate : forall pc md g k u d e1 e2 s p md' q p',
-      exp_type md g d e1 (Typ (Tref (Typ s p) md' Mut) q) ->
-      exp_type md g d e2 (Typ s p') ->
-      policy_le (policy_join (policy_join p' q) pc) p ->
-      md' = Normal \/ md' = md ->
-      mode_alive md k ->
-      p <> LevelP T ->
-      p' <> LevelP T ->
-      q <> LevelP T ->
-      com_type pc md g k u d (Cupdate e1 e2) g k
   | CTset : forall md g k u d cnd md',
       md' = d (Cnd cnd) ->
       ~set_In cnd u ->

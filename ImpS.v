@@ -266,12 +266,13 @@ Section Typing.
 
   Inductive ederiv : Type :=
   | Ederiv_none : ederiv
-  | Ederiv_single : type -> ederiv -> ederiv
-  | Ederiv_double: type -> ederiv -> type -> ederiv -> ederiv.
+  | Ederiv_e1 : type -> ederiv -> ederiv
+  | Ederiv_e2: type -> ederiv -> type -> ederiv -> ederiv.
 
   Inductive cderiv : Type :=
   | Cderiv_none : cderiv
-  | Cderiv_e1 : type -> ederiv -> cderiv.
+  | Cderiv_e1 : type -> ederiv -> cderiv
+  | Cderiv_e2 : type -> ederiv -> type -> ederiv -> cderiv.
   
   (* XXX need this for using List.nth... maybe better option *)
   Definition mt := Cntxt (fun _ => None) (fun _ => None).
@@ -290,14 +291,14 @@ Section Typing.
   | STderef : forall G e s p q rt drv,
       exp_wt G e (Typ (Tref (Typ s p) rt) q) drv ->
       exp_wt G (Ederef e) (Typ s (JoinP p q))
-             (Ederiv_single (Typ (Tref (Typ s p) rt) q) drv)
+             (Ederiv_e1 (Typ (Tref (Typ s p) rt) q) drv)
   | STisunset : forall G x,
       exp_wt G (Eisunset x) (Typ Tnat low) Ederiv_none
   | STbinop : forall G e1 e2 p q op drv1 drv2,
       exp_wt G e1 (Typ Tnat p) drv1 ->
       exp_wt G e2 (Typ Tnat q) drv2 ->
       exp_wt G (Ebinop e1 e2 op) (Typ Tnat (JoinP p q))
-             (Ederiv_double (Typ Tnat p) drv1 (Typ Tnat q) drv2)
+             (Ederiv_e2 (Typ Tnat p) drv1 (Typ Tnat q) drv2)
   | STlambda : forall p G U c G' G'',
       prog_wt p G' U c G'' ->
       exp_wt G (Elambda c) (Typ (Tlambda G' U p G'') low) Ederiv_none
@@ -322,15 +323,17 @@ Section Typing.
       vc' = update vc x (Some (Typ s low)) ->
       com_wt low (Cntxt vc lc) U (Cdeclassify x e) (Cntxt vc' lc)
              (Cderiv_e1 (Typ s p) drv)
-             (*
-  | STupdate : forall G e1 s p q e2 p' pc U,
-      exp_wt G e1 (Typ (Tref (Typ s p) Mut) q) ->
-      exp_wt G e2 (Typ s p') ->
-      policy_le (policy_join (policy_join p' q) pc) p ->
-      p <> LevelP T ->
-      p' <> LevelP T ->
-      q <> LevelP T ->
+  | STupdate : forall G e1 s p q e2 p' pc U drv1 drv2,
+      exp_wt G e1 (Typ (Tref (Typ s p) Mut) q) drv1 ->
+      exp_wt G e2 (Typ s p') drv2 ->
+      policy_le (JoinP (JoinP p' q) pc) p ->
+      ~pdenote p (LevelP T) ->
+      ~pdenote p' (LevelP T) ->
+      ~pdenote q (LevelP T) ->
       com_wt pc G U (Cupdate e1 e2) G
+             (Cderiv_e2 (Typ (Tref (Typ s p) Mut) q) drv1
+                        (Typ s p') drv2)
+  (*
   | STsetcnd : forall G U cnd,
       ~set_In cnd U ->
       com_wt (LevelP L) G U (Cset cnd) G

@@ -95,7 +95,7 @@ Section TransDef.
                 md eG d e' (E.Typ (E.Tref (E.Typ s' p) md' rt) q) ->
       md' = E.Normal \/ md = md' ->
       exp_trans sG (S.Ederef e) (S.Typ s (JoinP p q))
-                (S.Ederiv_single (S.Typ (S.Tref (S.Typ s p) rt) q) drv)
+                (S.Ederiv_e1 (S.Typ (S.Tref (S.Typ s p) rt) q) drv)
                 md eG d (E.Ederef e')
                 (E.Typ s' (JoinP p q))
   | TRop : forall sG op e1 s p s' md eG d e1' e2 q e2' drv1 drv2,
@@ -103,7 +103,7 @@ Section TransDef.
       exp_trans sG e2 (S.Typ s q) drv2 md eG d e2' (E.Typ s' q) ->
       exp_trans sG (S.Ebinop e1 e2 op)
                 (S.Typ s (JoinP p q))
-                (S.Ederiv_double (S.Typ s p) drv1 (S.Typ s q) drv2)
+                (S.Ederiv_e2 (S.Typ s p) drv1 (S.Typ s q) drv2)
                 md eG d (E.Ebinop e1' e2' op)
                 (E.Typ s' (JoinP p q))
   | TRlambda : forall sG sGm sGp (U: set condition) p d eG eGm Km
@@ -147,6 +147,20 @@ Section TransDef.
                     (S.loc_context sG) ->
       com_trans pc sG U (S.Cdeclassify x e) sG' (S.Cderiv_e1 (S.Typ s q) drv)
                 md eG K d (E.Cdeclassify x e') eG' K
+
+  | TRupdate : forall pc sG U e1 e2 md eG K d e1' e2'
+                      p q p' s s' drv1 drv2 md' rt,
+      context_trans sG d eG ->
+      exp_trans sG e1 (S.Typ (S.Tref (S.Typ s p) rt) q) drv1
+                md eG d e1' (E.Typ (E.Tref (E.Typ s' p) md' rt) q) ->
+      exp_trans sG e2 (S.Typ s p') drv2
+                md eG d e2' (E.Typ s' p') ->
+      md' = E.Normal \/ md = md' ->
+      E.mode_alive md K ->
+      com_trans pc sG U (S.Cupdate e1 e2) sG
+                (S.Cderiv_e2 (S.Typ (S.Tref (S.Typ s p) rt) q) drv1
+                             (S.Typ s p') drv2)
+                md eG K d (E.Cupdate e1' e2') eG K
       
   with prog_trans : policy -> S.context -> set condition -> S.prog ->
                     S.context -> E.mode -> E.context -> set E.enclave ->
@@ -248,16 +262,15 @@ Section TransProof.
           E.com_type pc md eG K U d c' eG' K'); eauto.
     1-7: inversion H; subst; eauto.
     (* Expressions *)
-    - eapply E.ETunset; intuition.
-    - eapply E.ETderef with (md':=md') (rt:=rt); intuition.
     - eapply trans_exp_btrans in e.
       inversion e. subst. constructor; eauto.
     (* Commands. *)
-    - inversion H. subst. eapply E.CTassign with (s:=s') (p:=q); eauto.
+    - inversion H. subst. eapply E.CTassign; eauto.
       destruct eG. reflexivity.
-    - inversion H. subst. eapply E.CTdeclassify with (s:=s') (p:=q); eauto.
+    - inversion H. subst. eapply E.CTdeclassify; eauto.
       + eapply trans_pres_exp_novars; eauto.
       + eapply trans_pres_all_loc_immutable; eauto.
+    - inversion H. subst. eapply E.CTupdate; eauto.
     (* Programs. *)
     - admit.
   Admitted.
