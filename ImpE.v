@@ -394,7 +394,10 @@ Section Typing.
   | Context_le : forall G1 G2,
       (forall x t,
           G1 x = Some t ->
-          exists t', (G2 x = Some t' /\ type_le t t')) ->
+          (* G2 must either not use the variable or have a greater type *)
+          (G2 x = None \/ exists t', G2 x = Some t' /\ type_le t t')) ->
+      (forall x t',
+          G2 x = Some t' -> exists t, G1 x = Some t /\ type_le t t') ->
       context_le G1 G2.
   
   Definition context_wt (G: context) (d: loc_mode) : Prop :=
@@ -502,17 +505,17 @@ Section Typing.
   | Tcall : forall pc md G d e Gm Gp Gout q p,
       exp_type md G d e (Typ (Tlambda Gm p md Gp) q) ->
       sec_level_le (sec_level_join pc q) p ->
-      forall_dom Gm (fun x t => exists t', G x = Some t' /\ type_le t' t) ->
-      forall_dom Gp (fun x t => exists t', Gout x = Some t' /\ type_le t t') ->
+      context_le G Gm ->
+      context_le Gp Gout ->
       forall_dom G (fun x t => (Gp x = None) -> Gout x = Some t) ->
       com_type pc md G d (Ccall e) Gout.
 
   Lemma context_le_refl : forall G, context_le G G.
   Proof.
-    intros. apply Context_le. intros. exists t. split; destruct t; auto.
-    apply Type_le.
-    apply Base_type_le_refl.
-    apply sec_level_le_refl.
+    intros. apply Context_le. intros. right; exists t; destruct t; auto.
+    split; auto. apply Type_le. apply Base_type_le_refl. apply sec_level_le_refl.
+    intros; exists t'; split; auto; destruct t'; auto.
+    apply Type_le. apply Base_type_le_refl. apply sec_level_le_refl.
   Qed.
   
 End Typing.
