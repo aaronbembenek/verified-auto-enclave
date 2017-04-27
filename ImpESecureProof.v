@@ -584,10 +584,8 @@ Section Security_Defn.
       sec_level_le (g0 l) sl <-> (project_mem m true) l = (project_mem m false) l.
 
   Definition mem_esc_hatch_ind (m: mem2) :=
-    forall e, is_escape_hatch e ->
-              (forall l,
-                  loc_in_exp e l ->
-                  (project_mem m true) l = (project_mem m false) l).
+    forall e, is_escape_hatch e -> (forall l, loc_in_exp e l ->
+                                              exists v, m l = VSingle v).
   
   Definition secure_prog (sl: sec_level) (d: loc_mode) (c: com) (G: context) : Prop :=
     forall m0 mknown m r' m' t tobs,
@@ -1000,6 +998,7 @@ Section Preservation.
          --- rewrite <- (Nat.eqb_eq x0 x) in e0; rewrite e0 in H.
              destruct_pairs.
              unfold mem_esc_hatch_ind in H6.
+             
              (* XXX If m0 is mem_esc_hatch_ind, that means that all locations to compute e *)
              (* must be VSingle vs in the initial memory. furthermore, they are immutable *)
              (* therefore, they must still be VSingle vs and then e must be a Single *)
