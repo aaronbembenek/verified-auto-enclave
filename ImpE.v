@@ -337,6 +337,7 @@ End Semantics.
 *******************************************************************************)
 
 Section Typing.
+
   Inductive ref_type : Set :=
   | Mut
   | Immut.
@@ -346,46 +347,32 @@ Section Typing.
   Inductive base_type : Type :=
   | Tnat : base_type
   | Tref : type -> mode -> ref_type -> base_type
-  | Tlambda (G: context) (p: sec_level) (md: mode) (G': context) : base_type
-                           
+  | Tlambda (G: var -> option type) (p: sec_level) (md: mode) (G': var -> option type) : base_type
+                                                                     
   with type : Type :=
-  | Typ : base_type -> sec_level -> type
-                                            
-  with context : Type :=
-  | Cntxt (var_cntxt: var -> option type)
-          (loc_cntxt: location -> option (type * ref_type)) : context.
+       | Typ : base_type -> sec_level -> type.
 
-  Definition var_context (G: context) : var -> option type :=
-    match G with Cntxt vc _ => vc end.
-
-  Lemma var_in_dom_dec : forall G x, {exists t, var_context G x = Some t}
-                                     + {var_context G x = None}.
+  Definition context : Type := var -> option type.
+  Global Parameter Loc_Contxt : location -> option (type * ref_type).
+  
+  Lemma var_in_dom_dec : forall (G : context) x, {exists t, G x = Some t} + {G x = None}.
   Proof.
-    intros. destruct G. simpl. destruct (var_cntxt x).
+    intros. destruct G. simpl. 
     left; now exists t. right; auto.
   Qed.
                      
-  Definition loc_context (G: context) : location -> option (type * ref_type) :=
-    match G with Cntxt _ lc => lc end.
-
-  Lemma loc_in_dom_dec : forall G l, {exists t rt, loc_context G l = Some (t, rt)}
-                                     + {loc_context G l = None}.
+  Lemma loc_in_dom_dec : forall l, {exists t rt, Loc_Contxt l = Some (t, rt)}
+                                     + {Loc_Contxt l = None}.
   Proof.
-    intros. destruct G. simpl. destruct (loc_cntxt l). destruct p.
+    intros. simpl. destruct (Loc_Contxt l). destruct p.
     left; exists t; exists r; auto. right; auto.
   Qed.
       
-  Definition forall_var (G: context) (P: var -> type -> Prop) : Prop :=
-    forall x t, var_context G x = Some t -> P x t.
+  Definition forall_loc (P: location -> type -> ref_type -> Prop) : Prop :=
+    forall l t rt, Loc_Contxt l = Some (t, rt) -> P l t rt.
 
-  Definition forall_loc (G: context)
-             (P: location -> type -> ref_type -> Prop) : Prop :=
-    forall l t rt, loc_context G l = Some (t, rt) -> P l t rt.
-
-  Definition forall_dom (G: context)
-             (P: var -> type -> Prop)
-             (Q: location -> type -> ref_type -> Prop) : Prop :=
-    forall_var G P /\ forall_loc G Q.
+  Definition forall_dom (G: context) (P: var -> type -> Prop) : Prop :=
+       forall x t, G x = Some t -> P x t.
 
   Inductive type_le : type -> type -> Prop :=
   | Type_le : forall s1 s2 p1 p2,
@@ -403,32 +390,26 @@ Section Typing.
                    (Tlambda G2 p2 md G2')
 
   with context_le : context -> context -> Prop :=
+  (* for right now, let's not assume that the domains are equal *)
   | Context_le : forall G1 G2,
       (forall x t,
-          var_context G1 x = Some t -> exists t',
-            var_context G2 x = Some t' /\ type_le t t') ->
-      (forall x t,
-          var_context G2 x = Some t -> exists t', var_context G1 x = Some t') ->
-      (forall l t rt,
-          loc_context G1 l = Some (t, rt) -> exists t',
-            loc_context G2 l = Some (t', rt) /\ type_le t t') ->
-      (forall l t rt,
-          loc_context G2 l = Some (t, rt) -> exists t', loc_context G1 l = Some (t', rt)) ->
+          G1 x = Some t ->
+          exists t', (G2 x = Some t' /\ type_le t t')) ->
       context_le G1 G2.
-
+  
   Definition context_wt (G: context) (d: loc_mode) : Prop :=
-    forall_loc G (fun l t _ =>
-                    let (_, p) := t in
-                    (p = H -> exists i, d l = Encl i)).
+    forall_loc (fun l t _ =>
+                  let (_, p) := t in
+                  (p = H -> exists i, d l = Encl i)).
   
   Definition is_var_low_context (G: context) : Prop :=
-    forall_var G (fun _ t => let (_, p) := t in p = L).
+    forall_dom G (fun _ t => let (_, p) := t in p = L).
 
   Definition all_loc_immutable (e: exp) (G: context) : Prop :=
     forall_subexp e (fun e =>
                        match e with
                        | Eloc n => forall t rt,
-                           loc_context G n = Some (t, rt) ->
+                           Loc_Contxt n = Some (t, rt) ->
                            rt = Immut
                        | _ => True
                        end).
@@ -452,10 +433,10 @@ Section Typing.
   | ETnat : forall md g d n,
       exp_type md g d (Enat n) (Typ Tnat (L))
   | ETvar : forall md g d x t,
-      var_context g x = Some t -> exp_type md g d (Evar x) t
+      g x = Some t -> exp_type md g d (Evar x) t
   | ETloc : forall md g d l md' t rt,
       d l = md' ->
-      loc_context g l = Some (t, rt) ->
+      Loc_Contxt l = Some (t, rt) ->
       exp_type md g d (Eloc l) (Typ (Tref t md' rt) (L))
   | ETderef : forall md g d e md' s p rt q,
       exp_type md g d e (Typ (Tref (Typ s p) md' rt) q) ->
@@ -472,20 +453,18 @@ Section Typing.
   with com_type : sec_level -> mode -> context -> loc_mode -> com -> context -> Prop :=
   | CTskip : forall pc md g d,
       com_type pc md g d Cskip g
-  | CTassign : forall pc md g d x e s p q vc lc vc',
+  | CTassign : forall pc md g d x e s p q vc',
       exp_type md g d e (Typ s p) ->
       q = sec_level_join p pc ->
       sec_level_le q (L) \/ md <> Normal ->
-      g = Cntxt vc lc ->
-      vc' = (fun y => if y =? x then Some (Typ s q) else vc y) ->
-      com_type pc md g d (Cassign x e) (Cntxt vc' lc)
-  | CTdeclassify : forall md g d x e s p vc lc vc',
+      vc' = (fun y => if y =? x then Some (Typ s q) else g y) ->
+      com_type pc md g d (Cassign x e) (vc')
+  | CTdeclassify : forall md g d x e s p vc',
       exp_type md g d e (Typ s p) ->
       exp_novars e ->
       exp_locs_immutable e ->
-      g = Cntxt vc lc ->
-      vc' = (fun y => if y =? x then Some (Typ s (L)) else vc y) ->
-      com_type (L) md g d (Cdeclassify x e) (Cntxt vc' lc)
+      vc' = (fun y => if y =? x then Some (Typ s (L)) else g y) ->
+      com_type (L) md g d (Cdeclassify x e) (vc')
   | CToutput : forall pc md g d e l s p,
       exp_type md g d e (Typ s p) ->
       sec_level_le (sec_level_join p pc) l ->
@@ -523,22 +502,19 @@ Section Typing.
   | Tcall : forall pc md G d e Gm Gp Gout q p,
       exp_type md G d e (Typ (Tlambda Gm p md Gp) q) ->
       sec_level_le (sec_level_join pc q) p ->
-      forall_dom Gm
-                 (fun x t => exists t', var_context G x = Some t' /\ type_le t' t)
-                 (fun l t rt => exists t',
-                      loc_context G l = Some (t', rt) /\ type_le t' t) ->
-      forall_dom Gp
-                 (fun x t => exists t', var_context Gout x = Some t' /\ type_le t' t)
-                 (fun l t rt => exists t',
-                      loc_context Gout l = Some (t', rt) /\ type_le t' t) ->
-      forall_dom G
-                 (fun x t =>
-                    (var_context Gp x = None) ->
-                    var_context Gout x = Some t)
-                 (fun l t rt =>
-                    (loc_context Gp l = None) ->
-                    loc_context Gout l = Some (t, rt)) ->
+      forall_dom Gm (fun x t => exists t', G x = Some t' /\ type_le t' t) ->
+      forall_dom Gp (fun x t => exists t', Gout x = Some t' /\ type_le t t') ->
+      forall_dom G (fun x t => (Gp x = None) -> Gout x = Some t) ->
       com_type pc md G d (Ccall e) Gout.
+
+  Lemma context_le_refl : forall G, context_le G G.
+  Proof.
+    intros. apply Context_le. intros. exists t. split; destruct t; auto.
+    apply Type_le.
+    apply Base_type_le_refl.
+    apply sec_level_le_refl.
+  Qed.
+  
 End Typing.
 
 
