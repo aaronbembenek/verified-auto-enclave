@@ -608,13 +608,15 @@ Section Typing.
       ~pdenote p (LevelP T) ->
       ~pdenote p' (LevelP T) ->
       ~pdenote q (LevelP T) ->
-      com_type pc md g k u d (Cupdate e1 e2) g k. (*
-  | CToutput : forall pc md g k u d e l s p,
+      com_type pc md g k u d (Cupdate e1 e2) g k
+  | CToutput : forall pc md g k u d e l s p p0 pc0,
       exp_type md g d e (Typ s p) ->
       mode_alive md k ->
-      p <> LevelP T ->
-      sec_level_le (sec_level_join (cur p u) (cur pc u)) l ->
-      com_type pc md g k u d (Coutput e l) g k
+      ~pdenote p (LevelP T) ->
+      pdenote p p0 ->
+      pdenote pc pc0 ->
+      sec_level_le (sec_level_join (cur p0 u) (cur pc0 u)) l ->
+      com_type pc md g k u d (Coutput e l) g k. (*
   | CTset : forall md g k u d cnd md',
       md' = d (Cnd cnd) ->
       ~set_In cnd u ->

@@ -333,15 +333,17 @@ Section Typing.
       com_wt pc G U (Cupdate e1 e2) G
              (Cderiv_e2 (Typ (Tref (Typ s p) Mut) q) drv1
                         (Typ s p') drv2)
+   | SToutput : forall pc G U e s p l p0 pc0 drv,
+      exp_wt G e (Typ s p) drv ->
+      ~pdenote p (LevelP T) ->
+      pdenote p p0 ->
+      pdenote pc pc0 ->
+      sec_level_le (sec_level_join (cur p0 U) (cur pc0 U)) l ->
+      com_wt pc G U (Coutput e l) G (Cderiv_e1 (Typ s p) drv)
   (*
   | STsetcnd : forall G U cnd,
       ~set_In cnd U ->
       com_wt (LevelP L) G U (Cset cnd) G
-  | SToutput : forall pc G U e s p l,
-      exp_wt G e (Typ s p) ->
-      p <> LevelP T ->
-      sec_level_le (sec_level_join (cur p U) (cur pc U)) l ->
-      com_wt pc G U (Coutput e l) G
   | STifunset : forall pc G U cnd c1 c2 G',
       exp_wt G (Eisunset cnd) (Typ Tnat (LevelP L)) ->
       prog_wt pc G (set_add Nat.eq_dec cnd U) c1 G' ->

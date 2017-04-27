@@ -147,7 +147,6 @@ Section TransDef.
                     (S.loc_context sG) ->
       com_trans pc sG U (S.Cdeclassify x e) sG' (S.Cderiv_e1 (S.Typ s q) drv)
                 md eG K d (E.Cdeclassify x e') eG' K
-
   | TRupdate : forall pc sG U e1 e2 md eG K d e1' e2'
                       p q p' s s' drv1 drv2 md' rt,
       context_trans sG d eG ->
@@ -161,6 +160,13 @@ Section TransDef.
                 (S.Cderiv_e2 (S.Typ (S.Tref (S.Typ s p) rt) q) drv1
                              (S.Typ s p') drv2)
                 md eG K d (E.Cupdate e1' e2') eG K
+  | TRoutput : forall pc sG U e md eG K d e' p l drv s' s,
+      exp_trans sG e (S.Typ s p) drv
+                md eG d e' (E.Typ s' p) ->
+      context_trans sG d eG ->
+      E.mode_alive md K ->
+      com_trans pc sG U (S.Coutput e l) sG (S.Cderiv_e1 (S.Typ s p) drv)
+                md eG K d (E.Coutput e' l) eG K
       
   with prog_trans : policy -> S.context -> set condition -> S.prog ->
                     S.context -> E.mode -> E.context -> set E.enclave ->
@@ -271,6 +277,7 @@ Section TransProof.
       + eapply trans_pres_exp_novars; eauto.
       + eapply trans_pres_all_loc_immutable; eauto.
     - inversion H. subst. eapply E.CTupdate; eauto.
+    - inversion H. subst. eapply E.CToutput; eauto.
     (* Programs. *)
     - admit.
   Admitted.

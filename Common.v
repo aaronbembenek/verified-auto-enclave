@@ -183,13 +183,13 @@ Section Security.
   Parameter policy_join : sec_policy -> sec_policy -> sec_policy.
   Axiom policy_le_join : forall p1 p2,
       policy_le p1 (policy_join p1 p2) /\ policy_le p2 (policy_join p1 p2).
-  
-  Function cur (p : sec_policy) (U : set condition) : sec_level :=
+  *)
+  Function cur (p : policy0) (U : set condition) : sec_level :=
     match p with
     | LevelP l => l
     | ErasureP l1 cnd l2 _ => if (set_mem Nat.eq_dec cnd U) then l1 else l2
     end.
-
+(*
   Inductive protected : sec_policy -> set condition -> Prop :=
   | level_high: forall S, protected (LevelP H) S
   | level_top: forall S, protected (LevelP T) S
