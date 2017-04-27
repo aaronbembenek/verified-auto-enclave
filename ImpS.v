@@ -342,12 +342,14 @@ Section Typing.
       com_wt pc G U (Coutput e l) G (Cderiv_e1 (Typ s p) drv)
   | STsetcnd : forall G U cnd,
       ~set_In cnd U ->
-      com_wt low G U (Cset cnd) G Cderiv_none (*
-  | STifunset : forall pc G U cnd c1 c2 G',
-      exp_wt G (Eisunset cnd) (Typ Tnat (LevelP L)) ->
+      com_wt low G U (Cset cnd) G Cderiv_none
+  | STifunset : forall pc G U cnd c1 c2 G' drv,
+      exp_wt G (Eisunset cnd) (Typ Tnat low) drv ->
       prog_wt pc G (set_add Nat.eq_dec cnd U) c1 G' ->
       prog_wt pc G U c2 G' ->
       com_wt pc G U (Cif (Eisunset cnd) c1 c2) G'
+             (Cderiv_e1 (Typ Tnat low) drv)
+              (*
   | STifelse : forall pc G U e c1 c2 pc' G' p,
       (forall cnd, e <> Eisunset cnd) ->
       exp_wt G e (Typ Tnat p) ->

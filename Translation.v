@@ -185,6 +185,20 @@ Section TransDef.
       E.mode_alive md K ->
       com_trans low sG U (S.Cset cnd) sG drv
                 md eG K d (E.Cset cnd) eG K
+
+  | TRifunset : forall pc sG U cnd c1 c2 sG' md eG K d c1' c2' eG' K' drv,
+      context_trans sG d eG ->
+      exp_trans sG (S.Eisunset cnd) (S.Typ S.Tnat low) drv
+                md eG d (E.Eisunset cnd) (E.Typ E.Tnat low) ->
+      prog_trans pc sG (set_add (Nat.eq_dec) cnd U) c1 sG'
+                 md eG K d c1' eG' K' ->
+      prog_trans pc sG U c2 sG'
+                 md eG K d c2' eG' K' ->
+      E.mode_alive md K ->
+      md <> E.Normal ->
+      com_trans pc sG U (S.Cif (S.Eisunset cnd) c1 c2) sG'
+                (S.Cderiv_e1 (S.Typ S.Tnat low) drv)
+                md eG K d (E.Cif (E.Eisunset cnd) c1' c2') eG' K'
       
   with prog_trans : policy -> S.context -> set condition -> S.prog ->
                     S.context -> E.mode -> E.context -> set E.enclave ->
@@ -297,6 +311,7 @@ Section TransProof.
     - inversion H. subst. eauto.
     - inversion H. subst. eauto.
     - inversion H. subst. eauto.
+    - inversion H. subst. constructor; eauto.
     (* Programs. *)
     - admit.
   Admitted.

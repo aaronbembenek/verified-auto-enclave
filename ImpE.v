@@ -622,12 +622,12 @@ Section Typing.
       ~set_In cnd u ->
       md' = Normal \/ md = md' ->
       mode_alive md k ->
-      com_type low md g k u d (Cset cnd) g k. (*
+      com_type low md g k u d (Cset cnd) g k
   | CTifunset : forall pc md g k u d cnd c1 c2 g' k',
-      exp_type md g d (Eisunset cnd) (Typ Tnat (LevelP L)) ->
+      exp_type md g d (Eisunset cnd) (Typ Tnat low) ->
       com_type pc md g k (set_add Nat.eq_dec cnd u) d c1 g' k' ->
       com_type pc md g k u d c2 g' k' ->
-      com_type pc md g k u d (Cif (Eisunset cnd) c1 c2) g' k'
+      com_type pc md g k u d (Cif (Eisunset cnd) c1 c2) g' k'. (*
   | CTifelse : forall pc md g k u d e c1 c2 pc' p g' k',
       ~(exists cnd, e = Eisunset cnd) ->
       com_type pc' md g k u d c1 g' k' ->
