@@ -579,9 +579,10 @@ Section Typing.
   | CTskip : forall pc md g d k u,
       mode_alive md k ->
       com_type pc md g k u d Cskip g k
-  | CTkill : forall i g d k u,
+  | CTkill : forall i g d k u k',
       mode_alive (Encl i) k ->
-      com_type low Normal g k u d (Ckill i) g (set_add Nat.eq_dec i k)
+      k' = set_add Nat.eq_dec i k ->
+      com_type low Normal g k u d (Ckill i) g k'
   | CTassign : forall pc md g k u d x e s p vc lc vc' g',
       exp_type md g d e (Typ s p) ->
       ~pdenote (JoinP pc p) (LevelP T) ->
@@ -627,21 +628,21 @@ Section Typing.
       exp_type md g d (Eisunset cnd) (Typ Tnat low) ->
       com_type pc md g k (set_add Nat.eq_dec cnd u) d c1 g' k' ->
       com_type pc md g k u d c2 g' k' ->
-      com_type pc md g k u d (Cif (Eisunset cnd) c1 c2) g' k'. (*
+      com_type pc md g k u d (Cif (Eisunset cnd) c1 c2) g' k'
   | CTifelse : forall pc md g k u d e c1 c2 pc' p g' k',
-      ~(exists cnd, e = Eisunset cnd) ->
       com_type pc' md g k u d c1 g' k' ->
       com_type pc' md g k u d c2 g' k' ->
       exp_type md g d e (Typ Tnat p) ->
-      policy_le (policy_join pc p) pc' ->
-      policy_le p (LevelP L) \/ md <> Normal ->
-      p <> LevelP T ->
-      com_type pc md g k u d (Cif e c1 c2) g' k'
-  | CTenclave : forall pc g k u d c i c' g' k',
-      c = Cenclave i c' ->
+      policy_le (JoinP pc p) pc' ->
+      policy_le p low \/ md <> Normal ->
+      ~pdenote p (LevelP T) ->
+      com_type pc md g k u d (Cif e c1 c2) g' k' 
+  | CTenclave : forall pc g k u d i c' g' k',
       com_type pc (Encl i) g k nil d c' g' k' ->
       is_var_low_context g' ->
-      com_type pc Normal g k u d c g' k'
+      com_type pc Normal g k u d (Cenclave i c') g' k'
+  .
+               (*
   | CTwhile : forall pc md g k u d c e p pc',
       exp_type md g d e (Typ Tnat p) ->
       com_type pc' md g k u d c g k ->

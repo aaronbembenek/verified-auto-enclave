@@ -225,6 +225,9 @@ Section Typing.
              (Q: location -> type -> ref_type -> Prop) : Prop :=
     forall_var G P /\ forall_loc G Q.
 
+  Definition is_var_low_context (G: context) : Prop :=
+    forall_var G (fun _ t => let (_, p) := t in policy_le p low).
+  
   Definition all_loc_immutable (e: exp) (G: context) : Prop :=
     forall_subexp (fun e =>
                      match e with
@@ -272,7 +275,8 @@ Section Typing.
   Inductive cderiv : Type :=
   | Cderiv_none : cderiv
   | Cderiv_e1 : type -> ederiv -> cderiv
-  | Cderiv_e2 : type -> ederiv -> type -> ederiv -> cderiv.
+  | Cderiv_e2 : type -> ederiv -> type -> ederiv -> cderiv
+  | Cderiv_e1_p : type -> ederiv -> policy -> cderiv.
   
   (* XXX need this for using List.nth... maybe better option *)
   Definition mt := Cntxt (fun _ => None) (fun _ => None).
@@ -349,15 +353,13 @@ Section Typing.
       prog_wt pc G U c2 G' ->
       com_wt pc G U (Cif (Eisunset cnd) c1 c2) G'
              (Cderiv_e1 (Typ Tnat low) drv)
-              (*
-  | STifelse : forall pc G U e c1 c2 pc' G' p,
-      (forall cnd, e <> Eisunset cnd) ->
-      exp_wt G e (Typ Tnat p) ->
+  | STifelse : forall pc G U e c1 c2 pc' G' p drv,
+      exp_wt G e (Typ Tnat p) drv ->
       prog_wt pc' G U c1 G' ->
       prog_wt pc' G U c2 G' ->
-      policy_le (policy_join pc p) pc' ->
-      p <> LevelP T ->
-      com_wt pc G U (Cif e c1 c2) G'
+      policy_le (JoinP pc p) pc' ->
+      ~pdenote p (LevelP T) ->
+      com_wt pc G U (Cif e c1 c2) G' (Cderiv_e1_p (Typ Tnat p) drv pc') (*
   | STwhile : forall pc G U e c p pc',
       exp_wt G e (Typ Tnat p) ->
       prog_wt pc' G U c G ->

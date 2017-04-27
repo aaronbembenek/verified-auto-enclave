@@ -199,6 +199,21 @@ Section TransDef.
       com_trans pc sG U (S.Cif (S.Eisunset cnd) c1 c2) sG'
                 (S.Cderiv_e1 (S.Typ S.Tnat low) drv)
                 md eG K d (E.Cif (E.Eisunset cnd) c1' c2') eG' K'
+
+  | TRifelse : forall pc sG U e e' c1 c2 c1' c2' sG'
+                      md eG K d eG' K' drv p pc',
+      context_trans sG d eG ->
+      exp_trans sG e (S.Typ S.Tnat p) drv md eG d e' (E.Typ E.Tnat p) ->
+      prog_trans pc' sG U c1 sG'
+                 md eG K d c1' eG' K' ->
+      prog_trans pc' sG U c2 sG'
+                 md eG K d c2' eG' K' ->
+      policy_le (JoinP pc p) pc' ->
+      (S.is_var_low_context sG' /\ policy_le p low) \/ md <> E.Normal ->
+      E.mode_alive md K ->
+      com_trans pc sG U (S.Cif e c1 c2) sG'
+                (S.Cderiv_e1_p (S.Typ S.Tnat p) drv pc')
+                md eG K d (E.Cif e' c1' c2') eG' K'
       
   with prog_trans : policy -> S.context -> set condition -> S.prog ->
                     S.context -> E.mode -> E.context -> set E.enclave ->
@@ -311,7 +326,8 @@ Section TransProof.
     - inversion H. subst. eauto.
     - inversion H. subst. eauto.
     - inversion H. subst. eauto.
-    - inversion H. subst. constructor; eauto.
+    - inversion H; subst. constructor; eauto.
+    - inversion H; subst. eapply E.CTifelse; eauto; intuition.
     (* Programs. *)
     - admit.
   Admitted.
