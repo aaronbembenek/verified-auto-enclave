@@ -408,7 +408,7 @@ Section Typing.
   Definition is_var_low_context (G: context) : Prop :=
     forall_dom G (fun _ t => let (_, p) := t in p = L).
 
-  Definition all_loc_immutable (e: exp) (G: context) : Prop :=
+  Definition all_loc_immutable (e: exp) : Prop :=
     forall_subexp e (fun e =>
                        match e with
                        | Eloc n => forall t rt,
@@ -417,7 +417,7 @@ Section Typing.
                        | _ => True
                        end).
 
-  Definition loc_in_exp (e: exp) (G: context) (l: location) : Prop :=
+  Definition loc_in_exp (e: exp) (l: location) : Prop :=
     forall_subexp e (fun e =>
                        match e with
                        | Eloc l => True
