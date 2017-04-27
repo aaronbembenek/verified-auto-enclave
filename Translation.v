@@ -214,6 +214,32 @@ Section TransDef.
       com_trans pc sG U (S.Cif e c1 c2) sG'
                 (S.Cderiv_e1_p (S.Typ S.Tnat p) drv pc')
                 md eG K d (E.Cif e' c1' c2') eG' K'
+
+  | TRwhile : forall pc sG U e e' c c'
+                     md eG K d drv p pc',
+      context_trans sG d eG ->
+      exp_trans sG e (S.Typ S.Tnat p) drv md eG d e' (E.Typ E.Tnat p) ->
+      prog_trans pc' sG U c sG md eG K d c' eG K ->
+      (S.is_var_low_context sG /\ policy_le p low) \/ md <> E.Normal ->
+      E.mode_alive md K ->
+      policy_le pc pc' ->
+      com_trans pc sG U (S.Cwhile e c) sG
+                (S.Cderiv_e1_p (S.Typ S.Tnat p) drv pc')
+                md eG K d (E.Cwhile e' c') eG K
+
+  | TRcall : forall pc sG U e sGout sGminus sGplus
+                    md e' d p K K' eG eGout eGminus eGplus drv q,
+      context_trans sG d eG ->
+      context_trans sGout d eGout ->
+      exp_trans sG e (S.Typ (S.Tlambda sGminus U p sGplus) q) drv
+                md eG d e'
+                (E.Typ (E.Tlambda eGminus K U p md eGplus K') q) ->
+      (* xxx other stuff *)
+      E.mode_alive md K ->
+      U = nil \/ md <> E.Normal ->
+      com_trans pc sG U (S.Ccall e) sGout
+                (S.Cderiv_e1 (S.Typ (S.Tlambda sGminus U p sGplus) q) drv)
+                md eG K d (E.Ccall e') eGout K'
       
   with prog_trans : policy -> S.context -> set condition -> S.prog ->
                     S.context -> E.mode -> E.context -> set E.enclave ->
@@ -326,8 +352,13 @@ Section TransProof.
     - inversion H. subst. eauto.
     - inversion H. subst. eauto.
     - inversion H. subst. eauto.
-    - inversion H; subst. constructor; eauto.
-    - inversion H; subst. eapply E.CTifelse; eauto; intuition.
+    - inversion H. subst. eauto.
+    - inversion H. subst. eapply E.CTifelse; eauto; intuition.
+    - inversion H. subst. eapply E.CTwhile; eauto; intuition.
+    - inversion H. subst. eapply E.CTcall; eauto.
+      + admit.
+      + admit.
+      + admit.
     (* Programs. *)
     - admit.
   Admitted.

@@ -641,15 +641,14 @@ Section Typing.
       com_type pc (Encl i) g k nil d c' g' k' ->
       is_var_low_context g' ->
       com_type pc Normal g k u d (Cenclave i c') g' k'
-  .
-               (*
   | CTwhile : forall pc md g k u d c e p pc',
       exp_type md g d e (Typ Tnat p) ->
       com_type pc' md g k u d c g k ->
-      policy_le (policy_join pc p) pc' ->
-      policy_le p (LevelP L) \/ md <> Normal ->
-      p <> LevelP T ->
+      policy_le (JoinP pc p) pc' ->
+      policy_le p low \/ md <> Normal ->
+      ~pdenote p (LevelP T) ->
       com_type pc md g k u d (Cwhile e c) g k
+               (*
   | CTseq : forall pc md G K U d coms Gs Ks G' K',
       length Gs = length coms + 1 ->
       length Ks = length coms + 1 ->
@@ -662,10 +661,11 @@ Section Typing.
       G' = nth (length coms) Gs mt ->
       K' = nth (length coms) Ks [] ->
       com_type pc md G K U d (Cseq coms) G' K'
+*)
   | CTcall : forall pc md G u d e Gm km Gp kp Gout q p,
       exp_type md G d e (Typ (Tlambda Gm km u p md Gp kp) q) ->
-      policy_le (policy_join pc q) p ->
-      q <> LevelP T ->
+      policy_le (JoinP pc q) p ->
+      ~pdenote q (LevelP T) ->
       u = nil \/ md <> Normal ->
       forall_dom Gm
                  (fun x t => exists t', var_in_dom G x t' /\ type_le t' t)
@@ -683,8 +683,6 @@ Section Typing.
                     (forall t' rt', ~loc_in_dom Gp l t' rt') ->
                     loc_in_dom Gout l t rt) ->
       com_type pc md G km u d (Ccall e) Gout kp.
-  Hint Constructors exp_type com_type.
-  *)
 End Typing.
 (*
 

@@ -359,17 +359,17 @@ Section Typing.
       prog_wt pc' G U c2 G' ->
       policy_le (JoinP pc p) pc' ->
       ~pdenote p (LevelP T) ->
-      com_wt pc G U (Cif e c1 c2) G' (Cderiv_e1_p (Typ Tnat p) drv pc') (*
-  | STwhile : forall pc G U e c p pc',
-      exp_wt G e (Typ Tnat p) ->
+      com_wt pc G U (Cif e c1 c2) G' (Cderiv_e1_p (Typ Tnat p) drv pc')
+  | STwhile : forall pc G U e c p pc' drv,
+      exp_wt G e (Typ Tnat p) drv ->
       prog_wt pc' G U c G ->
-      policy_le (policy_join pc p) pc' ->
-      p <> LevelP T ->
-      com_wt pc G U (Cwhile e c) G
-  | STcall : forall pc G U e Gout Gplus Gminus p q,
-      exp_wt G e (Typ (Tlambda Gminus U p Gplus) q) ->
-      policy_le (policy_join pc q) p ->
-      q <> LevelP T ->
+      policy_le (JoinP pc p) pc' ->
+      ~pdenote p (LevelP T) ->
+      com_wt pc G U (Cwhile e c) G (Cderiv_e1_p (Typ Tnat p) drv pc')
+  | STcall : forall pc G U e Gout Gplus Gminus p q drv,
+      exp_wt G e (Typ (Tlambda Gminus U p Gplus) q) drv ->
+      policy_le (JoinP pc q) p ->
+      ~pdenote q (LevelP T) ->
       forall_dom Gminus
                  (fun x t => exists t', var_in_dom G x t' /\ type_le t' t)
                  (fun l t rt => exists t',
@@ -386,7 +386,8 @@ Section Typing.
                     (forall t' rt', ~loc_in_dom Gplus l t' rt') ->
                     loc_in_dom Gout l t rt) ->
       com_wt pc G U (Ccall e) Gout
-*)
+             (Cderiv_e1 (Typ (Tlambda Gminus U p Gplus) q) drv)
+
   with prog_wt : policy -> context -> set condition -> prog ->
                  context -> Prop :=
   | STprog : forall pc G U coms (Gs: list context) drv,
