@@ -637,14 +637,11 @@ Section Security_Helpers.
   (* system seems to be lacking something *)
   Lemma call_fxn_typ : forall pc md G d e r m Gm p Gp q c Gout,
     com_type pc md G d (Ccall e) Gout ->
-    exp_type md G d e (Typ (Tlambda Gm p md Gp) q) ->
     estep md d (e,r,m) (Vlambda md c) ->
-    com_type p md Gm d c Gp.
+    exp_type md G d e (Typ (Tlambda Gm p md Gp) q) <-> com_type p md Gm d c Gp.
   Proof.
     intros.
     inversion H0; try discriminate; subst.
-    inversion H1; try discriminate; subst.
-    Focus 3.
   Admitted.
 
   (* XXX nothing connecting loc_context to actual type at location *)
@@ -903,16 +900,35 @@ Section Security_Helpers.
   (* We somehow need to know that if c performs an assignment or update of x, then *)
   (* the type of x in the env is at a higher security level than pc' *)
   (* Otherwise, the reg/mem and context does not change *)
-  Function assign_in (c: com) (x: var) : Prop :=
+  Definition assign_in (c: com) (x: var) : Prop.
+  Admitted.
+  (*
     match c with
     | Cassign x _ => True
-    | Ccall (Elambda _ c') => assign_in c' x
+    | Ccall e => assign_in_exp e x
     | Cenclave _ c' => assign_in c' x
     | Cseq ls => List.fold_left (fun b c' => b /\ (assign_in c' x)) ls False
     | Cif e c1 c2 => assign_in c1 x \/ assign_in c2 x
     | Cwhile e c => assign_in c x 
     | _ => False
-    end.
+    end
+  with assign_in_exp e x : Prop :=
+         forall md d r m c1 c2 c',
+           (estep2 md d (Ederef e,r,m) (VPair (Vlambda md c1) (Vlambda md c2))
+            /\ assign_in c1 x /\ assign_in c2 x)
+           \/ (estep2 md d (e,r,m) (VSingle (Vlambda md c')) /\ assign_in c' x).
+   *)
+  Lemma assign_not_in_call_div : forall e x md d r m c1 c2,
+      ~assign_in (Ccall e) x <-> 
+      (estep2 md d (e,r,m) (VPair (Vlambda md c1) (Vlambda md c2)))
+      /\ (~assign_in c1 x /\ ~assign_in c2 x).
+  Admitted.
+  Lemma assign_in_if_else : forall e c1 c2 x,
+      assign_in (Cif e c1 c2) x <-> assign_in c1 x \/ assign_in c2 x.
+  Admitted.
+  Lemma assign_in_while : forall e c x,
+      assign_in (Cwhile e c) x <-> assign_in c x.
+  Admitted.
   (* XXX we need a custom induction principle on lists *)
   Lemma assign_in_dec : forall c x, {assign_in c x} + {~assign_in c x}.
   Proof.
@@ -936,16 +952,35 @@ Section Security_Helpers.
   Admitted.
 
   (* Same thing as assignments for updates *)
-  Function update_in (c: com) (l: location) : Prop :=
+  Definition update_in (c: com) (l: location) : Prop.
+  Admitted. (*
     match c with
-    | Cupdate e1 e2 => exists md d r m, estep2 md d (e1, r, m) (VSingle (Vloc l))
+    | Cupdate e1 e2 => forall l',
+        estep2 md d (e1, r, m) (VSingle (Vloc l))
+        \/ estep2 md d (e1, r, m) (VPair (Vloc l), (Vloc l'))
+        \/ estep2 md d (e1, r, m) (VPair (Vloc l'), (Vloc l))
     | Ccall (Elambda _ c') => update_in c' l
+    | Ccall e => estep2 md d (e,r,m) (VPair (Vlambda md c1) (Vlambda md c2)) ->
+                 update_in c1 /\ update_in c2.
+    | Ccall e => estep2 md d (e,r,m) (VSingle (Vlambda md c')) ->
+                 update_in c'.
     | Cenclave _ c' => update_in c' l
     | Cseq ls => List.fold_left (fun b c' => b /\ (update_in c' l)) ls False
     | Cif e c1 c2 => update_in c1 l \/ update_in c2 l
     | Cwhile e c => update_in c l
     | _ => False
-    end.
+    end.*)
+  Lemma update_not_in_call_div : forall e x md d r m c1 c2,
+      ~update_in (Ccall e) x <-> 
+      (estep2 md d (e,r,m) (VPair (Vlambda md c1) (Vlambda md c2)))
+      /\ (~update_in c1 x /\ ~update_in c2 x).
+  Admitted.
+  Lemma update_in_if_else : forall e c1 c2 x,
+      update_in (Cif e c1 c2) x <-> update_in c1 x \/ update_in c2 x.
+  Admitted.
+  Lemma update_in_while : forall e c x,
+      update_in (Cwhile e c) x <-> update_in c x.
+  Admitted.
   Lemma update_in_dec : forall c l, {update_in c l} + {~update_in c l}.
   Admitted.
   Lemma update_more_secure : forall pc md d c G G' x bt q rt,
@@ -1051,27 +1086,84 @@ Section Preservation.
     (* CCall *)
     - inversion H1; try discriminate; subst.
       unfold forall_dom in *; destruct_pairs.
-      assert (cterm2_ok Gp d m0 r'0 m'0 (escape_hatches_of (project_trace tr true) m0 d)).
+      assert (com_type pc md G d c G') as lifted_ctyp.
+      eapply subsumption; eauto.
+      eapply call_fxn_typ; eauto.
+      assert (estep md d (e,project_reg r true,project_mem m true) (Vlambda md c))
+        as estep2estep.
+      apply (impe2_exp_sound md d e r m (VSingle (Vlambda md c))); auto.
+      apply estep2estep.
+      now apply (sec_level_join_le_l pc q p).
+      
+      assert (cterm2_ok G' d m0 r'0 m'0 (escape_hatches_of (project_trace tr true) m0 d)).
       -- eapply (IHHcstep' Hcstep' m'0 r'0 Heqcterm m r c); auto.
-         unfold cconfig2_ok; split; auto.
-         eapply call_fxn_typ. apply H1. apply H6.
-         assert (estep md d (e,project_reg r true,project_mem m true) (Vlambda md c)).
-         --- apply (impe2_exp_sound md d e r m (VSingle (Vlambda md c))); auto.
-        --- apply H.
-        --- split; [|split]; auto; intros; destruct_pairs.
-            apply H8 in H10; destruct H10; destruct_pairs.
-            inversion H11; subst.
-            assert (protected p1) as Hp1 by now apply (H2 x v1 v2 s1 p1).
-            inversion Hp1; subst. destruct p0; unfold sec_level_le in *; auto; try omega.
-      -- unfold cterm2_ok in *; destruct_pairs; auto;
-           split; [ | split]; auto; intros; destruct_pairs.
-         destruct (var_in_dom_dec Gp x); destruct e0. pose H16 as inGp.         
-         admit. admit. 
-          
+         unfold cconfig2_ok; split; eauto.
+      -- unfold cterm2_ok in *; destruct_pairs; auto.
     (* Call-Div *)
     - inversion H5; try discriminate; subst.
-      admit. (* XXX ergh more contexts *)
-      (* XXX will also have to use the update /assignment thing here *)
+      remember (escape_hatches_of (project_trace (merge_trace (t1, t2)) true) m0 d) as EH.
+      remember (VPair (Vlambda md c1) (Vlambda md c2)) as v.
+      assert (protected q) as qP.
+      eapply (econfig2_pair_protected md G d e q r m v
+                                      (Vlambda md c1) (Vlambda md c2)
+                                      (Tlambda Gm p md Gp) m0 EH); eauto.
+      unfold cterm2_ok in *; auto.
+      assert (protected p) as pP. apply sec_level_join_le_r in H11. inversion qP; subst.
+      unfold sec_level_le in H11; destruct p; try omega; auto.
+      inversion pP; subst.
+
+      assert (com_type Common.H md G d c1 G') as lifted_c1typ.
+      eapply subsumption; eauto.
+      eapply call_fxn_typ; eauto.
+      assert (estep md d (e,project_reg r true,project_mem m true) (Vlambda md c1))
+        as estep2estep.
+      apply (impe2_exp_sound md d e r m (VPair (Vlambda md c1) (Vlambda md c2))); auto.
+      apply estep2estep.
+      destruct pc; unfold sec_level_le; auto.
+      assert (com_type Common.H md G d c2 G') as lifted_c2typ.
+      eapply subsumption; eauto.
+      eapply call_fxn_typ; eauto.
+      assert (estep md d (e,project_reg r false,project_mem m false) (Vlambda md c2))
+        as estep2estep.
+      apply (impe2_exp_sound md d e r m (VPair (Vlambda md c1) (Vlambda md c2))); auto.
+      apply estep2estep.
+      destruct pc; unfold sec_level_le; auto.
+
+      split; intros; destruct_pairs; subst.
+      (* see if there was an assignment in either c1 or c2 to change the registers *)
+      -- destruct (assign_in_dec c1 x), (assign_in_dec c2 x).
+         --- pose (assignment_more_secure Common.H md d c1 G G' x bt p lifted_c1typ a H14). 
+             destruct p. unfold sec_level_le in *. omega.
+             unfold protected; auto.
+         --- pose (assignment_more_secure Common.H md d c1 G G' x bt p lifted_c1typ a H14). 
+             destruct p. unfold sec_level_le in *. omega.
+             unfold protected; auto.
+         --- pose (assignment_more_secure Common.H md d c2 G G' x bt p lifted_c2typ a H14). 
+             destruct p. unfold sec_level_le in *. omega.
+             unfold protected; auto.
+         --- pose (no_assign_reg_context_constant
+                     md d (Ccall e) r m r' m' (merge_trace (t1, t2)) x pc G G' Hcstep H5).
+             assert (~assign_in (Ccall e) x) as noassign.
+             rewrite (assign_not_in_call_div e x md d r m c1 c2); split; auto.
+             apply a in noassign; destruct_pairs.
+             apply (H6 x v1 v2 bt p). split. rewrite H15; auto. rewrite H16; auto.
+      -- split; auto. intros; destruct_pairs.
+         destruct (update_in_dec c1 l), (update_in_dec c2 l).
+         --- pose (update_more_secure Common.H md d c1 G G' l bt p rt lifted_c1typ u H14). 
+             destruct p. unfold sec_level_le in *. omega.
+             unfold protected; auto.
+         --- pose (update_more_secure Common.H md d c1 G G' l bt p rt lifted_c1typ u H14). 
+             destruct p. unfold sec_level_le in *. omega.
+             unfold protected; auto.
+         --- pose (update_more_secure Common.H md d c2 G G' l bt p rt lifted_c2typ u H14). 
+             destruct p. unfold sec_level_le in *. omega.
+             unfold protected; auto.
+         --- pose (no_update_mem_constant
+                     md d (Ccall e) r m r' m' (merge_trace (t1, t2)) l pc G G' Hcstep H5).
+             assert (~update_in (Ccall e) l) as noupdate.
+             rewrite (update_not_in_call_div e l md d r m c1 c2); split; auto.
+             apply e0 in noupdate.
+             apply (H7 l v1 v2 bt p rt). split; auto. rewrite noupdate; auto. 
     (* Cenclave *)
     - inversion H; try discriminate; subst. inversion H0; subst.
       eapply IHHcstep'; auto.
@@ -1081,14 +1173,26 @@ Section Preservation.
     - inversion H0; try discriminate; subst; split; auto.
     (* Cseq *)
     - inversion H0; try discriminate; subst.
+      pose H4 as tmp.
+      rewrite <- (project_trace_app tr tr') in tmp.
+      rewrite (mem_esc_hatch_ind_trace_app (project_trace tr true)
+                                        (project_trace tr' true) m1 d) in tmp.
+      destruct_pairs; auto.
+      assert (cconfig2_ok pc md G d m1 hd r0 m0 g'
+                          (escape_hatches_of (project_trace tr true) m1 d)) as hdcfg_ok.
+      unfold cconfig2_ok; eauto.
+      
+      assert (cterm2_ok g' d m1 r m (escape_hatches_of (project_trace tr true) m1 d))
+        as hdcterm2_ok.
+      eapply IHHcstep'1; eauto.
+      unfold cterm2_ok in *; destruct_pairs.
+      
       assert (cterm2_ok G' d m1 r'0 m'0
                         (escape_hatches_of (project_trace tr' true) m1 d))
       as tl_cterm2_ok.
-      eapply (IHHcstep'2 Hcstep'2 m'0 r'0 Heqcterm m r (Cseq tl)); auto.
-      unfold cconfig2_ok; auto. split; auto. apply H12.
-      admit. (* XXX g' thing... will need subsumption *)
-      unfold cterm2_ok in *; destruct_pairs.
-      split; auto.
+      eapply (IHHcstep'2 Hcstep'2 m'0 r'0 Heqcterm m r (Cseq tl)); eauto.
+      unfold cconfig2_ok; eauto.
+      unfold cterm2_ok in *; now destruct_pairs.
     (* Cif *)
     - inversion H1; try discriminate; subst.
       eapply IHHcstep'; auto.
@@ -1135,10 +1239,8 @@ Section Preservation.
          --- pose (no_assign_reg_context_constant
                      md d (Cif e c1 c2) r m r' m' (merge_trace (t1, t2)) x pc G G'
                      Hcstep H6).
-             assert (assign_in (Cif e c1 c2) x <-> assign_in c1 x \/ assign_in c2 x)
-               as assigncif.
-             split; intros; unfold assign_in; auto. rewrite assigncif in a.
-             assert (~(assign_in c1 x \/ assign_in c2 x)) as noassign by now apply and_not_or.
+             assert (~ assign_in (Cif e c1 c2) x) as noassign.
+             rewrite (assign_in_if_else e c1 c2 x). apply and_not_or. split; auto.
              apply a in noassign; destruct_pairs.
              apply (H7 x v1 v2 bt p0). split. rewrite H13; auto. rewrite H16; auto.
       -- split; auto. intros; destruct_pairs.
@@ -1155,10 +1257,8 @@ Section Preservation.
          --- pose (no_update_mem_constant
                      md d (Cif e c1 c2) r m r' m' (merge_trace (t1, t2)) l pc G G'
                      Hcstep H6).
-             assert (update_in (Cif e c1 c2) l <-> update_in c1 l \/ update_in c2 l)
-               as updatecif.
-             split; intros; unfold update_in; auto. rewrite updatecif in e0.
-             assert (~(update_in c1 l \/ update_in c2 l)) as noupdate by now apply and_not_or.
+             assert (~ update_in (Cif e c1 c2) l) as noupdate.
+             rewrite (update_in_if_else e c1 c2 l). apply and_not_or. split; auto.
              apply e0 in noupdate; destruct_pairs.
              apply (H8 l v1 v2 bt p0 rt). split; [rewrite noupdate | ]; auto. 
     (* Cwhile-T *)
@@ -1211,9 +1311,10 @@ Section Preservation.
          --- pose (no_assign_reg_context_constant
                      md d (Cwhile e c) r m r' m' (merge_trace (t1, t2)) x pc G' G'
                      Hcstep H6).
-             assert (assign_in (Cwhile e c) x <-> assign_in c x) by now unfold assign_in.
-             rewrite H18 in a. apply a in n; destruct_pairs.
-             apply (H7 x v1 v2 bt p0). split; auto. rewrite H20; auto.
+             assert (~assign_in (Cwhile e c) x) as noassign by
+                   now rewrite (assign_in_while e c x).
+             apply a in noassign; destruct_pairs.
+             apply (H7 x v1 v2 bt p0). split; auto. rewrite H18; auto.
       -- split; auto. intros; destruct_pairs.
          destruct (update_in_dec c l).
          --- pose (update_more_secure Common.H md d c G' G' l bt p0 rt H14 u H17).
@@ -1222,10 +1323,11 @@ Section Preservation.
          --- pose (no_update_mem_constant
                      md d (Cwhile e c) r m r' m' (merge_trace (t1, t2)) l pc G' G'
                      Hcstep H6).
-             assert (update_in (Cwhile e c) l <-> update_in c l) by now unfold update_in.
-             rewrite H18 in e0. apply e0 in n; destruct_pairs.
-             apply (H8 l v1 v2 bt p0 rt). split; auto. rewrite n; auto.
-  Admitted.
+             assert (~update_in (Cwhile e c) l) as noupdate by
+                   now rewrite (update_in_while e c l).
+             apply e0 in noupdate; destruct_pairs.
+             apply (H8 l v1 v2 bt p0 rt). split; auto. rewrite noupdate; auto.
+  Qed.
 
   Lemma impe2_type_preservation 
         (G: context) (d: loc_mode) (m0: mem2) :
@@ -1248,15 +1350,17 @@ Section Preservation.
     (* CALL *)
     - exists p. exists Gm. exists Gp. split. now apply sec_level_join_le_l in H10.
       unfold cconfig2_ok; split; auto; unfold_cfgs.
-      eapply call_fxn_typ. apply H1. apply H9.
-      assert (estep md d (e,project_reg r true,project_mem m true) (Vlambda md cmid)).
+      eapply call_fxn_typ; eauto. 
+      assert (estep md d (e,project_reg r true,project_mem m true) (Vlambda md cmid))
+        as estep2estep.
       apply (impe2_exp_sound md d e r m (VSingle (Vlambda md cmid))); auto.
-      apply H8.
+      apply estep2estep.
       split; auto; intros; unfold forall_dom in *; destruct_pairs.
-      -- apply H12 in H14; destruct H14; destruct_pairs.
-         inversion H15; subst.
+      inversion H12; subst.
+      -- apply H16 in H14; destruct H14; destruct_pairs.
+         inversion H17; subst.
          assert (protected p1) by now apply (H4 x v1 v2 s1 p1).
-         inversion H16; subst. 
+         inversion H19; subst. 
          destruct p0; unfold sec_level_le in *; auto; try omega.
     (* ENCLAVE *)
     - exists pc. exists G. exists G'. split. apply sec_level_le_refl.
@@ -1381,13 +1485,13 @@ Section Secure_Passive.
       unfold protected. unfold sec_level_le in H11; destruct p; intuition.
       clear H11 H14.
       assert (com_type p md Gm d c1 Gp).
-      eapply call_fxn_typ. apply H. apply H10.
+      eapply call_fxn_typ; eauto. 
       assert (estep md d (e,project_reg r true,project_mem m true) (Vlambda md c1))
         as estepc1.
       apply (impe2_exp_sound md d e r m (VPair (Vlambda md c1) (Vlambda md c2))); auto.
       apply estepc1.
       assert (com_type p md Gm d c2 Gp).
-      eapply call_fxn_typ. apply H. apply H10.
+      eapply call_fxn_typ; eauto. 
       assert (estep md d (e,project_reg r false,project_mem m false) (Vlambda md c2))
         as estepc2.
       apply (impe2_exp_sound md d e r m (VPair (Vlambda md c1) (Vlambda md c2))); auto.
