@@ -153,7 +153,7 @@ Section TransDef.
                     E.loc_mode -> E.com -> E.context -> set E.enclave ->
                     Prop :=
   | TRprog : forall p sGm U c sGp md eGm Km d c' eGp Kp,
-      prog_trans p sGm U c sGp md eGm Km d c' eGp Kp.     
+      prog_trans p sGm U c sGp md eGm Km d (E.Cseq c') eGp Kp.     
 
   Scheme exp_trans_mut := Induction for exp_trans Sort Prop
   with com_trans_mut := Induction for com_trans Sort Prop
@@ -177,6 +177,55 @@ Section TransLemmas.
   Proof.
     intros. apply trans_exp_ttrans in H. now inversion H.
   Qed.
+
+  Hint Constructors E.forall_subexp E.forall_subexp'.
+       
+  Lemma trans_pres_exp_novars : forall e sG t drv md eG d e' t',
+      exp_trans sG e t drv md eG d e' t' ->
+      S.exp_novars e ->
+      E.exp_novars e'.
+  Proof.
+    unfold S.exp_novars.
+    remember (fun e : S.exp =>
+                match e with
+                | S.Evar _ => False
+                | _ => True
+                end) as Ps.
+    unfold E.exp_novars.
+    remember (fun e : E.exp =>
+                match e with
+                | E.Evar _ => False
+                | _ => True
+                end) as Pe.
+    induction e using S.exp_ind' with
+    (P:=fun c =>
+          forall pc sG U sG' drv md eG K d c' eG' K'
+                 (Htrans: com_trans pc sG U c sG' drv md eG K d c' eG' K')
+                 (HPs: S.forall_subexp' Ps c),
+            E.forall_subexp' Pe c')
+      (P0:=fun e =>
+             forall sG t drv md eG d e' t'
+                    (Htrans: exp_trans sG e t drv md eG d e' t')
+                    (HPs: S.forall_subexp Ps e),
+               E.forall_subexp Pe e')
+      (P1:=fun c =>
+             forall pc sG U sG' md eG K d c' eG' K'
+                    (Htrans: prog_trans pc sG U c sG' md eG K d c' eG' K')
+                    (HPs: S.forall_subexp'' Ps c),
+               E.forall_subexp' Pe c');
+      intros; inversion Htrans; subst; try constructor; auto;
+        inversion HPs; eauto.
+  (* Can't finish this until define rest of translation. *)
+  Admitted.
+
+  Lemma trans_pres_all_loc_immutable : forall e sG t drv md eG d e' t',
+      exp_trans sG e t drv md eG d e' t' ->
+      S.all_loc_immutable e sG ->
+      context_trans sG d eG ->
+      E.all_loc_immutable e' eG.
+  Proof.
+  Admitted.
+  
 End TransLemmas.
 
 Section TransProof.
@@ -190,11 +239,11 @@ Section TransProof.
     intros.
     induction H0 using com_trans_mut with
     (P:=fun sG e t drv md eG d e' t'
-            (et:exp_trans sG e t drv md eG d e' t') =>
+            (et: exp_trans sG e t drv md eG d e' t') =>
           S.exp_wt sG e t drv ->
           E.exp_type md eG d e' t')
     (P1:=fun pc sG U c sG' md eG K d c' eG' K'
-            (ct:prog_trans pc sG U c sG' md eG K d c' eG' K') =>
+            (ct: prog_trans pc sG U c sG' md eG K d c' eG' K') =>
           S.prog_wt pc sG U c sG' ->
           E.com_type pc md eG K U d c' eG' K'); eauto.
     1-7: inversion H; subst; eauto.
@@ -207,8 +256,8 @@ Section TransProof.
     - inversion H. subst. eapply E.CTassign with (s:=s') (p:=q); eauto.
       destruct eG. reflexivity.
     - inversion H. subst. eapply E.CTdeclassify with (s:=s') (p:=q); eauto.
-      + admit. (* trans_pres_exp_novars *)
-      + admit. (* trans_pres_all_loc_immutable *)
+      + eapply trans_pres_exp_novars; eauto.
+      + eapply trans_pres_all_loc_immutable; eauto.
     (* Programs. *)
     - admit.
   Admitted.

@@ -54,34 +54,74 @@ Section Syntax.
   | Vnat : nat -> val
   | Vloc : location -> val.
 
-  Function forall_subexp (e: exp) (P: exp -> Prop) : Prop :=
-    P e /\
-    match e with
-    | Ebinop e1 e2 _ => forall_subexp e1 P /\ forall_subexp e2 P
-    | Ederef e' => forall_subexp e' P
-    | Elambda _ c => forall_subexp' c P
-    | _ => True
-    end
-  with forall_subexp' (c: com) (P: exp -> Prop) : Prop :=
-    match c with
-    | Cassign _ e => forall_subexp e P
-    | Cdeclassify _ e => forall_subexp e P
-    | Cupdate e1 e2 => forall_subexp e1 P /\ forall_subexp e2 P
-    | Ccall e => forall_subexp e P
-    | Cenclave _ c' => forall_subexp' c' P
-    | Cseq cs => fold_left (fun acc c => forall_subexp' c P /\ acc) cs True
-    | Cif e c1 c2 =>
-      forall_subexp e P /\ forall_subexp' c1 P /\ forall_subexp' c2 P
-    | Cwhile e c' => forall_subexp e P /\ forall_subexp' c' P
-    | _ => True
-    end.
+  Inductive forall_subexp (P: exp -> Prop) : exp -> Prop :=
+  | FAnat : forall n,
+      P (Enat n) -> forall_subexp P (Enat n)
+  | FAvar : forall x,
+      P (Evar x) -> forall_subexp P (Evar x)
+  | FAbinop : forall e1 e2 op,
+      P (Ebinop e1 e2 op) ->
+      forall_subexp P e1 ->
+      forall_subexp P e2 ->
+      forall_subexp P (Ebinop e1 e2 op)
+  | FAloc : forall l,
+      P (Eloc l) -> forall_subexp P (Eloc l)
+  | FAderef : forall e,
+      P (Ederef e) ->
+      forall_subexp P e ->
+      forall_subexp P (Ederef e)
+  | FAisunset : forall cnd,
+      P (Eisunset cnd) ->
+      forall_subexp P (Eisunset cnd)
+  | FAlambda : forall md c,
+      P (Elambda md c) ->
+      forall_subexp' P c ->
+      forall_subexp P (Elambda md c)
 
-  Definition exp_novars (e: exp) : Prop :=
-    forall_subexp e (fun e =>
-                       match e with
-                       | Evar _ => False
-                       | _ => True
-                       end).
+  with forall_subexp' (P: exp -> Prop) : com -> Prop :=
+  | FAskip :
+      forall_subexp' P Cskip
+  | FAassign : forall x e,
+      forall_subexp P e ->
+      forall_subexp' P (Cassign x e)
+  | FAdeclassify : forall x e,
+      forall_subexp P e ->
+      forall_subexp' P (Cdeclassify x e)
+  | FAupdate : forall e1 e2,
+      forall_subexp P e1 ->
+      forall_subexp P e2 ->
+      forall_subexp' P (Cupdate e1 e2)
+  | FAoutput : forall e sl,
+      forall_subexp P e ->
+      forall_subexp' P (Coutput e sl)
+  | FAcall : forall e,
+      forall_subexp P e ->
+      forall_subexp' P (Ccall e)
+  | FAset : forall cnd,
+      forall_subexp' P (Cset cnd)
+  | FAif : forall e c1 c2,
+      forall_subexp P e ->
+      forall_subexp' P c1 ->
+      forall_subexp' P c2 ->
+      forall_subexp' P (Cif e c1 c2)
+  | FAwhile : forall e c,
+      forall_subexp P e ->
+      forall_subexp' P c ->
+      forall_subexp' P (Cwhile e c)
+  | FAseq : forall coms,
+      Forall (fun c => forall_subexp' P c) coms ->
+      forall_subexp' P (Cseq coms)
+  | FAenclave : forall i c,
+      forall_subexp' P c ->
+      forall_subexp' P (Cenclave i c)
+  | FAkill : forall i,
+      forall_subexp' P (Ckill i).
+
+  Definition exp_novars : exp -> Prop :=
+    forall_subexp (fun e => match e with
+                            | Evar _ => False
+                            | _ => True
+                            end).
 
    Ltac auto_decide :=
     try match goal with
@@ -481,22 +521,22 @@ Section Typing.
                                p0 = LevelP L).
 
   Definition all_loc_immutable (e: exp) (G: context) : Prop :=
-    forall_subexp e (fun e =>
-                       match e with
-                       | Eloc (Cnd _) => False
-                       | Eloc (Not_cnd l) => forall t rt,
-                           loc_context G (Not_cnd l) = Some (t, rt) ->
-                           rt = Immut
-                       | Eisunset _ => False
-                       | _ => True
-                       end).
+    forall_subexp (fun e =>
+                     match e with
+                     | Eloc (Cnd _) => False
+                     | Eloc (Not_cnd l) => forall t rt,
+                         loc_context G (Not_cnd l) = Some (t, rt) ->
+                         rt = Immut
+                     | Eisunset _ => False
+                     | _ => True
+                     end) e.
 
   Definition loc_in_exp (e: exp) (G: context) (l: location) : Prop :=
-    forall_subexp e (fun e =>
-                       match e with
-                       | Eloc l => True
-                       | _ => False
-                       end).
+    forall_subexp (fun e =>
+                     match e with
+                     | Eloc l => True
+                     | _ => False
+                     end) e.
 
   (* XXX need this for using List.nth... maybe better option *)
   Definition mt := Cntxt (fun _ => None) (fun _ => None).
