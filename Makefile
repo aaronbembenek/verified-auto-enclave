@@ -3,7 +3,10 @@ OBJS=$(SRCS:.v=.vo)
 
 all: $(OBJS)
 
-ImpE2Security.vo: ImpE2Security.v ImpE2Adequacy.vo ImpE2Helpers.vo ImpE2.vo ImpE.vo Common.vo
+ImpE2Security.vo: ImpE2Security.v ImpE2TypeSystem.vo ImpE2Adequacy.vo ImpE2Helpers.vo ImpE2.vo ImpE.vo Common.vo
+	coqc $<
+
+ImpE2TypeSystem.vo: ImpE2TypeSystem.v ImpE2Adequacy.vo ImpE2Helpers.vo ImpE2.vo ImpE.vo Common.vo
 	coqc $<
 
 ImpE2Adequacy.vo: ImpE2Adequacy.v ImpE2Helpers.vo ImpE2.vo ImpE.vo Common.vo

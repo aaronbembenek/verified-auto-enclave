@@ -425,13 +425,6 @@ Section Typing.
                        | _ => True
                        end).
 
-  Definition exp_no_nested_derefs (e: exp) :=
-    forall_subexp e (fun e =>
-                       match e with
-                       | Ederef (Ederef e') => False
-                       | _ => True
-                       end).
-
   (* FIXME: don't have subsumption rule *)
   Inductive exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
   | ETnat : forall md g d n,
