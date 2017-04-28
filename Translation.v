@@ -341,7 +341,14 @@ Section TransLemmas.
     rewrite H9 in H13. inversion H13. subst.
     eapply H0; eauto.
   Qed.
-  
+
+  Lemma trans_pres_type_le : forall d t0 t0' t1 t1',
+      ttrans t0 d t0' ->
+      ttrans t1 d t1' ->
+      S.type_le t0 t1 ->
+      E.type_le t0' t1'.
+  Proof.
+  Admitted.
 End TransLemmas.
 
 Section TransProof.
@@ -379,7 +386,24 @@ Section TransProof.
     - inversion H. subst. eapply E.CTifelse; eauto; intuition.
     - inversion H. subst. eapply E.CTwhile; eauto; intuition.
     - inversion H. subst. eapply E.CTcall; eauto.
-      + unfold S.forall_dom in H13. admit.
+      + unfold S.forall_dom in H13. unfold E.forall_dom. split.
+        * eapply trans_pres_forall_var with (sG:=sGminus) (d:=d); eauto.
+          -- apply trans_exp_btrans in e0. now inversion e0.
+          -- unfold S.forall_var. intros.
+             inversion c. subst. unfold subdom in H2.
+             unfold S.forall_var in H13. apply H13 in H0.
+             destruct H0 as [ t0 H0 ].
+             destruct H0. inversion H0. subst.
+             pose (H2 x) as HsG. rewrite H16 in HsG.
+             destruct HsG as [ t'0 HeG ]. exists t'0. split.
+             --- now eapply E.Var_in_dom.
+             --- unfold S.forall_var in H6.
+                 assert (S.var_in_dom sG x t0) by now eapply S.Var_in_dom.
+                 apply H6 in H17. destruct H17 as [ t'1 [ Htrans HeGdom ] ].
+                 inversion HeGdom. subst.
+                 rewrite HeG in H17. inversion H17.
+                 eapply trans_pres_type_le; eauto.
+        * admit.
       + admit.
       + admit.
     (* Programs. *)
