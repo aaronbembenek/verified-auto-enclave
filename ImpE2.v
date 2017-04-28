@@ -25,6 +25,12 @@ Section Syntax.
   Inductive val2 : Type :=
   | VSingle: val -> val2
   | VPair: val -> val -> val2.
+
+  Definition not_pair_val (v : val2) : Prop :=
+    match v with
+    | VPair _ _ => False
+    | _ => True
+    end.
 End Syntax.
 
 (*******************************************************************************
@@ -37,6 +43,7 @@ Section Semantics.
   Definition reg2 : Type := register val2.
   Definition reg_init2 : reg2 := fun x => VSingle (Vnat 0).
   Definition mem2 : Type := memory val2.
+  Parameter minit : mem2.
 
   Inductive event2 : Type :=
   | Emp2 : event2
@@ -118,15 +125,6 @@ Section Semantics.
       end
     end.
 
-  Lemma project_trace_app (t1 t2: trace2) (is_left: bool) :
-    project_trace t1 is_left ++ project_trace t2 is_left
-    = project_trace (t1 ++ t2) is_left.
-  Proof.
-    induction t1, t2; simpl in *; auto.
-    rewrite app_nil_r in *; rewrite (app_nil_r t1) in *; auto.
-    destruct (event2_to_event a is_left); rewrite <- IHt1; auto.
-  Qed.
-
   Definition econfig2 : Type := exp * reg2 * mem2.
   Definition ecfg_exp2 (ecfg: econfig2) : exp :=
     match ecfg with (e, _, _) => e end.
@@ -155,114 +153,58 @@ Section Semantics.
      | _, _ => v1
      end.
 
-   Lemma apply_op_pair (op : nat -> nat -> nat) (v1 v2: val2) :
-       contains_nat v1 /\ contains_nat v2 /\
-       (exists v3 v4, apply_op op v1 v2 = VPair v3 v4) <->
-       exists v' v'', contains_nat v1 /\ contains_nat v2 /\
-                      (v1 = VPair v' v'' \/ v2 = VPair v' v'').
-   Proof.
-     intros.
-     split; intros; destruct_pairs.
-     induction v1, v2; unfold apply_op in *; destruct H1; destruct H1.
-     destruct v, v0; try discriminate.
-     - destruct v, v0; try discriminate.
-       destruct v1; try discriminate.
-       exists (Vnat n0). exists (Vnat n1).
-       split; auto. 
-     - destruct v, v0; try discriminate.
-       1-4: unfold contains_nat in H; destruct H; destruct H;
-         [discriminate | destruct H; inversion H].
-       2-5: unfold contains_nat in H; destruct H; destruct H;
-         [discriminate | destruct H; inversion H].
-       exists (Vnat n). exists (Vnat n0). split; auto.
-     - destruct v, v0; try discriminate.
-       1-4: unfold contains_nat in H; destruct H; destruct H;
-         [discriminate | destruct H; inversion H].
-       2-5: unfold contains_nat in H; destruct H; destruct H;
-         [discriminate | destruct H; inversion H].
-       exists (Vnat n). exists (Vnat n0). split; auto.
-     - destruct H. destruct H. destruct H; destruct_pairs.
-       split; [ | split]; auto.
-       destruct H1.
-       -- rewrite H1. destruct v2; destruct v.
-          destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
-          2-5: destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
-          unfold apply_op.
-          exists x. exists x0. destruct x; auto. destruct x0; auto.
-          unfold apply_op.
-          destruct x; auto. exists (Vlambda m c). exists x0; auto.
-          destruct x0; auto. exists (Vnat n0). exists (Vlambda m c); auto.
-          exists (Vnat (op n0 x1)). exists (Vnat (op n1 x2)); auto.
-          exists (Vnat n0). exists (Vloc l). auto.
-          exists (Vloc l). exists x0. auto.
-       -- rewrite H1 in *. destruct v1; destruct v.
-          destruct H; destruct H; [discriminate | destruct H; inversion H].
-          2-5: destruct H; destruct H; [discriminate | destruct H; inversion H].
-          unfold apply_op.
-          destruct x. destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
-          destruct x0. destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
-          exists (Vnat (op n n0)). exists (Vnat (op n n1)). auto.
-          destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
-          destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
-          unfold apply_op.
-          destruct x; auto. exists (Vnat x1). exists (Vnat x2). auto.
-          destruct x0; auto. exists (Vnat x1). exists (Vnat x2); auto.
-          exists (Vnat (op x1 n0)). exists (Vnat (op x2 n1)); auto.
-          1-2: exists (Vnat x1); exists (Vnat x2); auto.
-   Qed.
-       
    Inductive estep2 : esemantics2 :=
-  | Estep2_nat : forall md d ecfg n,
-      ecfg_exp2 ecfg = Enat n ->
-      estep2 md d ecfg (VSingle (Vnat n))
-  | Estep2_loc : forall md d ecfg l,
-      ecfg_exp2 ecfg = Eloc l ->
-      estep2 md d ecfg (VSingle (Vloc l))
-  | Estep2_lambda : forall md d ecfg c,
-      ecfg_exp2 ecfg = Elambda md c ->
+   | Estep2_nat : forall md d ecfg n,
+       ecfg_exp2 ecfg = Enat n ->
+       estep2 md d ecfg (VSingle (Vnat n))
+   | Estep2_loc : forall md d ecfg l,
+       ecfg_exp2 ecfg = Eloc l ->
+       estep2 md d ecfg (VSingle (Vloc l))
+   | Estep2_lambda : forall md d ecfg c,
+       ecfg_exp2 ecfg = Elambda md c ->
       estep2 md d ecfg (VSingle (Vlambda md c))
-  | Estep2_var : forall md d ecfg x v,
-      ecfg_exp2 ecfg = Evar x ->
-      ecfg_reg2 ecfg x = v ->
-      estep2 md d ecfg v
-  | Estep2_binop : forall md d ecfg e1 e2 v1 v2 op,
-      ecfg_exp2 ecfg = Ebinop e1 e2 op ->
-      estep2 md d (ecfg_update_exp2 ecfg e1) v1 ->
-      estep2 md d (ecfg_update_exp2 ecfg e2) v2 ->
-      contains_nat v1 /\ contains_nat v2 ->
-      estep2 md d ecfg (apply_op op v1 v2)
-  | Estep2_deref : forall md d ecfg e r m l v,
-      ecfg = (Ederef e, r, m) ->
-      estep2 md d (e, r, m) (VSingle (Vloc l)) ->
-      m l = v ->
-      mode_access_ok md d l ->
-      estep2 md d ecfg v.
+   | Estep2_var : forall md d ecfg x v,
+       ecfg_exp2 ecfg = Evar x ->
+       ecfg_reg2 ecfg x = v ->
+       estep2 md d ecfg v
+   | Estep2_binop : forall md d ecfg e1 e2 v1 v2 op,
+       ecfg_exp2 ecfg = Ebinop e1 e2 op ->
+       estep2 md d (ecfg_update_exp2 ecfg e1) v1 ->
+       estep2 md d (ecfg_update_exp2 ecfg e2) v2 ->
+       contains_nat v1 /\ contains_nat v2 ->
+       estep2 md d ecfg (apply_op op v1 v2)
+   | Estep2_deref : forall md d ecfg e r m l v,
+       ecfg = (Ederef e, r, m) ->
+       estep2 md d (e, r, m) (VSingle (Vloc l)) ->
+       m l = v ->
+       mode_access_ok md d l ->
+       estep2 md d ecfg v.
   
   (* Semantics for commands. *)
-  Definition cconfig2 : Type := com * reg2 * mem2.
-  Definition cterm2 : Type := reg2 * mem2.
-  Definition ccfg_com2 (ccfg: cconfig2) : com :=
-    match ccfg with (c, _, _) => c end.
-  Definition ccfg_reg2 (ccfg: cconfig2) : reg2 :=
-    match ccfg with (_, r, _) => r end.
-  Definition ccfg_mem2 (ccfg: cconfig2) : mem2 :=
-    match ccfg with (_, _, m) => m end.
-  Definition ccfg_update_mem2 (ccfg: cconfig2) (l: location) (v: val2) : mem2 := 
-    fun loc => if loc =? l then v
-               else (ccfg_mem2 ccfg) loc.
-  Definition ccfg_update_reg2 (ccfg: cconfig2) (x: var) (v: val2) : reg2 :=
-    fun var => if var =? x then v
-               else (ccfg_reg2 ccfg) var.
-  Definition ccfg_to_ecfg2 (e: exp) (ccfg : cconfig2) : econfig2 :=
-    (e, (ccfg_reg2 ccfg), (ccfg_mem2 ccfg)).
-  Definition ccfg_update_com2 (c: com) (ccfg : cconfig2) : cconfig2 :=
-    (c, (ccfg_reg2 ccfg), (ccfg_mem2 ccfg)).
-  Definition csemantics2 : Type := mode -> loc_mode -> cconfig2 -> cterm2 -> trace2 -> Prop.  
+   Definition cconfig2 : Type := com * reg2 * mem2.
+   Definition cterm2 : Type := reg2 * mem2.
+   Definition ccfg_com2 (ccfg: cconfig2) : com :=
+     match ccfg with (c, _, _) => c end.
+   Definition ccfg_reg2 (ccfg: cconfig2) : reg2 :=
+     match ccfg with (_, r, _) => r end.
+   Definition ccfg_mem2 (ccfg: cconfig2) : mem2 :=
+     match ccfg with (_, _, m) => m end.
+   Definition ccfg_update_mem2 (ccfg: cconfig2) (l: location) (v: val2) : mem2 := 
+     fun loc => if loc =? l then v
+                else (ccfg_mem2 ccfg) loc.
+   Definition ccfg_update_reg2 (ccfg: cconfig2) (x: var) (v: val2) : reg2 :=
+     fun var => if var =? x then v
+                else (ccfg_reg2 ccfg) var.
+   Definition ccfg_to_ecfg2 (e: exp) (ccfg : cconfig2) : econfig2 :=
+     (e, (ccfg_reg2 ccfg), (ccfg_mem2 ccfg)).
+   Definition ccfg_update_com2 (c: com) (ccfg : cconfig2) : cconfig2 :=
+     (c, (ccfg_reg2 ccfg), (ccfg_mem2 ccfg)).
+   Definition csemantics2 : Type := mode -> loc_mode -> cconfig2 -> cterm2 -> trace2 -> Prop.  
 
-  Definition project_ccfg (ccfg : cconfig2) (is_left : bool) : cconfig :=
-    (ccfg_com2 ccfg, project_reg (ccfg_reg2 ccfg) is_left,
-     project_mem (ccfg_mem2 ccfg) is_left).
-
+   Definition project_ccfg (ccfg : cconfig2) (is_left : bool) : cconfig :=
+     (ccfg_com2 ccfg, project_reg (ccfg_reg2 ccfg) is_left,
+      project_mem (ccfg_mem2 ccfg) is_left).
+   
   Inductive cstep2 : csemantics2 := 
   | Cstep2_skip : forall md d ccfg,
       ccfg_com2 ccfg = Cskip ->
@@ -434,3 +376,71 @@ Section Semantics.
   .
   Hint Constructors imm_premise.
 End Semantics.
+
+(*******************************************************************************
+*
+* SECURITY DEFINITIONS
+*
+*******************************************************************************)
+
+Section Security_Defn.
+  Definition esc_hatch : Type := exp.
+  Definition is_escape_hatch e : Prop := exp_novars e /\ exp_locs_immutable e.
+
+  Definition tobs_sec_level (sl: sec_level) : trace -> trace :=
+    filter (fun event => match event with
+                         | Out sl' v => sec_level_le_compute sl' sl
+                         | AEnc c c' enc_equiv => true
+                         | ANonEnc c => true
+                         | _ => false                           
+                         end).
+
+  Definition corresponds (G: context) : Prop :=
+    (forall l p bt rt, g0 l = p -> Loc_Contxt l = Some (Typ bt p, rt))
+    /\ (forall x, G x = Some (Typ Tnat (L))).
+
+  Definition mem_sl_ind (sl: sec_level) :=
+    forall l : location,
+      sec_level_le (g0 l) sl <-> (project_mem minit true) l = (project_mem minit false) l.
+
+  (* capture the notion that the memory does not change at the locations by saying *)
+  (* that any memory---implicitly derived from minit---has the same value at the *)
+  (* locations of e *)
+  Definition mem_esc_hatch_ind :=
+    forall e, is_escape_hatch e -> (forall (m: mem2) (l: location),
+                                       loc_in_exp e l ->
+                                       exists v, minit l = VSingle v /\ minit l = m l).
+  
+  Definition secure_prog (sl: sec_level) (d: loc_mode) (c: com) (G: context) : Prop :=
+    forall m0 mknown r' m' t tobs,
+      merge_mem m0 mknown minit ->
+      cstep2 Normal d (c, reg_init2, minit) (r', m') t ->
+      tobs = project_trace t true ->
+      mem_sl_ind sl ->
+      mem_esc_hatch_ind ->
+      tobs_sec_level sl tobs = tobs_sec_level sl (project_trace t false).
+
+    Definition cterm2_ok (G: context) (d: loc_mode) (r: reg2) (m: mem2)
+      : Prop :=
+      (forall x v1 v2 bt p,
+          (r x = VPair v1 v2 /\ G x = Some (Typ bt p)) -> protected p) 
+      /\ (forall l v1 v2 bt p rt,
+          (m l = VPair v1 v2 /\ Loc_Contxt l = Some (Typ bt p, rt))
+          -> protected p)
+      /\ mem_sl_ind L
+      /\ mem_esc_hatch_ind.
+
+  Definition cconfig2_ok (pc: sec_level) (md: mode) (G: context) (d: loc_mode)
+             (c: com) (r: reg2) (m: mem2) (G': context)
+    : Prop :=
+    com_type pc md G d c G'
+    /\ (forall x v1 v2 bt p,
+           (r x = VPair v1 v2
+            /\ G x = Some (Typ bt p))
+           -> protected p)
+    /\ (forall l v1 v2 bt p rt,
+           ((m l) = VPair v1 v2 /\ Loc_Contxt (l) = Some (Typ bt p, rt))    
+           -> protected p)
+    /\ mem_sl_ind L
+    /\ mem_esc_hatch_ind.
+End Security_Defn.

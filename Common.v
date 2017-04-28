@@ -87,4 +87,7 @@ Section Security.
     induction sl, sl'; unfold sec_level_join; simpl; auto.
     intros. inversion H0.
   Qed.
+
+  Parameter g0: sec_spec.
+  
 End Security.

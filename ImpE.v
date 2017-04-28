@@ -179,6 +179,8 @@ Section Semantics.
   Definition mem : Type := memory val.
   Definition loc_mode : Type := location -> mode.
 
+  Axiom No_Pointers : forall (m: mem) l l', m l <> Vloc l'.
+
   Inductive event : Type :=
   | Decl : exp -> mem -> event
   | Mem : mem -> event
@@ -353,7 +355,7 @@ Section Typing.
        | Typ : base_type -> sec_level -> type.
 
   Definition context : Type := var -> option type.
-  Global Parameter Loc_Contxt : location -> option (type * ref_type).
+  Parameter Loc_Contxt : location -> option (type * ref_type).
   
   Lemma var_in_dom_dec : forall (G : context) x, {exists t, G x = Some t} + {G x = None}.
   Proof.
@@ -408,26 +410,25 @@ Section Typing.
   Definition is_var_low_context (G: context) : Prop :=
     forall_dom G (fun _ t => let (_, p) := t in p = L).
 
-  Definition all_loc_immutable (e: exp) : Prop :=
-    forall_subexp e (fun e =>
-                       match e with
-                       | Eloc n => forall t rt,
-                           Loc_Contxt n = Some (t, rt) ->
-                           rt = Immut
-                       | _ => True
-                       end).
-
-  Definition loc_in_exp (e: exp) (l: location) : Prop :=
-    forall_subexp e (fun e =>
-                       match e with
-                       | Eloc l => True
-                       | _ => False
-                       end).
+  Function loc_in_exp (e: exp) (l: location) : Prop :=
+    match e with
+    | Eloc l' => l = l'
+    | Ederef e' => loc_in_exp e' l
+    | Ebinop e1 e2 _ => loc_in_exp e1 l \/ loc_in_exp e2 l
+    | _ => False
+    end.
 
   Definition exp_locs_immutable (e: exp) :=
     forall_subexp e (fun e =>
                        match e with
                        | Eloc n => set_In n (immutable_locs g0)
+                       | _ => True
+                       end).
+
+  Definition exp_no_nested_derefs (e: exp) :=
+    forall_subexp e (fun e =>
+                       match e with
+                       | Ederef (Ederef e') => False
                        | _ => True
                        end).
 
