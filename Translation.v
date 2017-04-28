@@ -342,12 +342,40 @@ Section TransLemmas.
     eapply H0; eauto.
   Qed.
 
-  Lemma trans_pres_type_le : forall d t0 t0' t1 t1',
+  Hint Constructors E.type_le E.base_type_le.
+
+  Check S.type_mut.
+  
+  Lemma trans_pres_type_le : forall t0 d t0' t1 t1',
       ttrans t0 d t0' ->
       ttrans t1 d t1' ->
       S.type_le t0 t1 ->
       E.type_le t0' t1'.
   Proof.
+    induction t0 using S.type_mut with
+    (P:=fun t0 => forall d t0' t1 t1',
+            btrans t0 d t0' ->
+            btrans t1 d t1' ->
+            S.base_type_le t0 t1 ->
+            E.base_type_le t0' t1')
+      (P1:=fun sG0 => forall d eG0 sG1 eG1,
+               context_trans sG0 d eG0 ->
+               context_trans sG1 d eG1 ->
+               S.context_le sG0 sG1 ->
+               E.context_le eG0 eG1); intros.
+    - inversion H1. subst. inversion H. inversion H0. constructor.
+    - inversion H1. subst. inversion H. inversion H0. subst.
+      inversion H. subst. admit.
+    - inversion H1. subst. inversion H. inversion H0. subst. admit.
+    - inversion H1; subst; inversion H; inversion H0; subst; admit.
+    - destruct t0', t1, t1'.
+      constructor; inversion H; inversion H0; subst;
+        inversion H1; subst; auto. eapply IHt0; eauto.
+    - destruct eG0, sG1, eG1. constructor; intros. admit.
+      (* Need better IP for contexts... something like
+         forall_var G (fun _ t => P0 t) ->
+         forall_loc G (fun _ t _ => P0 t) ->
+         P1 G *)
   Admitted.
 End TransLemmas.
 
