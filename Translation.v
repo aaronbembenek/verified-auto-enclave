@@ -318,6 +318,29 @@ Section TransLemmas.
       E.all_loc_immutable e' eG.
   Proof.
   Admitted.
+
+  Lemma trans_pres_forall_var : forall sG eG d (Pe: var -> E.type -> Prop),
+      context_trans sG d eG ->
+      S.forall_var sG (fun x t => forall t', ttrans t d t' -> Pe x t') ->
+      E.forall_var eG Pe.
+  Proof.
+    intros.
+    unfold E.forall_var.
+    unfold S.forall_var in H0. inversion H. subst.
+    intros. unfold subdom in H3.
+    inversion H8. subst.
+    pose (H3 x) as HsGx.
+    rewrite H9 in HsGx.
+    destruct HsGx as [ t' HsGx ].
+    assert (S.var_in_dom sG x t') by now apply S.Var_in_dom.
+    unfold S.forall_var in H5.
+    pose H10 as HeG.
+    apply H5 in HeG.
+    destruct HeG as [ t'0 HeG ].
+    destruct HeG. inversion H12. subst.
+    rewrite H9 in H13. inversion H13. subst.
+    eapply H0; eauto.
+  Qed.
   
 End TransLemmas.
 
@@ -356,7 +379,7 @@ Section TransProof.
     - inversion H. subst. eapply E.CTifelse; eauto; intuition.
     - inversion H. subst. eapply E.CTwhile; eauto; intuition.
     - inversion H. subst. eapply E.CTcall; eauto.
-      + admit.
+      + unfold S.forall_dom in H13. admit.
       + admit.
       + admit.
     (* Programs. *)
