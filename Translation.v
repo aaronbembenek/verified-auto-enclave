@@ -234,7 +234,21 @@ Section TransDef.
       exp_trans sG e (S.Typ (S.Tlambda sGminus U p sGplus) q) drv
                 md eG d e'
                 (E.Typ (E.Tlambda eGminus K U p md eGplus K') q) ->
-      (* xxx other stuff *)
+      E.forall_dom eGminus
+                 (fun x t => exists t', E.var_in_dom eG x t' /\ E.type_le t' t)
+                 (fun l t rt => exists t',
+                      E.loc_in_dom eG l t' rt /\ E.type_le t' t) ->
+      E.forall_dom eGplus
+                 (fun x t => exists t', E.var_in_dom eGout x t' /\ E.type_le t' t)
+                 (fun l t rt => exists t',
+                      E.loc_in_dom eGout l t' rt /\ E.type_le t' t) ->
+      E.forall_dom eG
+                 (fun x t =>
+                    (forall t', ~E.var_in_dom eGplus x t') ->
+                    E.var_in_dom eGout x t)
+                 (fun l t rt =>
+                    (forall t' rt', ~E.loc_in_dom eGplus l t' rt') ->
+                    E.loc_in_dom eGout l t rt) ->
       E.mode_alive md K ->
       U = nil \/ md <> E.Normal ->
       com_trans pc sG U (S.Ccall e) sGout
@@ -341,42 +355,6 @@ Section TransLemmas.
     rewrite H9 in H13. inversion H13. subst.
     eapply H0; eauto.
   Qed.
-
-  Hint Constructors E.type_le E.base_type_le.
-
-  Check S.type_mut.
-  
-  Lemma trans_pres_type_le : forall t0 d t0' t1 t1',
-      ttrans t0 d t0' ->
-      ttrans t1 d t1' ->
-      S.type_le t0 t1 ->
-      E.type_le t0' t1'.
-  Proof.
-    induction t0 using S.type_mut with
-    (P:=fun t0 => forall d t0' t1 t1',
-            btrans t0 d t0' ->
-            btrans t1 d t1' ->
-            S.base_type_le t0 t1 ->
-            E.base_type_le t0' t1')
-      (P1:=fun sG0 => forall d eG0 sG1 eG1,
-               context_trans sG0 d eG0 ->
-               context_trans sG1 d eG1 ->
-               S.context_le sG0 sG1 ->
-               E.context_le eG0 eG1); intros.
-    - inversion H1. subst. inversion H. inversion H0. constructor.
-    - inversion H1. subst. inversion H. inversion H0. subst.
-      inversion H. subst. admit.
-    - inversion H1. subst. inversion H. inversion H0. subst. admit.
-    - inversion H1; subst; inversion H; inversion H0; subst; admit.
-    - destruct t0', t1, t1'.
-      constructor; inversion H; inversion H0; subst;
-        inversion H1; subst; auto. eapply IHt0; eauto.
-    - destruct eG0, sG1, eG1. constructor; intros. admit.
-      (* Need better IP for contexts... something like
-         forall_var G (fun _ t => P0 t) ->
-         forall_loc G (fun _ t _ => P0 t) ->
-         P1 G *)
-  Admitted.
 End TransLemmas.
 
 Section TransProof.
@@ -414,26 +392,6 @@ Section TransProof.
     - inversion H. subst. eapply E.CTifelse; eauto; intuition.
     - inversion H. subst. eapply E.CTwhile; eauto; intuition.
     - inversion H. subst. eapply E.CTcall; eauto.
-      + unfold S.forall_dom in H13. unfold E.forall_dom. split.
-        * eapply trans_pres_forall_var with (sG:=sGminus) (d:=d); eauto.
-          -- apply trans_exp_btrans in e0. now inversion e0.
-          -- unfold S.forall_var. intros.
-             inversion c. subst. unfold subdom in H2.
-             unfold S.forall_var in H13. apply H13 in H0.
-             destruct H0 as [ t0 H0 ].
-             destruct H0. inversion H0. subst.
-             pose (H2 x) as HsG. rewrite H16 in HsG.
-             destruct HsG as [ t'0 HeG ]. exists t'0. split.
-             --- now eapply E.Var_in_dom.
-             --- unfold S.forall_var in H6.
-                 assert (S.var_in_dom sG x t0) by now eapply S.Var_in_dom.
-                 apply H6 in H17. destruct H17 as [ t'1 [ Htrans HeGdom ] ].
-                 inversion HeGdom. subst.
-                 rewrite HeG in H17. inversion H17.
-                 eapply trans_pres_type_le; eauto.
-        * admit.
-      + admit.
-      + admit.
     (* Programs. *)
     - admit.
   Admitted.

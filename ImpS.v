@@ -195,10 +195,6 @@ Section Typing.
   with context : Type :=
   | Cntxt (var_cntxt: var -> option type)
           (loc_cntxt: location -> option (type * ref_type)) : context.
-
-  Scheme base_type_mut := Induction for base_type Sort Prop
-  with type_mut := Induction for type Sort Prop
-  with context_mut := Induction for context Sort Prop.
                                       
   Definition var_context (G: context) : var -> option type :=
     match G with Cntxt vc _ => vc end.
