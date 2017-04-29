@@ -39,7 +39,17 @@ Section Misc.
   Axiom No_Pointers2 : forall (m: mem2) l,
     (forall l', m l <> VSingle (Vloc l')) /\
     (forall l' l'', m l <> VPair (Vloc l') (Vloc l'')).
-  
+
+  (* If there has been an update to l from minit to m0, we can assume the updated values were *)
+  (* protected because the update values must have derived from the initial memory locations *)
+  (* which were different and thus protected *)
+  (* Else there has not been an update, and the initial memory location l was protected in minit *)
+  Axiom sl_ind_iff_mem_pairs_protected : forall (m: mem2) l md d r e G v1 v2 bt p,
+      mem_sl_ind L ->
+      estep2 md d (e,r,m) (VSingle (Vloc l)) ->
+      exp_type md G d (Ederef e) (Typ bt p) ->
+      m l = VPair v1 v2 <-> protected p.
+
   Lemma l2_zero_or_one (n : nat) : n < 2 -> n = 0 \/ n = 1.
   Proof. omega. Qed.
 
@@ -431,26 +441,11 @@ Section Security.
     - subst. exists (Vlambda md c0); auto.
   Qed.
 
-      Lemma tobs_sec_level_app (sl: sec_level) (l l': trace) :
+  Lemma tobs_sec_level_app (sl: sec_level) (l l': trace) :
     tobs_sec_level sl l ++ tobs_sec_level sl l' = tobs_sec_level sl (l ++ l').
   Proof.
     unfold tobs_sec_level. now rewrite (filter_app _ l l').
   Qed.
-
-  (* XXX assume that if the value is a location, then the policy on the location *)
-  (* is protected by S. This should be fine because we're assuming this for *)
-  (* memories that are indistinguishable *)
-  Lemma econfig2_locs_protected (e: exp):
-    forall G d r m v v1 v2 bt bt' p p' q md md' rt e',
-      mem_sl_ind L ->
-      v = VPair v1 v2 ->
-      exp_type md G d e (Typ bt p) ->
-      estep2 md d (e,r,m) v ->
-      e = Ederef e' ->
-      exp_type md G d e' (Typ (Tref (Typ bt' p') md' rt) q) ->
-      protected q.
-  Proof.
-  Admitted.
 
   Lemma econfig2_pair_protected : forall md G d e p r m v v1 v2 bt,
       v = VPair v1 v2 ->
@@ -491,10 +486,7 @@ Section Security.
           now apply (join_protected_r p0 q).
      - inversion Heqecfg; subst.
        inversion H5; subst.
-       assert (protected q).
-       apply (econfig2_locs_protected (Ederef e) G d r m (m l) v1 v2 bt bt
-                                      (sec_level_join p0 q) p0 q md md' rt e); auto.
-       apply (join_protected_r p0 q); auto.
+       eapply sl_ind_iff_mem_pairs_protected; eauto.
   Qed.
   
 End Security.
