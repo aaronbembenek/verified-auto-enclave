@@ -40,16 +40,6 @@ Section Misc.
     (forall l', m l <> VSingle (Vloc l')) /\
     (forall l' l'', m l <> VPair (Vloc l') (Vloc l'')).
 
-  (* If there has been an update to l from minit to m0, we can assume the updated values were *)
-  (* protected because the update values must have derived from the initial memory locations *)
-  (* which were different and thus protected *)
-  (* Else there has not been an update, and the initial memory location l was protected in minit *)
-  Axiom sl_ind_iff_mem_pairs_protected : forall (m: mem2) l md d r e G v1 v2 bt p,
-      mem_sl_ind L ->
-      estep2 md d (e,r,m) (VSingle (Vloc l)) ->
-      exp_type md G d (Ederef e) (Typ bt p) ->
-      m l = VPair v1 v2 <-> protected p.
-
   Lemma l2_zero_or_one (n : nat) : n < 2 -> n = 0 \/ n = 1.
   Proof. omega. Qed.
 
@@ -446,6 +436,16 @@ Section Security.
   Proof.
     unfold tobs_sec_level. now rewrite (filter_app _ l l').
   Qed.
+
+  (* If there has been an update to l from minit to m0, we can assume the updated values were *)
+  (* protected because the update values must have derived from the initial memory locations *)
+  (* which were different and thus protected *)
+  (* Else there has not been an update, and the initial memory location l was protected in minit *)
+  Lemma sl_ind_iff_mem_pairs_protected : forall (m: mem2) l md d r e G v1 v2 bt p,
+      mem_sl_ind L ->
+      estep2 md d (e,r,m) (VSingle (Vloc l)) ->
+      exp_type md G d (Ederef e) (Typ bt p) ->
+      m l = VPair v1 v2 <-> protected p.
 
   Lemma econfig2_pair_protected : forall md G d e p r m v v1 v2 bt,
       v = VPair v1 v2 ->
