@@ -107,14 +107,15 @@ Section Preservation.
     pose (merge_mem_exists m m) as tmp; destruct tmp as [m2 mergem].
     pose (project_merge_inv_reg r r r2 merger) as tmp; destruct tmp as [projTr projFr].
     apply (project_merge_inv_mem m m m2) in mergem. destruct mergem as [projTm projFm].
+    assert (H0' := H0).
     rewrite <- projTm, <- projTr in H0.
-    pose (impe2_exp_complete md d e r2 m2 (Vlambda md c) true H0) as tmp.
-    destruct tmp; destruct_pairs; assert (estep2 md d (e, r2, m2) x) as Hestep2 by auto.
-
+    rewrite <- projFm, <- projFr in H0'.
+    pose (impe2_exp_complete md d e r2 m2 (Vlambda md c) (Vlambda md c) H0) as tmp.
+    destruct tmp; destruct_pairs; auto.
     assert (val_type md G d (Vlambda md c) (Typ (Tlambda Gm p md Gp) q)).
     pose (impe2_value_type_preservation md G d e
                                         (Tlambda Gm p md Gp) q
-                                        r2 m2 x H1 Hestep2).
+                                        r2 m2 x H1 H2).
     destruct_pairs. rewrite H3 in *; auto.
     rewrite VlambdaWT_iff_ComWT; eauto. (*GRRRRRR*)
   Qed.
