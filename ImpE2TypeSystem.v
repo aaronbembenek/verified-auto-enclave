@@ -95,6 +95,8 @@ Section Preservation.
       -- unfold project_value in *. split; constructor; auto.
   Qed.
     
+  (* XXX I feel like this should be provable from something... but our typing *)
+  (* system seems to be lacking something *)
   Lemma call_fxn_typ : forall pc md G d e r m Gm p Gp q c Gout,
     com_type pc md G d (Ccall e) Gout ->
     estep md d (e,r,m) (Vlambda md c) ->
@@ -126,7 +128,9 @@ Section Preservation.
     Loc_Contxt l = Some (Typ bt p0, rt) ->
     s = bt /\ p = p0.
   Proof.
-  Admitted.
+    intros.
+    inversion H1; try discriminate; subst.
+    inversion H2; try discriminate; subst.  Admitted.
 
   Lemma impe2_final_config_preservation (G: context) (d: loc_mode) :
     forall G' c r m pc md r' m' t,

@@ -424,152 +424,118 @@ Section Typing.
                        | Eloc n => set_In n (immutable_locs g0)
                        | _ => True
                        end).
-  Inductive vderiv : Type :=
-  | Vderiv_none : vderiv
-  | Vderiv_v1 : type -> vderiv -> vderiv
-  | Vderiv_v2: type -> vderiv -> type -> vderiv -> vderiv.
-  Inductive ederiv : Type :=
-  | Ederiv_none : ederiv
-  | Ederiv_e1 : type -> ederiv -> ederiv
-  | Ederiv_e2: type -> ederiv -> type -> ederiv -> ederiv.
-  Inductive cderiv : Type :=
-  | Cderiv_none : cderiv
-  | Cderiv_e1 : type -> ederiv -> cderiv
-  | Cderiv_e2 : type -> ederiv -> type -> ederiv -> cderiv
-  | Cderiv_e1_p : type -> ederiv -> sec_level -> cderiv.
-  
+
   (* FIXME: don't have subsumption rule *)
-  Inductive val_type : mode -> context -> loc_mode -> val -> type -> vderiv -> Prop :=
+  Inductive val_type : mode -> context -> loc_mode -> val -> type -> Prop :=
   | VTnat: forall md g d n,
-      val_type md g d (Vnat n) (Typ Tnat L) Vderiv_none
+      val_type md g d (Vnat n) (Typ Tnat L) 
   | VTloc: forall md g d l md' t rt,
       d l = md' ->
       Loc_Contxt l = Some (t, rt) ->
-      val_type md g d (Vloc l) (Typ (Tref t md' rt) L) Vderiv_none
-  | VTlambda : forall md g d c p g' g'' drv,
-      com_type p md g' d c g'' drv ->
-      val_type md g d (Vlambda md c) (Typ (Tlambda g' p md g'') L) Vderiv_none
+      val_type md g d (Vloc l) (Typ (Tref t md' rt) L)
+  | VTlambda : forall md g d c p g' g'',
+      com_type p md g' d c g'' ->
+      val_type md g d (Vlambda md c) (Typ (Tlambda g' p md g'') L)
   | VTvar : forall md g d x r bt p v,
       g x = Some (Typ bt p) ->
       r x = v ->
-      val_type md g d v (Typ bt p) Vderiv_none
-  | VTmem : forall md g d md' p rt q m l v bt drv,
+      val_type md g d v (Typ bt p)
+  | VTmem : forall md g d md' p rt q m l v bt,
       m l = v ->
-      val_type md g d (Vloc l) (Typ (Tref (Typ bt p) md' rt) q) drv ->
+      val_type md g d (Vloc l) (Typ (Tref (Typ bt p) md' rt) q) ->
       val_type md g d v (Typ bt (sec_level_join p q))
-               (Vderiv_v1 (Typ (Tref (Typ bt p) md' rt) q) drv)
-  | VTbinop : forall md g d n1 n2 p q op drv1 drv2,
-      val_type md g d (Vnat n1) (Typ Tnat p) drv1 ->
-      val_type md g d (Vnat n2) (Typ Tnat q) drv2 ->
+  | VTbinop : forall md g d n1 n2 p q op,
+      val_type md g d (Vnat n1) (Typ Tnat p) ->
+      val_type md g d (Vnat n2) (Typ Tnat q) ->
       val_type md g d (Vnat (op n1 n2)) (Typ Tnat (sec_level_join p q))
-               (Vderiv_v2 (Typ Tnat p) drv1 (Typ Tnat q) drv2)
 
-  with exp_type : mode -> context -> loc_mode -> exp -> type -> ederiv ->Prop :=
+  with exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
   | ETnat : forall md g d n,
-      exp_type md g d (Enat n) (Typ Tnat (L)) Ederiv_none
+      exp_type md g d (Enat n) (Typ Tnat (L))
   | ETvar : forall md g d x t,
       g x = Some t ->
-      exp_type md g d (Evar x) t Ederiv_none
+      exp_type md g d (Evar x) t
   | ETloc : forall md g d l md' t rt,
       d l = md' ->
       Loc_Contxt l = Some (t, rt) ->
-      exp_type md g d (Eloc l) (Typ (Tref t md' rt) (L)) Ederiv_none
-  | ETderef : forall md g d e md' s p rt q drv,
-      exp_type md g d e (Typ (Tref (Typ s p) md' rt) q) drv ->
+      exp_type md g d (Eloc l) (Typ (Tref t md' rt) (L))
+  | ETderef : forall md g d e md' s p rt q,
+      exp_type md g d e (Typ (Tref (Typ s p) md' rt) q) ->
       md' = Normal \/ md' = md ->
       exp_type md g d (Ederef e) (Typ s (sec_level_join p q))
-               (Ederiv_e1 (Typ (Tref (Typ s p) md' rt) q) drv)
-  | ETlambda : forall md g d c p g' g'' drv,
-      com_type p md g' d c g'' drv ->
+  | ETlambda : forall md g d c p g' g'',
+      com_type p md g' d c g''->
       exp_type md g d (Elambda md c) (Typ (Tlambda g' p md g'') (L))
-               Ederiv_none
-  | ETbinop : forall md g d e1 e2 p q f drv1 drv2,
-      exp_type md g d e1 (Typ Tnat p) drv1 ->
-      exp_type md g d e2 (Typ Tnat q) drv2 ->
+  | ETbinop : forall md g d e1 e2 p q f,
+      exp_type md g d e1 (Typ Tnat p) ->
+      exp_type md g d e2 (Typ Tnat q) ->
       exp_type md g d (Ebinop e1 e2 f) (Typ Tnat (sec_level_join p q))
-               (Ederiv_e2 (Typ Tnat p) drv1 (Typ Tnat q) drv2)
-               
-  with com_type : sec_level -> mode -> context -> loc_mode ->
-                  com -> context -> cderiv -> Prop :=
+
+  with com_type : sec_level -> mode -> context -> loc_mode -> com -> context -> Prop :=
   | CTskip : forall pc md g d,
-      com_type pc md g d Cskip g Cderiv_none
-  | CTassign : forall pc md g d x e s p q vc' drv,
-      exp_type md g d e (Typ s p) drv ->
+      com_type pc md g d Cskip g
+  | CTassign : forall pc md g d x e s p q vc',
+      exp_type md g d e (Typ s p) ->
       q = sec_level_join p pc ->
       sec_level_le q (L) \/ md <> Normal ->
       vc' = (fun y => if y =? x then Some (Typ s q) else g y) ->
       com_type pc md g d (Cassign x e) (vc')
-               (Cderiv_e1 (Typ s p) drv)
-  | CTdeclassify : forall md g d x e s p vc' drv,
-      exp_type md g d e (Typ s p) drv ->
+  | CTdeclassify : forall md g d x e s p vc',
+      exp_type md g d e (Typ s p) ->
       exp_novars e ->
       exp_locs_immutable e ->
       vc' = (fun y => if y =? x then Some (Typ s (L)) else g y) ->
       com_type (L) md g d (Cdeclassify x e) (vc')
-               (Cderiv_e1 (Typ s p) drv)
-  | CToutput : forall pc md g d e l s p drv,
-      exp_type md g d e (Typ s p) drv ->
+  | CToutput : forall pc md g d e l s p,
+      exp_type md g d e (Typ s p) ->
       sec_level_le (sec_level_join p pc) l ->
-      com_type pc md g d (Coutput e l) g (Cderiv_e1 (Typ s p) drv)
-  | CTupdate : forall pc md g d e1 e2 s p md' q p' drv1 drv2,
-      exp_type md g d e1 (Typ (Tref (Typ s p) md' Mut) q) drv1 ->
-      exp_type md g d e2 (Typ s p') drv2 ->
+      com_type pc md g d (Coutput e l) g
+  | CTupdate : forall pc md g d e1 e2 s p md' q p',
+      exp_type md g d e1 (Typ (Tref (Typ s p) md' Mut) q) ->
+      exp_type md g d e2 (Typ s p') ->
       sec_level_le (sec_level_join (sec_level_join p' q) pc) p ->
       md' = Normal \/ md' = md ->
       com_type pc md g d (Cupdate e1 e2) g
-               (Cderiv_e2 (Typ (Tref (Typ s p) md' Mut) q) drv1
-                          (Typ s p') drv2)
-  | Tifelse : forall pc md g d e c1 c2 pc' p g' drv drv1 drv2,
-      com_type pc' md g d c1 g' drv1 ->
-      com_type pc' md g d c2 g' drv2 ->
-      exp_type md g d e (Typ Tnat p) drv->
+  | Tifelse : forall pc md g d e c1 c2 pc' p g',
+      com_type pc' md g d c1 g' ->
+      com_type pc' md g d c2 g' ->
+      exp_type md g d e (Typ Tnat p) ->
       sec_level_le (sec_level_join pc p) pc' ->
       sec_level_le p (L) \/ md <> Normal ->
       com_type pc md g d (Cif e c1 c2) g'
-               (Cderiv_e1_p (Typ Tnat p) drv pc')
-  | Tenclave : forall pc g d c i c' g' drv,
+  | Tenclave : forall pc g d c i c' g',
       c = Cenclave i c' ->
-      com_type pc (Encl i) g d c' g' drv ->
+      com_type pc (Encl i) g d c' g' ->
       is_var_low_context g' ->
-      com_type pc Normal g d c g' drv
-  | Twhile : forall pc md g d c e p pc' drv drv',
-      exp_type md g d e (Typ Tnat p) drv ->
-      com_type pc' md g d c g drv' ->
+      com_type pc Normal g d c g'
+  | Twhile : forall pc md g d c e p pc',
+      exp_type md g d e (Typ Tnat p) ->
+      com_type pc' md g d c g ->
       sec_level_le (sec_level_join pc p) pc' ->
       sec_level_le p L \/ md <> Normal ->
       com_type pc md g d (Cwhile e c) g
-               (Cderiv_e1_p (Typ Tnat p) drv pc')
-  | Tseq : forall pc md g d c rest g' gn drv1 drv2 drv3,
-      com_type pc md g d c g' drv1 ->
-      com_type pc md g' d (Cseq rest) gn drv2 ->
-      com_type pc md g d (Cseq (c :: rest)) gn drv3
-  | Tseqnil : forall pc md g d drv,
-      com_type pc md g d (Cseq []) g drv
-  | Tcall : forall pc md G d e Gm Gp Gout q p drv,
-      exp_type md G d e (Typ (Tlambda Gm p md Gp) q) drv->
+  | Tseq : forall pc md g d c rest g' gn,
+      com_type pc md g d c g' ->
+      com_type pc md g' d (Cseq rest) gn ->
+      com_type pc md g d (Cseq (c :: rest)) gn
+  | Tseqnil : forall pc md g d,
+      com_type pc md g d (Cseq []) g
+  | Tcall : forall pc md G d e Gm Gp Gout q p,
+      exp_type md G d e (Typ (Tlambda Gm p md Gp) q) ->
       sec_level_le (sec_level_join pc q) p ->
       context_le G Gm ->
       context_le Gp Gout ->
       forall_dom G (fun x t => (Gp x = None) -> Gout x = Some t) ->
-      com_type pc md G d (Ccall e) Gout (Cderiv_e1 (Typ (Tlambda Gm p md Gp) q) drv)
-  .
+      com_type pc md G d (Ccall e) Gout.
 
   Hint Constructors exp_type.
   Hint Constructors val_type.
   Hint Constructors com_type.
-  Lemma call_fxn_typ : forall pc md G d e r m Gm p Gp q c Gout drv,
-    com_type pc md G d (Ccall e) Gout (Cderiv_e1 (Typ (Tlambda Gm p md Gp) q) drv) ->
-    estep md d (e,r,m) (Vlambda md c) ->
-    exists drv'', com_type p md Gm d c Gp drv''.
-  Proof.
-    intros.
-    inversion H; try discriminate; subst.
-    
-(*
-  Axiom VlambdaWT_iff_ComWT : forall p md' Gm d Gp md G q c,
+
+  Axiom VlambdaWT_iff_ComWT : forall p md' Gm d Gp md G c q,
     com_type p md' Gm d c Gp <->
     val_type md G d (Vlambda md' c) (Typ (Tlambda Gm p md Gp) q).
-*)
+
   Lemma context_le_refl : forall G, context_le G G.
   Proof.
     intros. apply Context_le. intros. right; exists t; destruct t; auto.

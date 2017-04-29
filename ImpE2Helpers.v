@@ -262,13 +262,13 @@ End Semantics.
 
 Section Typing.
   
-  Lemma subsumption : forall pc1 pc2 md d G1 G1' G2 G2' c drv,
-      com_type pc1 md G1 d c G1' drv ->
+  Lemma subsumption : forall pc1 pc2 md d G1 G1' G2 G2' c,
+      com_type pc1 md G1 d c G1' ->
       sec_level_le pc2 pc1 ->
       context_le G2 G1 ->
       context_le G1' G2' ->
       (* XXX not including well-typed contexts *)
-      com_type pc2 md G2 d c G2' drv.
+      com_type pc2 md G2 d c G2'.
   Admitted.
 End Typing.
 
@@ -309,16 +309,16 @@ Section Security.
   Proof.
   Admitted.
 
-  Lemma assignment_more_secure : forall pc md d c G G' x bt q drv,
-    com_type pc md G d c G' drv ->
+  Lemma assignment_more_secure : forall pc md d c G G' x bt q,
+    com_type pc md G d c G' ->
     assign_in c x ->
     G' x = Some (Typ bt q) ->
     sec_level_le pc q.
   Proof.
   Admitted.
-  Lemma no_assign_reg_context_constant : forall md d c r m r' m' tr x pc G G' drv,
+  Lemma no_assign_reg_context_constant : forall md d c r m r' m' tr x pc G G',
       cstep2 md d (c, r, m) (r', m') tr ->
-      com_type pc md G d c G' drv ->
+      com_type pc md G d c G' ->
       ~assign_in c x ->
       r x = r' x /\ G x = G' x.
   Proof.
@@ -356,30 +356,30 @@ Section Security.
   Admitted.
   Lemma update_in_dec : forall c l, {update_in c l} + {~update_in c l}.
   Admitted.
-  Lemma update_more_secure : forall pc md d c G G' x bt q rt drv,
-    com_type pc md G d c G' drv ->
+  Lemma update_more_secure : forall pc md d c G G' x bt q rt,
+    com_type pc md G d c G' ->
     update_in c x ->
     Loc_Contxt x = Some (Typ bt q, rt) ->
     sec_level_le pc q.
   Proof.
   Admitted.
-  Lemma no_update_mem_constant : forall md d c r m r' m' tr x pc G G' drv,
+  Lemma no_update_mem_constant : forall md d c r m r' m' tr x pc G G',
       cstep2 md d (c, r, m) (r', m') tr ->
-      com_type pc md G d c G' drv ->
+      com_type pc md G d c G' ->
       ~update_in c x ->
       m x = m' x.
   Proof.
   Admitted.
 
-  Lemma loc_in_exp_deref : forall e md G d typ r m l drv,
+  Lemma loc_in_exp_deref : forall e md G d typ r m l,
       is_escape_hatch e ->
-      exp_type md G d (Ederef e) typ drv->
+      exp_type md G d (Ederef e) typ ->
       estep2 md d (e,r,m) (VSingle (Vloc l)) ->
       loc_in_exp e l.
   Proof.
     intros. remember (e, r, m) as ecfg.
     generalize dependent e. generalize dependent r. generalize dependent m.
-    generalize dependent l. generalize dependent typ. generalize dependent drv.
+    generalize dependent l. generalize dependent typ.
     unfold is_escape_hatch in *; destruct_pairs.
     induction e; intros; unfold_cfgs; subst; unfold loc_in_exp; auto;
       inversion Heqecfg; subst.
