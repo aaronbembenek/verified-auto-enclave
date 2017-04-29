@@ -432,9 +432,9 @@ Section Security_Defn.
       /\ mem_esc_hatch_ind.
 
   Definition cconfig2_ok (pc: sec_level) (md: mode) (G: context) (d: loc_mode)
-             (c: com) (r: reg2) (m: mem2) (G': context)
+             (c: com) (r: reg2) (m: mem2) (G': context) (drv: cderiv)
     : Prop :=
-    com_type pc md G d c G'
+    com_type pc md G d c G' drv
     /\ (forall x v1 v2 bt p,
            (r x = VPair v1 v2
             /\ G x = Some (Typ bt p))

@@ -95,9 +95,6 @@ Section Preservation.
       -- unfold project_value in *. split; constructor; auto.
   Qed.
     
-  (* XXX prove type preservation *)
-  (* XXX I feel like this should be provable from something... but our typing *)
-  (* system seems to be lacking something *)
   Lemma call_fxn_typ : forall pc md G d e r m Gm p Gp q c Gout,
     com_type pc md G d (Ccall e) Gout ->
     estep md d (e,r,m) (Vlambda md c) ->
@@ -117,7 +114,7 @@ Section Preservation.
                                         (Tlambda Gm p md Gp) q
                                         r2 m2 x H1 Hestep2).
     destruct_pairs. rewrite H3 in *; auto.
-    rewrite VlambdaWT_iff_ComWT; eauto.
+    rewrite VlambdaWT_iff_ComWT; eauto. (*GRRRRRR*)
   Qed.
 
   (* XXX nothing connecting loc_context to actual type at location *)
