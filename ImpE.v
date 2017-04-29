@@ -185,6 +185,8 @@ Section Semantics.
   | Decl : exp -> mem -> event
   | Mem : mem -> event
   | Out : sec_level -> val -> event
+  | Update : mem -> location -> val -> event
+  | Assign : reg -> var -> val -> event
   | ANonEnc : com -> event
   | AEnc : forall c c' : com, enc_equiv c c'-> event
   | Emp: event.
@@ -263,7 +265,7 @@ Section Semantics.
       ccfg_com ccfg = Cassign x e ->
       estep md d (ccfg_to_ecfg e ccfg) v ->
       r' = ccfg_update_reg ccfg x v ->
-      cstep md d ccfg (r', ccfg_mem ccfg) []
+      cstep md d ccfg (r', ccfg_mem ccfg) [Assign (ccfg_reg ccfg) x v]
   | Cstep_declassify : forall md d ccfg x e v r',
       ccfg_com ccfg = Cdeclassify x e ->
       exp_novars e ->
@@ -275,7 +277,7 @@ Section Semantics.
       estep md d (ccfg_to_ecfg e1 ccfg) (Vloc l) ->
       estep md d (ccfg_to_ecfg e2 ccfg) v ->
       m' = ccfg_update_mem ccfg l v ->
-      cstep md d ccfg (ccfg_reg ccfg, m') []
+      cstep md d ccfg (ccfg_reg ccfg, m') [Update (ccfg_mem ccfg) l v]
   | Cstep_output : forall md d ccfg e sl v,
       ccfg_com ccfg = Coutput e sl ->
       estep md d (ccfg_to_ecfg e ccfg) v ->

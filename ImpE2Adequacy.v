@@ -268,6 +268,7 @@ Section Completeness.
       inversion Heqcterm1. apply project_update_comm_mem.
       rewrite e in H2; simpl in H2; inversion H2.
       apply project_update_comm_mem.
+      rewrite e in H2. simpl in H2. inversion H2; auto. 
     (* OUTPUT *)
     - inversion H5; subst.
       e2_determinism x x0 H.

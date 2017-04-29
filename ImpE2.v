@@ -50,6 +50,8 @@ Section Semantics.
   | Decl2 : exp -> mem2 -> event2
   | Mem2 : mem2 -> event2
   | Out2 : sec_level -> val2 -> event2
+  | Update2 : mem2 -> location -> val2 -> event2
+  | Assign2 : reg2 -> var -> val2 -> event2
   | ANonEnc2 : com -> event2
   | AEnc2 : forall c c' : com, enc_equiv c c' -> event2
   | EPair : event2 -> event2 -> event2.
@@ -57,6 +59,7 @@ Section Semantics.
 
   Definition val_to_val2 (v: val) : val2 := VSingle v.
   Definition mem_to_mem2 (m: mem) : mem2 := fun x => val_to_val2 (m x).
+  Definition reg_to_reg2 (r: reg) : reg2 := fun x => val_to_val2 (r x).
   Inductive merge_reg (r1 r2: reg) : reg2 -> Prop :=
   | rmerge : forall r,
       (forall x, r1 x <> r2 x -> r x = VPair (r1 x) (r2 x))
@@ -72,6 +75,8 @@ Section Semantics.
       | Mem m => Mem2 (mem_to_mem2 m)
       | Decl e m => Decl2 e (mem_to_mem2 m)
       | Out l v => Out2 l (val_to_val2 v)
+      | Update m l v => Update2 (mem_to_mem2 m) l (val_to_val2 v)
+      | Assign r x v => Assign2 (reg_to_reg2 r) x (val_to_val2 v) 
       | ANonEnc c => ANonEnc2 c
       | AEnc c1 c2 enc_equiv => AEnc2 c1 c2 enc_equiv
       | Emp => Emp2
@@ -109,6 +114,8 @@ Section Semantics.
       | Mem2 m => Mem (project_mem m is_left)
       | Decl2 e m => Decl e (project_mem m is_left)
       | Out2 l v => Out l (project_value v is_left)
+      | Update2 m l v => Update (project_mem m is_left) l (project_value v is_left)
+      | Assign2 r x v => Assign (project_reg r is_left) x (project_value v is_left)
       | ANonEnc2 c => ANonEnc c
       | AEnc2 c1 c2 enc_equiv => AEnc c1 c2 enc_equiv
       | EPair e1 e2 => if is_left then event2_to_event e1 is_left
@@ -214,7 +221,7 @@ Section Semantics.
       ccfg_com2 ccfg = Cassign x e ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) v ->
       r' = ccfg_update_reg2 ccfg x v ->
-      cstep2 md d ccfg (r', ccfg_mem2 ccfg) []
+      cstep2 md d ccfg (r', ccfg_mem2 ccfg) [Assign2 (ccfg_reg2 ccfg) x v]
   | Cstep2_declassify : forall md d ccfg x e v r',
       ccfg_com2 ccfg = Cdeclassify x e ->
       exp_novars e ->
@@ -226,7 +233,7 @@ Section Semantics.
       estep2 md d (ccfg_to_ecfg2 e1 ccfg) (VSingle (Vloc l)) ->
       estep2 md d (ccfg_to_ecfg2 e2 ccfg) v ->
       m' = ccfg_update_mem2 ccfg l v ->
-      cstep2 md d ccfg (ccfg_reg2 ccfg, m') []
+      cstep2 md d ccfg (ccfg_reg2 ccfg, m') [Update2 (ccfg_mem2 ccfg) l v]
   | Cstep2_output : forall md d ccfg e sl v,
       ccfg_com2 ccfg = Coutput e sl ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) v ->

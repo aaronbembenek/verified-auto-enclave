@@ -264,97 +264,91 @@ Section Security.
   (* We somehow need to know that if c performs an assignment or update of x, then *)
   (* the type of x in the env is at a higher security level than pc' *)
   (* Otherwise, the reg/mem and context does not change *)
-  Definition assign_in (c: com) (x: var) : Prop.
-  Admitted.
-  (*
-    match c with
-    | Cassign x _ => True
-    | Ccall e => assign_in_exp e x
-    | Cenclave _ c' => assign_in c' x
-    | Cseq ls => List.fold_left (fun b c' => b /\ (assign_in c' x)) ls False
-    | Cif e c1 c2 => assign_in c1 x \/ assign_in c2 x
-    | Cwhile e c => assign_in c x 
-    | _ => False
-    end
-  with assign_in_exp e x : Prop :=
-         forall md d r m c1 c2 c',
-           (estep2 md d (Ederef e,r,m) (VPair (Vlambda md c1) (Vlambda md c2))
-            /\ assign_in c1 x /\ assign_in c2 x)
-           \/ (estep2 md d (e,r,m) (VSingle (Vlambda md c')) /\ assign_in c' x).
-   *)
-  Lemma assign_not_in_call_div : forall e x md d r m c1 c2,
-      ~assign_in (Ccall e) x <-> 
-      (estep2 md d (e,r,m) (VPair (Vlambda md c1) (Vlambda md c2)))
-      /\ (~assign_in c1 x /\ ~assign_in c2 x).
-  Admitted.
-  Lemma assign_in_if_else : forall e c1 c2 x,
-      assign_in (Cif e c1 c2) x <-> assign_in c1 x \/ assign_in c2 x.
-  Admitted.
-  Lemma assign_in_while : forall e c x,
-      assign_in (Cwhile e c) x <-> assign_in c x.
-  Admitted.
-  Lemma assign_in_dec : forall c x, {assign_in c x} + {~assign_in c x}.
-  Proof.
-  Admitted.
+  Definition assign_in (x: var) tr: Prop :=
+    exists v r, List.In (Assign2 r x v) tr.
 
-  Lemma assignment_more_secure : forall pc md d c G G' x bt q,
-    com_type pc md G d c G' ->
-    assign_in c x ->
-    G' x = Some (Typ bt q) ->
-    sec_level_le pc q.
+  Lemma assign_in_dec : forall x tr,
+      {assign_in x tr} + {~assign_in x tr}.
+  Proof.
+    intros.
+    induction tr.
+    right; auto. unfold assign_in. intuition. destruct H. destruct H; apply in_nil in H. auto.
+    destruct IHtr.
+    left; unfold assign_in in *; destruct a0; destruct H;
+      exists x0; exists x1; now apply in_cons.
+    destruct a.
+    1-5, 7-9: right; unfold assign_in in *; intuition; destruct H; destruct H;
+      apply in_inv in H; destruct H; try discriminate;
+        assert (exists v r, List.In (Assign2 r x v) tr)
+        by now exists x0; exists x1.
+   1-8: try apply n in H0; auto.
+   destruct (eq_nat_dec x v); subst.
+   left; unfold assign_in. exists v0; exists r. apply in_eq.
+   right. unfold assign_in in *. intuition. destruct H as [v1 [r0 H]].
+   apply in_inv in H; destruct H.
+   inversion H; omega.
+   assert (exists v r, List.In (Assign2 r x v) tr)
+     by now exists v1; exists r0.
+   apply n in H0; auto.
+  Qed.
+   
+  Lemma assignment_more_secure : forall pc md d c G G' x bt q r m r' m' tr,
+      com_type pc md G d c G' ->
+      cstep2 md d (c,r,m) (r',m') tr ->
+      assign_in x tr ->
+      G' x = Some (Typ bt q) ->
+      sec_level_le pc q.
   Proof.
   Admitted.
   Lemma no_assign_reg_context_constant : forall md d c r m r' m' tr x pc G G',
       cstep2 md d (c, r, m) (r', m') tr ->
       com_type pc md G d c G' ->
-      ~assign_in c x ->
+      ~assign_in x tr ->
       r x = r' x /\ G x = G' x.
   Proof.
   Admitted.
 
   (* Same thing as assignments for updates *)
-  Definition update_in (c: com) (l: location) : Prop.
-  Admitted. (*
-    match c with
-    | Cupdate e1 e2 => forall l',
-        estep2 md d (e1, r, m) (VSingle (Vloc l))
-        \/ estep2 md d (e1, r, m) (VPair (Vloc l), (Vloc l'))
-        \/ estep2 md d (e1, r, m) (VPair (Vloc l'), (Vloc l))
-    | Ccall (Elambda _ c') => update_in c' l
-    | Ccall e => estep2 md d (e,r,m) (VPair (Vlambda md c1) (Vlambda md c2)) ->
-                 update_in c1 /\ update_in c2.
-    | Ccall e => estep2 md d (e,r,m) (VSingle (Vlambda md c')) ->
-                 update_in c'.
-    | Cenclave _ c' => update_in c' l
-    | Cseq ls => List.fold_left (fun b c' => b /\ (update_in c' l)) ls False
-    | Cif e c1 c2 => update_in c1 l \/ update_in c2 l
-    | Cwhile e c => update_in c l
-    | _ => False
-    end.*)
-  Lemma update_not_in_call_div : forall e x md d r m c1 c2,
-      ~update_in (Ccall e) x <-> 
-      (estep2 md d (e,r,m) (VPair (Vlambda md c1) (Vlambda md c2)))
-      /\ (~update_in c1 x /\ ~update_in c2 x).
-  Admitted.
-  Lemma update_in_if_else : forall e c1 c2 x,
-      update_in (Cif e c1 c2) x <-> update_in c1 x \/ update_in c2 x.
-  Admitted.
-  Lemma update_in_while : forall e c x,
-      update_in (Cwhile e c) x <-> update_in c x.
-  Admitted.
-  Lemma update_in_dec : forall c l, {update_in c l} + {~update_in c l}.
-  Admitted.
-  Lemma update_more_secure : forall pc md d c G G' x bt q rt,
-    com_type pc md G d c G' ->
-    update_in c x ->
-    Loc_Contxt x = Some (Typ bt q, rt) ->
-    sec_level_le pc q.
+  Definition update_in (l: location) tr: Prop :=
+    exists v m, List.In (Update2 m l v) tr.
+
+  Lemma update_in_dec : forall x tr,
+      {update_in x tr} + {~update_in x tr}.
+  Proof.
+    intros.
+    induction tr.
+    right; auto. unfold update_in. intuition. destruct H. destruct H; apply in_nil in H. auto.
+    destruct IHtr.
+    left; unfold update_in in *; destruct u; destruct H;
+      exists x0; exists x1; now apply in_cons.
+    destruct a.
+    1-4, 6-9: right; unfold update_in in *; intuition; destruct H; destruct H;
+      apply in_inv in H; destruct H; try discriminate;
+        assert (exists v m, List.In (Update2 m x v) tr)
+        by now exists x0; exists x1.
+   1-8: try apply n in H0; auto.
+   destruct (eq_nat_dec x l); subst.
+   left; unfold update_in. exists v; exists m. apply in_eq.
+   right. unfold update_in in *. intuition. destruct H as [v1 [m0 H]].
+   apply in_inv in H; destruct H.
+   inversion H; omega.
+   assert (exists v m, List.In (Update2 m x v) tr)
+     by now exists v1; exists m0.
+   apply n in H0; auto.
+  Qed.
+   
+  Lemma update_more_secure : forall pc md d c G G' x bt q rt r m r' m' tr,
+      com_type pc md G d c G' ->
+      cstep2 md d (c,r,m) (r',m') tr ->
+      update_in x tr ->
+      Loc_Contxt x = Some (Typ bt q, rt) ->
+      sec_level_le pc q.
   Proof.
   Admitted.
   Lemma no_update_mem_constant : forall md d c r m r' m' tr x pc G G',
       cstep2 md d (c, r, m) (r', m') tr ->
       com_type pc md G d c G' ->
-      ~update_in c x ->
+      ~update_in x tr ->
       m x = m' x.
   Proof.
   Admitted.
@@ -446,6 +440,7 @@ Section Security.
       estep2 md d (e,r,m) (VSingle (Vloc l)) ->
       exp_type md G d (Ederef e) (Typ bt p) ->
       m l = VPair v1 v2 <-> protected p.
+  Admitted.
 
   Lemma econfig2_pair_protected : forall md G d e p r m v v1 v2 bt,
       v = VPair v1 v2 ->
