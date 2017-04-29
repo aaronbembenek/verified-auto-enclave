@@ -648,7 +648,6 @@ Section Typing.
       policy_le p low \/ md <> Normal ->
       ~pdenote p (LevelP T) ->
       com_type pc md g k u d (Cwhile e c) g k
-               (*
   | CTseq : forall pc md G K U d coms Gs Ks G' K',
       length Gs = length coms + 1 ->
       length Ks = length coms + 1 ->
@@ -661,7 +660,6 @@ Section Typing.
       G' = nth (length coms) Gs mt ->
       K' = nth (length coms) Ks [] ->
       com_type pc md G K U d (Cseq coms) G' K'
-*)
   | CTcall : forall pc md G u d e Gm km Gp kp Gout q p,
       exp_type md G d e (Typ (Tlambda Gm km u p md Gp kp) q) ->
       policy_le (JoinP pc q) p ->

@@ -64,6 +64,27 @@ Section TypeTrans.
 End TypeTrans.
 
 Section TransDef.
+  Inductive process_seq_output (coms: list E.com) (md0: E.mode)
+            (mds: list E.mode) : list E.com -> Prop :=
+  | PSO0 :
+      Forall (fun md => md = md0) mds ->
+      process_seq_output coms md0 mds coms
+  | PSO1 : forall mds' coms' coms'' c,
+      md0 = E.Normal ->
+      mds = E.Normal :: mds' ->
+      coms = c :: coms' ->
+      process_seq_output coms' md0 mds' coms'' ->
+      process_seq_output coms md0 mds (c :: coms'')
+  | PSO2: forall j mdsl md1 mdsr c coms',
+      md0 = E.Normal ->
+      mds = mdsl ++ md1 :: mdsr ->
+      Forall (fun md => md = E.Encl j) mdsl ->
+      md1 <> E.Encl j ->
+      c = E.Cenclave j (E.Cseq (firstn (length mdsl) coms)) ->
+      process_seq_output (skipn (length mdsl) coms) md0
+                         (skipn (length mdsl) mds) coms' ->
+      process_seq_output coms md0 mds (c :: coms').
+  
   Inductive exp_trans : S.context -> S.exp -> S.type -> S.ederiv ->
                         E.mode -> E.context -> E.loc_mode -> E.exp ->
                         E.type -> Prop :=
@@ -259,8 +280,44 @@ Section TransDef.
                     S.context -> E.mode -> E.context -> set E.enclave ->
                     E.loc_mode -> E.com -> E.context -> set E.enclave ->
                     Prop :=
-  | TRprog : forall p sGm U c sGp md eGm Km d c' eGp Kp,
-      prog_trans p sGm U c sGp md eGm Km d (E.Cseq c') eGp Kp.     
+  | TRprog : forall d sGs eGs drvs mds Ks (*K's*) coms coms' coms'' md0 n
+         sG0 eG0 sGn eGn K0 Kn U pc,
+       length coms = n ->    
+       length eGs = n + 1 ->
+       length sGs = n + 1 ->
+       length drvs = n ->
+       length mds = n + 1 ->
+       length Ks = n ->
+       (*length K's = length coms ->*)
+       length coms' = length coms ->
+       (forall (i: nat),
+           i < length eGs ->
+           context_trans (nth i sGs S.mt) d (nth i eGs E.mt)) ->
+       (forall (i: nat),
+           i < length coms ->
+           com_trans pc (nth i sGs S.mt) U (nth i coms S.Cskip)
+                     (nth (i + 1) sGs S.mt) (nth i drvs S.Cderiv_none)
+                     (nth (i + 1) mds E.Normal) (nth i eGs E.mt)
+                     (nth i Ks []) d (nth i coms' E.Cskip)
+                     (nth (i + 1) eGs E.mt)
+                     (nth (i + 1) Ks []))
+       (*(nth i K's []))*) ->
+       (forall (i: nat),
+           i < length mds ->
+           (nth i mds E.Normal <> E.Normal /\
+            nth i mds E.Normal <> nth (i + 1) mds E.Normal ->
+            E.is_var_low_context (nth i eGs E.mt))) ->
+       md0 = nth 0 mds E.Normal ->
+       md0 = E.Normal \/
+       (forall i, i < length mds -> (nth i mds E.Normal) = md0) ->
+       sG0 = nth 0 sGs S.mt ->
+       sGn = nth n sGs S.mt ->
+       eG0 = nth 0 eGs E.mt ->
+       K0 = nth 0 Ks [] ->
+       eGn = nth n eGs E.mt ->
+       Kn = nth n Ks [] ->
+       process_seq_output coms' md0 (skipn 1 mds) coms'' ->
+       prog_trans pc sG0 U (S.Prog coms) sGn md0 eG0 K0 d (E.Cseq coms'') eGn Kn.
 
   Scheme exp_trans_mut := Induction for exp_trans Sort Prop
   with com_trans_mut := Induction for com_trans Sort Prop
@@ -322,7 +379,20 @@ Section TransLemmas.
                E.forall_subexp' Pe c');
       intros; inversion Htrans; subst; try constructor; auto;
         inversion HPs; eauto.
-  (* Can't finish this until define rest of translation. *)
+    subst. induction H22.
+    - rewrite Forall_forall. intros.
+      eapply In_nth with (d:=E.Cskip) in H11.
+      destruct H11 as [ i [ Hilen Hx ] ].
+      assert (i < length coms) by omega.
+      apply nth_In with (d:=S.Cskip) in H11.
+      rewrite Forall_forall in H.
+      assert (i < length coms) by omega.
+      apply H9 in H13.
+      rewrite Forall_forall in H1.
+      eapply H with (c':=nth i coms0 E.Cskip) in H11; eauto.
+      now rewrite Hx in H11.
+    - admit.
+    - admit.
   Admitted.
 
   Lemma trans_pres_all_loc_immutable : forall e sG t drv md eG d e' t',
