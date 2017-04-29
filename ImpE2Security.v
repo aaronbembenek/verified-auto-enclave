@@ -45,6 +45,135 @@ Ltac unfold_cfgs :=
 *******************************************************************************)
 
 Section Secure_Passive.
+  Lemma protected_typ_no_obs_output r2 m2 is_left : forall pc md d G c G' r' m' tr,
+    com_type pc md G d c G' ->
+    protected pc ->
+    cstep md d (c,project_reg r2 is_left,project_mem m2 is_left) (r',m') tr ->
+    tobs_sec_level L tr = [].
+  Proof.
+    intros. remember (c,project_reg r2 is_left,project_mem m2 is_left) as ccfg.
+    generalize dependent pc. generalize dependent G. generalize dependent G'.
+    generalize dependent c. generalize dependent r2. generalize dependent m2.
+    induction H1; intros; inversion H; subst; auto;
+      unfold_cfgs; unfold_cfgs; unfold_cfgs; subst.
+    - inversion H2; try discriminate; subst.
+      rewrite join_protected_r in H12; auto.
+      unfold sec_level_le in H12; destruct sl; intuition.
+    - inversion H2; try discriminate; subst.
+      
+      pose (impe2_exp_complete md d e r2 m2 (Vlambda md c) is_left H0) as tmp.
+      destruct tmp; destruct_pairs;
+      assert (estep2 md d (e, r2, m2) x) as Hestep2 by auto.
+
+      assert (val_type md G d (Vlambda md c) (Typ (Tlambda Gm p md Gp) q)).
+      pose (impe2_value_type_preservation md G d e
+                                          (Tlambda Gm p md Gp) q
+                                          r2 m2 x H4 Hestep2).
+      destruct_pairs. destruct is_left; rewrite H9 in *; auto.
+            
+      inversion H10; try discriminate; subst.
+      eapply (IHcstep m2 r2 c); eauto.
+      rewrite join_protected_l in H6; auto.
+      unfold sec_level_le in H6; destruct p; intuition. unfold protected; auto.
+
+      unfold reg_corresponds in H20.
+      Search (val_type).
+      apply VTLow in H10.
+      inversion H10; try discriminate; subst.
+      
+      unfold sec_level_le in H8; omega.
+      unfold protected; auto.
+      inversion H16; unfold_cfgs; subst.
+
+      Search (estep).
+
+    - inversion H2; try discriminate; subst.
+      inversion H; subst.
+      eapply (IHcstep m2 r2 c'); eauto.
+    - inversion H1; try discriminate; subst.
+      assert (tobs_sec_level L tr = []).
+      eapply (IHcstep1 m2 r2 hd); eauto.
+      assert (tobs_sec_level L tr' = []).
+      pose (merge_reg_exists r r). destruct e.
+      pose (merge_mem_exists m m). destruct e.
+      eapply (IHcstep2 x0 x (Cseq tl)); eauto.
+      apply project_merge_inv_mem in H3. apply project_merge_inv_reg in H0. destruct_pairs.
+      destruct is_left. rewrite H0, H3; auto. rewrite H5, H6; auto.
+      rewrite <- tobs_sec_level_app. rewrite H; rewrite H0; auto.
+    - inversion H2; try discriminate; subst.
+      eapply (IHcstep m2 r2 c1); eauto.
+      rewrite join_protected_l in H15; auto.
+      unfold sec_level_le in H15; destruct pc'; intuition; now unfold protected.
+    - inversion H2; try discriminate; subst.
+      eapply (IHcstep m2 r2 c2); eauto.
+      rewrite join_protected_l in H15; auto.
+      unfold sec_level_le in H15; destruct pc'; intuition; now unfold protected.
+    - inversion H1; try discriminate; subst.
+      assert (tobs_sec_level L tr = []).
+      eapply (IHcstep1 m2 r2 c); eauto.
+      rewrite join_protected_l in H11; auto.
+      unfold sec_level_le in H11; destruct pc'; intuition; now unfold protected.
+      assert (tobs_sec_level L tr' = []).
+      pose (merge_reg_exists r r). destruct e0.
+      pose (merge_mem_exists m m). destruct e0.
+      eapply (IHcstep2 x0 x (Cwhile e c)); eauto.
+      apply project_merge_inv_reg in H3. apply project_merge_inv_mem in H7. destruct_pairs.
+      destruct is_left. rewrite H7, H3; auto. rewrite H8, H9; auto.
+      rewrite <- tobs_sec_level_app. rewrite H; rewrite H3; auto.
+  Qed.
+
+  Lemma protected_c_in_while_no_obs_output : forall pc pc' md d G e c r m r' m' tr,
+    com_type pc md G d (Cwhile e c) G ->
+    com_type pc' md G d c G ->
+    protected pc' ->
+    cstep md d (Cwhile e c, r, m) (r',m') tr ->
+    tobs_sec_level L tr = [].
+  Proof.
+    intros. inversion H; try discriminate; subst.
+  Admitted.
+    
+  Lemma protected_while_no_obs_output : forall pc pc' md d G e c r m r' m' tr,
+      com_type pc md G d (Cwhile e c) G ->
+      com_type pc' md G d c G ->
+      protected pc' ->
+      cstep md d (Cseq [c; Cwhile e c],r,m) (r',m') tr ->
+      tobs_sec_level L tr = [].
+  Proof.
+    intros.
+    inversion H2; try discriminate; subst; unfold_cfgs; unfold_cfgs.
+    inversion H5; subst.
+    assert (tobs_sec_level L tr0 = []).
+    pose (merge_reg_exists r r). pose (merge_mem_exists m m).
+    destruct e0, e1.
+    apply project_merge_inv_reg in H3; apply project_merge_inv_mem in H4; destruct_pairs.
+    assert (cstep md d (hd, project_reg x true, project_mem x0 true) (r0, m0) tr0).
+    rewrite H4, H3; auto.
+    pose (protected_typ_no_obs_output x x0 true pc' md d G hd G r0 m0 tr0); auto.
+    assert (tobs_sec_level L tr' = []).
+    rewrite cstep_seq_singleton in H10.
+    eapply protected_c_in_while_no_obs_output; eauto.
+    now rewrite <- tobs_sec_level_app, H3, H4.
+  Qed.
+
+  Lemma diff_loc_protected : forall l,
+      mem_sl_ind L ->
+      (project_mem minit true) l <> (project_mem minit false) l ->
+      protected (g0 l).
+  Proof.
+    intros. remember (g0 l) as p.
+    unfold mem_sl_ind in *.
+    rewrite <- (H l) in H0. unfold sec_level_le in H0. 
+    destruct p; rewrite <- Heqp in H0. intuition.
+    now unfold protected.
+  Qed.
+  
+  Lemma vpair_if_diff : forall m1 m2 v1 v2 l,
+      merge_mem m1 m2 minit ->
+      minit l = VPair v1 v2 -> m1 l <> m2 l.
+  Proof.
+    intros. inversion H; subst. apply (H1 l) in H0; destruct_pairs; auto.
+  Qed.
+
   Lemma config2_ok_implies_obs_equal (m: mem2) (c: com) (t: trace2) :
     forall pc md G d r G' r' m',
       cconfig2_ok pc md G d c r m G' ->

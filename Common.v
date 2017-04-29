@@ -70,6 +70,12 @@ Section Security.
   Proof.
     intros; unfold sec_level_le; induction sl; auto.
   Qed.
+  
+  Lemma sec_level_join_comm (sl sl' : sec_level) :
+    sec_level_join sl sl' = sec_level_join sl' sl.
+  Proof.
+    intros; unfold sec_level_join; induction sl, sl'; auto.
+  Qed.      
 
   Definition sec_spec : Type :=  location -> sec_level.
   Definition well_formed_spec (g : sec_spec) : Prop := forall l, exists p, g l = p.

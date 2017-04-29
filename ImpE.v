@@ -424,13 +424,37 @@ Section Typing.
                        | Eloc n => set_In n (immutable_locs g0)
                        | _ => True
                        end).
-
+  
   (* FIXME: don't have subsumption rule *)
-  Inductive exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
+  Inductive val_type : mode -> context -> loc_mode -> val -> type -> Prop :=
+  | VTnat: forall md g d n,
+      val_type md g d (Vnat n) (Typ Tnat L)
+  | VTloc: forall md g d l md' t rt,
+      d l = md' ->
+      Loc_Contxt l = Some (t, rt) ->
+      val_type md g d (Vloc l) (Typ (Tref t md' rt) L)
+  | VTlambda : forall md g d c p g' g'',
+      com_type p md g' d c g'' ->
+      val_type md g d (Vlambda md c) (Typ (Tlambda g' p md g'') L)
+  | VTvar : forall md g d x r bt p v,
+      g x = Some (Typ bt p) ->
+      r x = v ->
+      val_type md g d v (Typ bt p)
+  | VTmem : forall md g d md' p rt q m l v bt,
+      m l = v ->
+      val_type md g d (Vloc l) (Typ (Tref (Typ bt p) md' rt) q) ->
+      val_type md g d v (Typ bt (sec_level_join p q))
+  | VTbinop : forall md g d n1 n2 p q op,
+      val_type md g d (Vnat n1) (Typ Tnat p) ->
+      val_type md g d (Vnat n2) (Typ Tnat q) ->
+      val_type md g d (Vnat (op n1 n2)) (Typ Tnat (sec_level_join p q))
+
+  with exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
   | ETnat : forall md g d n,
       exp_type md g d (Enat n) (Typ Tnat (L))
   | ETvar : forall md g d x t,
-      g x = Some t -> exp_type md g d (Evar x) t
+      g x = Some t ->
+      exp_type md g d (Evar x) t
   | ETloc : forall md g d l md' t rt,
       d l = md' ->
       Loc_Contxt l = Some (t, rt) ->
@@ -503,6 +527,9 @@ Section Typing.
       context_le Gp Gout ->
       forall_dom G (fun x t => (Gp x = None) -> Gout x = Some t) ->
       com_type pc md G d (Ccall e) Gout.
+  Hint Constructors exp_type.
+  Hint Constructors val_type.
+  Hint Constructors com_type.
 
   Lemma context_le_refl : forall G, context_le G G.
   Proof.

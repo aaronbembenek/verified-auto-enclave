@@ -38,6 +38,63 @@ Ltac unfold_cfgs :=
   unfold project_ccfg.
 
 Section Preservation.
+  Lemma impe2_value_type_preservation : forall md G d e bt sl r m v,
+    exp_type md G d e (Typ bt sl) ->
+    estep2 md d (e,r,m) v ->
+    val_type md G d (project_value v true) (Typ bt sl) /\
+    val_type md G d (project_value v false) (Typ bt sl).
+  Proof.
+    intros md G d e bt sl r m v Hetyp Hestep. pose Hetyp as Hetyp'.
+    generalize dependent v.
+    induction Hetyp'; intros; inversion Hestep; try discriminate; unfold_cfgs; subst.
+    - unfold project_value. split; constructor.
+    - inversion H0; subst.
+      split; destruct t.
+      eapply (VTvar md g d x0 (project_reg r true) b s
+                    (project_value (r x0) true)); eauto.
+      eapply (VTvar md g d x0 (project_reg r false) b s
+                    (project_value (r x0) false)); eauto.
+    - unfold project_value. inversion H1; subst.
+      split; constructor; auto.
+    - inversion H0; subst.
+      assert (val_type md g d (project_value (VSingle (Vloc l)) true)
+                       (Typ (Tref (Typ s p) md' rt) q) /\
+              val_type md g d (project_value (VSingle (Vloc l)) false)
+                       (Typ (Tref (Typ s p) md' rt) q))
+        as IHe0 by now eapply IHHetyp'; eauto. destruct_pairs.
+      unfold project_value in H2, H4.
+      split.
+      eapply (VTmem md g d md' p rt q (project_mem m0 true) l
+                    (project_value (m0 l) true) s); eauto.
+      eapply (VTmem md g d md' p rt q (project_mem m0 false) l
+                    (project_value (m0 l) false) s); eauto.
+    - inversion H0; subst. split; constructor; auto.
+    - inversion H; subst.
+      assert (val_type md g d (project_value v1 true) (Typ Tnat p)
+              /\ val_type md g d (project_value v1 false) (Typ Tnat p))
+        as VTe1 by now eapply IHHetyp'1; eauto.
+      assert (val_type md g d (project_value v2 true) (Typ Tnat q)
+              /\ val_type md g d (project_value v2 false) (Typ Tnat q))
+        as VTe2 by now eapply IHHetyp'2; eauto.
+      destruct_pairs.
+      destruct v1, v2; simpl;
+      destruct v, v0; unfold contains_nat in *;
+        destruct H2 as [SingNat | PairNat];
+        destruct H7 as [SingNat2 | PairNat2];
+        try destruct SingNat as [n1 SingNat];
+        try destruct SingNat2 as [n'1 SingNat2];
+        try destruct PairNat as [n1 [n2 PairNat]];
+        try destruct PairNat2 as [n'1 [n'2 PairNat2]];
+        try discriminate; simpl in *;
+          try inversion SingNat; try inversion SingNat2;
+            try inversion PairNat; try inversion PairNat2; subst.
+      -- split; constructor; auto.
+      -- unfold project_value in *. split; constructor; auto.
+      -- unfold project_value in *. rewrite sec_level_join_comm.
+         split; constructor; auto.
+      -- unfold project_value in *. split; constructor; auto.
+  Qed.
+    
   Lemma impe2_final_config_preservation (G: context) (d: loc_mode) :
     forall G' c r m pc md r' m' t,
       cstep2 md d (c,r,m) (r', m') t ->
