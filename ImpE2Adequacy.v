@@ -373,7 +373,14 @@ Section Completeness.
     - inversion H6; subst.
       e2_determinism x x0 H.
       destruct x0; subst.
-      + admit.
+      + inversion Heqcterm1; subst; unfold_cfgs; simpl in *.
+        edestruct IHcstep1; eauto.
+        do 2 destruct H7; destruct_conjs; subst.
+        edestruct IHcstep2; eauto.
+        do 2 destruct H5; destruct_conjs; subst.
+        do 3 eexists; repeat split; eauto.
+        eapply Cstep2_while_t; eauto.
+        all: now rewrite project_app_trace.
       + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
         pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
         exists mr; exists mm; exists (merge_trace (tr ++ tr', tr0 ++ tr'0)); repeat split.
@@ -386,15 +393,48 @@ Section Completeness.
       e2_determinism x x0 H.
       destruct x0; subst.
       + simpl in *; subst; discriminate.
-      + admit.
+      + pose (merge_reg_exists r'1 (project_reg r0 false)) as mr; destruct mr as [mr].
+        pose (merge_mem_exists m'1 (project_reg m0 false)) as mm; destruct mm as [mm].
+        exists mr; exists mm; exists (merge_trace (tr ++ tr', [])); repeat split.
+        simpl in *; subst.
+        eapply Cstep2_while_div; eauto.
+        all: unfold_cfgs; simpl in *; inversion Heqcterm1; subst; auto.
+        eapply Cstep_seq_hd; simpl; eauto; apply cstep_seq_singleton; auto.
+        constructor; auto.
+        all: destruct_merge_inv.
     (* WHILE FALSE, TRUE *)
     - inversion H4; subst.
       e2_determinism x x0 H.
       destruct x0; subst.
       + simpl in *; subst; discriminate.
-      + admit.
+      + unfold_cfgs; simpl in *; subst.
+        pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
+        pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
+        inversion Heqcterm1; subst.
+        exists mr; exists mm; eexists; repeat split; eauto.
+        eapply Cstep2_while_div; eauto.
+        all: unfold_cfgs; simpl in *; subst; auto.
+        econstructor; eauto.
+        eapply Cstep_seq_hd; simpl; eauto; apply cstep_seq_singleton; eauto.
+        all: destruct_merge_inv.
     (* WHILE BOTH FALSE *)
-    - admit.
-  Admitted.
+    - inversion H7; subst.
+      e2_determinism x x0 H.
+      destruct x0; subst.
+      + inversion Heqcterm1; subst; unfold_cfgs; simpl in *; subst.
+        do 3 eexists; repeat split; eauto.
+        eapply Cstep2_while_f; eauto.
+        all: now cbn.
+      + pose (merge_reg_exists (project_reg r true) (project_reg r false)) as mr;
+          destruct mr as [mr].
+        pose (merge_mem_exists (project_mem m true) (project_mem m false)) as mm;
+          destruct mm as [mm].
+        inversion Heqcterm1; subst; unfold_cfgs; simpl in *; subst.
+        exists mr; exists mm; eexists; repeat split; eauto.
+        eapply Cstep2_while_div; eauto.
+        all: unfold_cfgs; simpl in *; subst; auto.
+        1,2: econstructor; auto.
+        all: destruct_merge_inv.
+  Qed.
   
 End Completeness.
