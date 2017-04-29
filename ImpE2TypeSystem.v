@@ -129,9 +129,13 @@ Section Preservation.
     s = bt /\ p = p0.
   Proof.
     intros.
-    inversion H1; try discriminate; subst.
-    inversion H2; try discriminate; subst.  Admitted.
-
+    assert (val_type md G d (Vloc l) (Typ (Tref (Typ s p) md' Mut) q)).
+    pose (impe2_value_type_preservation
+            md G d e1 (Tref (Typ s p) md' Mut) q r m (VSingle (Vloc l))
+            H1 H0); destruct_pairs; unfold project_value in *; auto.
+    rewrite VlocWT_iff_LocContxt in H4. rewrite H4 in H3. inversion H3; subst; auto.
+  Qed.
+    
   Lemma impe2_final_config_preservation (G: context) (d: loc_mode) :
     forall G' c r m pc md r' m' t,
       cstep2 md d (c,r,m) (r', m') t ->

@@ -536,6 +536,10 @@ Section Typing.
     com_type p md' Gm d c Gp <->
     val_type md G d (Vlambda md' c) (Typ (Tlambda Gm p md Gp) q).
 
+  Axiom VlocWT_iff_LocContxt : forall md G d l s p md' rt q,
+      val_type md G d (Vloc l) (Typ (Tref (Typ s p) md' rt) q) <->
+      Loc_Contxt l = Some (Typ s p, rt).
+
   Lemma context_le_refl : forall G, context_le G G.
   Proof.
     intros. apply Context_le. intros. right; exists t; destruct t; auto.
