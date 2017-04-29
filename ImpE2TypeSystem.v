@@ -266,7 +266,7 @@ Section Preservation.
 
       split; intros; destruct_pairs; subst.
       (* see if there was an assignment in either c1 or c2 to change the registers *)
-      -- destruct (assign_in_dec c1 x), (assign_in_dec c2 x).
+      -- destruct (assign_in_dec x t1), (assign_in_dec x t2).
          --- pose (assignment_more_secure Common.H md d c1 G G' x bt p lifted_c1typ a H14). 
              destruct p. unfold sec_level_le in *. omega.
              unfold protected; auto.

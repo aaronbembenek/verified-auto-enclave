@@ -254,7 +254,7 @@ Section Completeness.
       do 3 eexists; repeat split; eauto.
       eapply Cstep2_assign with (x := x0) (e := e0) (v := x); eauto.
       all: simpl; auto.
-      1,3: rewrite project_update_comm_reg; simpl; unfold project_ccfg; simpl.
+      1,4: rewrite project_update_comm_reg; simpl; unfold project_ccfg; simpl.
       all: congruence.
     (* DECLASSIFY *)
     - inversion H6; subst.
@@ -274,10 +274,10 @@ Section Completeness.
       rewrite <- e; unfold ccfg_to_ecfg2; auto.
       congruence.
       inversion Heqcterm1.
-      rewrite <- H2. apply project_update_comm_mem.
+      rewrite <- H2. apply project_update_comm_mem. rewrite H2; auto.
       rewrite <- H4. rewrite e in H8. simpl in H8. inversion H8. rewrite <- H10.
       apply project_update_comm_mem.
-      rewrite e in H2. simpl in H2. inversion H2; auto. 
+      rewrite H4. rewrite e in H8. simpl in H8. inversion H8. auto. 
     (* OUTPUT *)
     - inversion H5; subst.
       destruct_exp_complete H0.
