@@ -261,6 +261,17 @@ Section Semantics.
 End Semantics.
 
 Section Typing.
+  Lemma jasdfoads : forall md G d c Gm p Gp q drv,
+    val_type md G d (Vlambda md c) (Typ (Tlambda Gm p md Gp) q) drv ->
+    com_type p md Gm d c Gp.
+  Proof.
+    intros.
+    inversion H; try discriminate; subst; auto.
+    Focus 2.
+    inversion H7; try discriminate; subst; auto.
+    Focus 1.
+                                                                     
+
   (* XXX prove type preservation *)
   (* XXX I feel like this should be provable from something... but our typing *)
   (* system seems to be lacking something *)

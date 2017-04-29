@@ -424,30 +424,51 @@ Section Typing.
                        | Eloc n => set_In n (immutable_locs g0)
                        | _ => True
                        end).
-  
+
+  Inductive deriv : Type :=
+  | NoPremise : deriv
+  | ComPremise : sec_level -> mode -> context -> loc_mode -> com -> context -> deriv -> deriv
+  | ValPremise : mode -> context -> loc_mode -> val -> type -> deriv -> deriv -> deriv
+  | LocMdPremise : loc_mode -> location -> mode -> deriv -> deriv
+  | LocContxtPremise : location -> type -> ref_type -> deriv -> deriv
+  | ContxtPremise : context -> var -> type -> deriv -> deriv
+  | RegPremise : reg -> var -> val -> deriv -> deriv
+  | MemPremise : mem -> location -> val -> deriv -> deriv
+  | Premise2 : deriv -> deriv -> deriv.
+
   (* FIXME: don't have subsumption rule *)
-  Inductive val_type : mode -> context -> loc_mode -> val -> type -> Prop :=
+  Inductive val_type : mode -> context -> loc_mode -> val -> type -> deriv -> Prop :=
   | VTnat: forall md g d n,
-      val_type md g d (Vnat n) (Typ Tnat L)
+      val_type md g d (Vnat n) (Typ Tnat L) NoPremise
   | VTloc: forall md g d l md' t rt,
       d l = md' ->
       Loc_Contxt l = Some (t, rt) ->
       val_type md g d (Vloc l) (Typ (Tref t md' rt) L)
+               (LocMdPremise d l md' (LocContxtPremise l t rt NoPremise))
   | VTlambda : forall md g d c p g' g'',
       com_type p md g' d c g'' ->
       val_type md g d (Vlambda md c) (Typ (Tlambda g' p md g'') L)
+               (ComPremise p md g' d c g'' NoPremise)
   | VTvar : forall md g d x r bt p v,
       g x = Some (Typ bt p) ->
       r x = v ->
-      val_type md g d v (Typ bt p)
-  | VTmem : forall md g d md' p rt q m l v bt,
+      val_type md g d v (Typ bt p) (* XXX *)
+               NoPremise
+  | VTmem : forall md g d md' p rt q m l v bt drv,
       m l = v ->
-      val_type md g d (Vloc l) (Typ (Tref (Typ bt p) md' rt) q) ->
+      val_type md g d (Vloc l) (Typ (Tref (Typ bt p) md' rt) q) drv ->
+      deriv_holds drv ->
       val_type md g d v (Typ bt (sec_level_join p q))
-  | VTbinop : forall md g d n1 n2 p q op,
-      val_type md g d (Vnat n1) (Typ Tnat p) ->
-      val_type md g d (Vnat n2) (Typ Tnat q) ->
+               (ValPremise md g d (Vloc l) (Typ (Tref (Typ bt p) md' rt) q) drv
+               (MemPremise m l v NoPremise))
+  | VTbinop : forall md g d n1 n2 p q op drv1 drv2,
+      val_type md g d (Vnat n1) (Typ Tnat p) drv1 ->
+      val_type md g d (Vnat n2) (Typ Tnat q) drv2 ->
+      deriv_holds drv1 ->
+      deriv_holds drv2 ->
       val_type md g d (Vnat (op n1 n2)) (Typ Tnat (sec_level_join p q))
+               (ValPremise md g d (Vnat n1) (Typ Tnat p) drv1 
+                         (ValPremise md g d (Vnat n2) (Typ Tnat q) drv2 NoPremise))
 
   with exp_type : mode -> context -> loc_mode -> exp -> type -> Prop :=
   | ETnat : forall md g d n,
@@ -526,10 +547,28 @@ Section Typing.
       context_le G Gm ->
       context_le Gp Gout ->
       forall_dom G (fun x t => (Gp x = None) -> Gout x = Some t) ->
-      com_type pc md G d (Ccall e) Gout.
+      com_type pc md G d (Ccall e) Gout
+  with deriv_holds : deriv -> Prop := 
+   | DNoPremise : deriv_holds NoPremise
+   | DComPremise : forall p md G d c G' drv',
+       com_type p md G d c G' /\ deriv_holds drv' ->
+       deriv_holds (ComPremise p md G d c G' drv').
+  
+(*
+   | DValPremise md G d v t drvv drv' => val_type md G d v t drvv /\ deriv_holds drv'
+   | DLocMdPremise d l md drv' => d l = md /\ deriv_holds drv'
+   | DLocContxtPremise l t rt drv' => Loc_Contxt l = Some (t, rt) /\ deriv_holds drv'
+   | DContxtPremise G x t drv' => G x = Some t /\ deriv_holds drv'
+   | DRegPremise r x v drv' => r x = v /\ deriv_holds drv'
+   | DMemPremise m l v drv' => m l = v /\ deriv_holds drv'
+   | DPremise2 drv1 drv2 => deriv_holds drv1 /\ deriv_holds drv2
+*)
+    
   Hint Constructors exp_type.
   Hint Constructors val_type.
   Hint Constructors com_type.
+
+  
 
   Lemma context_le_refl : forall G, context_le G G.
   Proof.
