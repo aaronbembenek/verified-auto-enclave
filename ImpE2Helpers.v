@@ -64,12 +64,6 @@ Section Project_Merge.
   (* XXX: these assumptions are gross, but the semantics become a mess if we
      dont' have them... *)
 
-  Lemma project_nat_contains_nat : forall v n is_left,
-      project_value v is_left = Vnat n ->
-      contains_nat v.
-  Proof.
-  Admitted.
-
   Lemma no_location_pairs : forall v l is_left,
       project_value v is_left = Vloc l ->
       v = VSingle (Vloc l).
