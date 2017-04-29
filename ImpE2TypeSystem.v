@@ -95,6 +95,42 @@ Section Preservation.
       -- unfold project_value in *. split; constructor; auto.
   Qed.
     
+  (* XXX prove type preservation *)
+  (* XXX I feel like this should be provable from something... but our typing *)
+  (* system seems to be lacking something *)
+  Lemma call_fxn_typ : forall pc md G d e r m Gm p Gp q c Gout,
+    com_type pc md G d (Ccall e) Gout ->
+    estep md d (e,r,m) (Vlambda md c) ->
+    exp_type md G d e (Typ (Tlambda Gm p md Gp) q) -> com_type p md Gm d c Gp.
+  Proof.
+    intros.
+    pose (merge_reg_exists r r) as tmp; destruct tmp as [r2 merger].
+    pose (merge_mem_exists m m) as tmp; destruct tmp as [m2 mergem].
+    pose (project_merge_inv_reg r r r2 merger) as tmp; destruct tmp as [projTr projFr].
+    apply (project_merge_inv_mem m m m2) in mergem. destruct mergem as [projTm projFm].
+    rewrite <- projTm, <- projTr in H0.
+    pose (impe2_exp_complete md d e r2 m2 (Vlambda md c) true H0) as tmp.
+    destruct tmp; destruct_pairs; assert (estep2 md d (e, r2, m2) x) as Hestep2 by auto.
+
+    assert (val_type md G d (Vlambda md c) (Typ (Tlambda Gm p md Gp) q)).
+    pose (impe2_value_type_preservation md G d e
+                                        (Tlambda Gm p md Gp) q
+                                        r2 m2 x H1 Hestep2).
+    destruct_pairs. rewrite H3 in *; auto.
+    rewrite VlambdaWT_iff_ComWT; eauto.
+  Qed.
+
+  (* XXX nothing connecting loc_context to actual type at location *)
+  Lemma ref_type : forall pc md md' d e1 e2 r m G bt s p0 p p' q l rt,
+    com_type pc md G d (Cupdate e1 e2) G ->
+    estep2 md d (e1, r, m) (VSingle (Vloc l)) ->
+    exp_type md G d e1 (Typ (Tref (Typ s p) md' Mut) q) ->
+    exp_type md G d e2 (Typ s p') ->
+    Loc_Contxt l = Some (Typ bt p0, rt) ->
+    s = bt /\ p = p0.
+  Proof.
+  Admitted.
+
   Lemma impe2_final_config_preservation (G: context) (d: loc_mode) :
     forall G' c r m pc md r' m' t,
       cstep2 md d (c,r,m) (r', m') t ->
@@ -395,6 +431,8 @@ Section Preservation.
              apply e0 in noupdate; destruct_pairs.
              apply (H8 l v1 v2 bt p0 rt). split; auto. rewrite noupdate; auto.
   Qed.
+
+  
 
   Lemma impe2_type_preservation 
         (G: context) (d: loc_mode) :

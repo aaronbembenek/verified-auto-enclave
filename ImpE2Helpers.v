@@ -261,38 +261,6 @@ Section Semantics.
 End Semantics.
 
 Section Typing.
-  Lemma jasdfoads : forall md G d c Gm p Gp q drv,
-    val_type md G d (Vlambda md c) (Typ (Tlambda Gm p md Gp) q) drv ->
-    com_type p md Gm d c Gp.
-  Proof.
-    intros.
-    inversion H; try discriminate; subst; auto.
-    Focus 2.
-    inversion H7; try discriminate; subst; auto.
-    Focus 1.
-                                                                     
-
-  (* XXX prove type preservation *)
-  (* XXX I feel like this should be provable from something... but our typing *)
-  (* system seems to be lacking something *)
-  Lemma call_fxn_typ : forall pc md G d e r m Gm p Gp q c Gout,
-    com_type pc md G d (Ccall e) Gout ->
-    estep md d (e,r,m) (Vlambda md c) ->
-    exp_type md G d e (Typ (Tlambda Gm p md Gp) q) <-> com_type p md Gm d c Gp.
-  Proof.
-    intros; split; intros.
-  Admitted.
-
-  (* XXX nothing connecting loc_context to actual type at location *)
-  Lemma ref_type : forall pc md md' d e1 e2 r m G bt s p0 p p' q l rt,
-    com_type pc md G d (Cupdate e1 e2) G ->
-    estep2 md d (e1, r, m) (VSingle (Vloc l)) ->
-    exp_type md G d e1 (Typ (Tref (Typ s p) md' Mut) q) ->
-    exp_type md G d e2 (Typ s p') ->
-    Loc_Contxt l = Some (Typ bt p0, rt) ->
-    s = bt /\ p = p0.
-  Proof.
-  Admitted.
   
   Lemma subsumption : forall pc1 pc2 md d G1 G1' G2 G2' c,
       com_type pc1 md G1 d c G1' ->

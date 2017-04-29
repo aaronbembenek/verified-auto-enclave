@@ -60,33 +60,10 @@ Section Secure_Passive.
       rewrite join_protected_r in H12; auto.
       unfold sec_level_le in H12; destruct sl; intuition.
     - inversion H2; try discriminate; subst.
-      
-      pose (impe2_exp_complete md d e r2 m2 (Vlambda md c) is_left H0) as tmp.
-      destruct tmp; destruct_pairs;
-      assert (estep2 md d (e, r2, m2) x) as Hestep2 by auto.
-
-      assert (val_type md G d (Vlambda md c) (Typ (Tlambda Gm p md Gp) q)).
-      pose (impe2_value_type_preservation md G d e
-                                          (Tlambda Gm p md Gp) q
-                                          r2 m2 x H4 Hestep2).
-      destruct_pairs. destruct is_left; rewrite H9 in *; auto.
-            
-      inversion H10; try discriminate; subst.
-      eapply (IHcstep m2 r2 c); eauto.
-      rewrite join_protected_l in H6; auto.
-      unfold sec_level_le in H6; destruct p; intuition. unfold protected; auto.
-
-      unfold reg_corresponds in H20.
-      Search (val_type).
-      apply VTLow in H10.
-      inversion H10; try discriminate; subst.
-      
-      unfold sec_level_le in H8; omega.
-      unfold protected; auto.
-      inversion H16; unfold_cfgs; subst.
-
-      Search (estep).
-
+      eapply call_fxn_typ in H4; eauto.
+      eapply IHcstep; eauto.
+      inversion H3; subst. rewrite join_protected_l in H6; auto.
+      unfold sec_level_le in *; destruct p; try omega; auto.
     - inversion H2; try discriminate; subst.
       inversion H; subst.
       eapply (IHcstep m2 r2 c'); eauto.
