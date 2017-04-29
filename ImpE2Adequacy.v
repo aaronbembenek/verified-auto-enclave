@@ -157,43 +157,55 @@ Section Soundness.
 End Soundness.
 
 Section Completeness.
-  Lemma impe2_exp_complete : forall md d e r m v'i is_left,
-      estep md d (e, project_reg r is_left, project_mem m is_left) v'i ->
-      exists v', estep2 md d (e, r, m) v' /\ (project_value v' is_left = v'i).
+  Lemma impe2_exp_complete : forall md d e r m v'1 v'2,
+    estep md d (e, project_reg r true, project_mem m true) v'1 ->
+    estep md d (e, project_reg r false, project_mem m false) v'2 ->
+    exists v', estep2 md d (e, r, m) v' /\
+          (project_value v' true = v'1) /\
+          (project_value v' false = v'2).
   Proof.
+    Local Ltac invert_estep :=
+      match goal with
+      | [ H : estep _ _ _ _ |- _ ] => inversion H; subst; try discriminate; simpl in *
+      end.
+    
     intros.
-    remember (e, project_reg r is_left, project_mem m is_left) as ecfg.
+    remember (e, project_reg r true, project_mem m true) as ecfg1.
     generalize dependent e.
-    induction H; intros; rewrite Heqecfg in H; simpl in *.
-    - exists (VSingle (Vnat n)); subst; split; auto; now constructor.
-    - exists (VSingle (Vloc l)); subst; split; auto; now constructor.
-    - exists (VSingle (Vlambda md c)); subst; split; auto; now constructor.
-    - exists (r x); split; auto. rewrite H. apply Estep2_var with (x:=x); auto.
-      rewrite Heqecfg in H0; simpl in *. rewrite <- H0.
-      now apply project_comm_reg.
-    - destruct IHestep1 with (e := e1). rewrite Heqecfg; auto.
-      destruct IHestep2 with (e := e2). rewrite Heqecfg; auto.
-      destruct_conjs.
-      exists (apply_op op x x0); split; auto.
-      apply Estep2_binop with (e1:=e1) (e2:=e2); auto.
-      split. now apply project_nat_contains_nat in H5.
-      now apply project_nat_contains_nat in H4.
-      apply project_value_apply_op; auto.
-    - assert (r0 = project_reg r is_left) by congruence.
-      assert (m0 = project_mem m is_left) by congruence.
-      destruct IHestep with (e0 := e). congruence.
-      destruct_conjs.
-      apply no_location_pairs in H6.
-      exists (m l); split.
-      apply Estep2_deref with (e := e) (r :=r) (m := m) (l := l); auto.
-      congruence.
-      rewrite <- H6; auto.
-      rewrite <- project_comm_mem; rewrite <- H4; auto.
-    Qed.
+    revert v'2.
+    induction H; intros; try rewrite Heqecfg1 in H0; simpl in *;
+      invert_estep; subst; try discriminate.
+    - inversion H1; subst; eexists; repeat split.
+      econstructor; eauto.
+      all: cbn; auto.
+    - inversion H1; subst; eexists; repeat split.
+      eapply Estep2_loc; eauto.
+      all: now cbn.
+    - inversion H1; subst; eexists; repeat split.
+      eapply Estep2_lambda; eauto.
+      all: now cbn.
+    - inversion H2; subst; eexists; repeat split.
+      eapply Estep2_var; eauto.
+    - inversion H3; subst.
+      edestruct IHestep1; eauto; destruct_conjs; subst.
+      edestruct IHestep2; eauto; destruct_conjs; subst.
+      eexists; repeat split.
+      eapply Estep2_binop; eauto.
+      split; [destruct x | destruct x0]; simpl in *; subst; unfold contains_nat;
+        [left | right | left | right]; eexists; eauto.
+      1,2: apply project_value_apply_op; auto.
+    - inversion H4; subst.
+      inversion Heqecfg1; subst.
+      edestruct IHestep; eauto; destruct_conjs.
+      eexists; repeat split.
+      eapply Estep2_deref; eauto.
+      all: apply no_location_pairs in H6; subst; simpl in *; subst; auto;
+        inversion H1; subst; auto.
+  Qed.
       
   Lemma impe2_complete : forall md d c r m r'1 m'1 t'1 r'2 m'2 t'2,
-      (cstep md d (project_ccfg (c, r, m) true) (r'1, m'1) t'1) /\
-      (cstep md d (project_ccfg (c, r, m) false) (r'2, m'2) t'2) ->
+      (cstep md d (project_ccfg (c, r, m) true) (r'1, m'1) t'1 /\
+      cstep md d (project_ccfg (c, r, m) false) (r'2, m'2) t'2) ->
       exists r' m' t',
         cstep2 md d (c, r, m) (r', m') t' /\
         (project_reg r' true) = r'1 /\
@@ -217,71 +229,68 @@ Section Completeness.
       | [ H : cstep _ _ _ _ _ |- _ ] => inversion H; subst; try discriminate; simpl in *
       end.
 
-    Local Ltac destruct_exp_complete :=
-      repeat
-        match goal with
-        | [ H : estep _ _ _ _ |- _ ] => apply impe2_exp_complete in H; destruct H; destruct_conjs
-        end.
+    Local Ltac destruct_exp_complete H :=
+      eapply impe2_exp_complete in H; eauto; destruct H; destruct_conjs.
 
     Local Ltac e2_determinism x1 x2 H :=
       assert (x1 = x2) by (apply estep2_deterministic with (v1 := x2) in H; auto); subst.
 
-    intros.
-    destruct H.
+    intros; destruct H.
     remember (project_ccfg (c, r, m) true) as ccfg1.
     remember (r'1, m'1) as cterm1.
     generalize dependent r'1; generalize dependent m'1.
     generalize dependent r'2; generalize dependent m'2.
     generalize dependent c; generalize dependent r; generalize dependent m.
     revert t'2.
-    induction H; intros; unfold project_ccfg in *; rewrite Heqccfg1 in *; simpl in *;
-      invert_cstep; destruct_exp_complete.
+    induction H; intros; unfold project_ccfg in *; rewrite Heqccfg1 in *;
+      simpl in *; invert_cstep.
     (* SKIP *)
     - do 3 eexists; repeat split; inversion Heqcterm1; subst; eauto.
       econstructor; auto.
       all: now cbn.
     (* ASSIGN *)
     - inversion H5; subst.
-      e2_determinism x1 x2 H.
+      destruct_exp_complete H9.
       do 3 eexists; repeat split; eauto.
-      eapply Cstep2_assign with (x := x0) (e := e0) (v := x2); eauto.
+      eapply Cstep2_assign with (x := x0) (e := e0) (v := x); eauto.
       all: simpl; auto.
       1,3: rewrite project_update_comm_reg; simpl; unfold project_ccfg; simpl.
       all: congruence.
     (* DECLASSIFY *)
     - inversion H6; subst.
-      e2_determinism x1 x2 H.
+      destruct_exp_complete H1.
       do 3 eexists; repeat split; eauto.
-      eapply Cstep2_declassify with (x := x0) (v := x2); eauto.
+      eapply Cstep2_declassify with (x := x0) (v := x); eauto.
       all: simpl; auto.
       1,3: rewrite project_update_comm_reg; simpl; unfold project_ccfg; simpl.
       all: congruence.
     (* UPDATE *)
     - inversion H6; subst.
-      e2_determinism x x1 H; e2_determinism x0 x2 H4.
-      pose (no_location_pairs x1 l true H7).
+      destruct_exp_complete H11; destruct_exp_complete H7.
+      pose (no_location_pairs x0 l true H7).
       do 3 eexists; repeat split; eauto.
       eapply Cstep2_update; eauto.
       all: simpl; auto.
       rewrite <- e; unfold ccfg_to_ecfg2; auto.
       congruence.
-      inversion Heqcterm1. apply project_update_comm_mem.
-      rewrite e in H2; simpl in H2; inversion H2.
+      inversion Heqcterm1.
+      rewrite <- H2. apply project_update_comm_mem.
+      rewrite <- H4. rewrite e in H8. simpl in H8. inversion H8. rewrite <- H10.
       apply project_update_comm_mem.
       rewrite e in H2. simpl in H2. inversion H2; auto. 
     (* OUTPUT *)
     - inversion H5; subst.
-      e2_determinism x x0 H.
+      destruct_exp_complete H0.
       do 3 eexists; repeat split; eauto.
       eapply Cstep2_output with (e := e0); eauto.
       all: simpl; auto; congruence.
     (* CALL *)
-    - assert (e = e0) by congruence; rewrite H6 in *.
-      e2_determinism x x0 H.
-      destruct x0; subst.
+    - inversion H5; subst.
+      destruct_exp_complete H9.
+      destruct x; subst.
       + simpl in *. assert (c = c1) by congruence; subst.
         edestruct IHcstep; unfold_cfgs; simpl; eauto. 
-        do 2 destruct H4; destruct_conjs.
+        do 2 destruct H3; destruct_conjs.
         exists x; exists x0; exists x1; repeat split.
         apply Cstep2_call with (e := e0) (c := c1); auto.
         unfold ccfg_to_ecfg2; simpl in *; subst; auto.
@@ -313,12 +322,12 @@ Section Completeness.
       all: rewrite project_app_trace; auto.
     (* IF BOTH TRUE *)
     - inversion H5; subst.
-      e2_determinism x x0 H.
-      destruct x0; subst.
+      destruct_exp_complete H0.
+      destruct x; subst.
       + simpl in *; subst.
         destruct IHcstep with (c := c0) (m'1 := m') (r'1 := r') (m'2 := m'2) (r'2 := r'2)
                                         (t'2 := t'2) (m0 := m) (r0 := r); auto.
-        do 3 destruct H4; destruct_conjs.
+        do 3 destruct H0; destruct_conjs.
         exists x; exists x0; exists x1; repeat split; auto.
         apply Cstep2_if with (e := e0) (c1 := c0) (c2 := c3); auto.
         all: inversion Heqcterm1; subst; auto.
@@ -331,8 +340,8 @@ Section Completeness.
         all: inversion Heqcterm1; subst; auto; destruct_merge_inv.
     (* IF TRUE, FALSE *)
     - inversion H5; subst.
-      e2_determinism x x0 H.
-      destruct x0; subst.
+      destruct_exp_complete H0.
+      destruct x; subst.
       + simpl in *; subst; discriminate.
       + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
         pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
@@ -343,8 +352,8 @@ Section Completeness.
         all: inversion Heqcterm1; subst; auto; destruct_merge_inv.
     (* IF FALSE, TRUE *)
     - inversion H5; subst.
-      e2_determinism x x0 H.
-      destruct x0; subst.
+      destruct_exp_complete H0.
+      destruct x; subst.
       + simpl in *; subst; discriminate.
       + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
         pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
@@ -354,12 +363,12 @@ Section Completeness.
         unfold_cfgs; simpl in *; now subst.
         all: inversion Heqcterm1; subst; auto; destruct_merge_inv.    
     - inversion H5; subst.
-      e2_determinism x x0 H.
-      destruct x0; subst.
+      destruct_exp_complete H0.
+      destruct x; subst.
       + simpl in *; subst.
         destruct IHcstep with (c := c3) (m'1 := m') (r'1 := r') (m'2 := m'2) (r'2 := r'2)
                                         (t'2 := t'2) (m0 := m) (r0 := r); auto.
-        do 3 destruct H4; destruct_conjs.
+        do 3 destruct H0; destruct_conjs.
         exists x; exists x0; exists x1; repeat split; auto.
         apply Cstep2_else with (e := e0) (c1 := c0) (c2 := c3); auto.
         all: inversion Heqcterm1; subst; auto.
@@ -372,9 +381,16 @@ Section Completeness.
         all: inversion Heqcterm1; subst; auto; destruct_merge_inv.
     (* WHILE BOTH TRUE *)
     - inversion H6; subst.
-      e2_determinism x x0 H.
-      destruct x0; subst.
-      + admit.
+      destruct_exp_complete H7.
+      destruct x; subst.
+      + inversion Heqcterm1; subst; unfold_cfgs; simpl in *.
+        edestruct IHcstep1; eauto.
+        do 2 destruct H7; destruct_conjs; subst.
+        edestruct IHcstep2; eauto.
+        do 2 destruct H4; destruct_conjs; subst.
+        do 3 eexists; repeat split; eauto.
+        eapply Cstep2_while_t; eauto.
+        all: now rewrite project_app_trace.
       + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
         pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
         exists mr; exists mm; exists (merge_trace (tr ++ tr', tr0 ++ tr'0)); repeat split.
@@ -384,18 +400,51 @@ Section Completeness.
         all: destruct_merge_inv.
     (* WHILE TRUE, FALSE *)
     - inversion H9; subst.
-      e2_determinism x x0 H.
-      destruct x0; subst.
+      destruct_exp_complete H0.
+      destruct x; subst.
       + simpl in *; subst; discriminate.
-      + admit.
+      + pose (merge_reg_exists r'1 (project_reg r0 false)) as mr; destruct mr as [mr].
+        pose (merge_mem_exists m'1 (project_reg m0 false)) as mm; destruct mm as [mm].
+        exists mr; exists mm; exists (merge_trace (tr ++ tr', [])); repeat split.
+        simpl in *; subst.
+        eapply Cstep2_while_div; eauto.
+        all: unfold_cfgs; simpl in *; inversion Heqcterm1; subst; auto.
+        eapply Cstep_seq_hd; simpl; eauto; apply cstep_seq_singleton; auto.
+        constructor; auto.
+        all: destruct_merge_inv.
     (* WHILE FALSE, TRUE *)
     - inversion H4; subst.
-      e2_determinism x x0 H.
-      destruct x0; subst.
+      destruct_exp_complete H5.
+      destruct x; subst.
       + simpl in *; subst; discriminate.
-      + admit.
+      + unfold_cfgs; simpl in *; subst.
+        pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
+        pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
+        inversion Heqcterm1; subst.
+        exists mr; exists mm; eexists; repeat split; eauto.
+        eapply Cstep2_while_div; eauto.
+        all: unfold_cfgs; simpl in *; subst; auto.
+        econstructor; eauto.
+        eapply Cstep_seq_hd; simpl; eauto; apply cstep_seq_singleton; eauto.
+        all: destruct_merge_inv.
     (* WHILE BOTH FALSE *)
-    - admit.
-  Admitted.
+    - inversion H7; subst.
+      destruct_exp_complete H9.
+      destruct x; subst.
+      + inversion Heqcterm1; subst; unfold_cfgs; simpl in *; subst.
+        do 3 eexists; repeat split; eauto.
+        eapply Cstep2_while_f; eauto.
+        all: now cbn.
+      + pose (merge_reg_exists (project_reg r true) (project_reg r false)) as mr;
+          destruct mr as [mr].
+        pose (merge_mem_exists (project_mem m true) (project_mem m false)) as mm;
+          destruct mm as [mm].
+        inversion Heqcterm1; subst; unfold_cfgs; simpl in *; subst.
+        exists mr; exists mm; eexists; repeat split; eauto.
+        eapply Cstep2_while_div; eauto.
+        all: unfold_cfgs; simpl in *; subst; auto.
+        1,2: econstructor; auto.
+        all: destruct_merge_inv.
+  Qed.
   
 End Completeness.
