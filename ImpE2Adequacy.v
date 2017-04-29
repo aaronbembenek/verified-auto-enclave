@@ -72,53 +72,43 @@ Section Soundness.
     intros.
     remember (c, r, m) as ccfg.
     remember (r', m') as cterm.
-    generalize dependent r'.
-    generalize dependent m'.
-    generalize dependent c.
+    generalize dependent r'; generalize dependent m'.
+    generalize dependent c; generalize dependent r; generalize m.
     induction H; intros; try rewrite Heqccfg in H, Heqcterm; simpl in *; inversion Heqcterm; subst.
     - constructor; auto.
-    - apply impe2_exp_sound with (is_left:=is_left) in H0.
-      apply Cstep_assign with (x:=x) (e:=e) (v := project_value v is_left); auto.
-      unfold ccfg_to_ecfg; simpl in *; auto.
+    - eapply impe2_exp_sound in H0.
+      eapply Cstep_assign; unfold ccfg_to_ecfg; simpl in *; eauto.
       apply project_update_comm_reg.
-    - apply impe2_exp_sound with (is_left:=is_left) in H1.
-      apply Cstep_declassify with (x:=x) (e:=e) (v :=(project_value v is_left)); auto.
+    - eapply impe2_exp_sound in H1.
+      eapply Cstep_declassify; unfold ccfg_to_ecfg; simpl; eauto.
       apply project_update_comm_reg.
-    - apply impe2_exp_sound with (is_left:=is_left) in H0.
-      apply impe2_exp_sound with (is_left:=is_left) in H1.
-      apply Cstep_update with (e1 := e1) (e2 := e2) (l := l) (v := project_value v is_left); auto.
+    - eapply impe2_exp_sound in H0; eapply impe2_exp_sound in H1.
+      eapply Cstep_update; unfold ccfg_to_ecfg; simpl; eauto.
       now apply project_update_comm_mem.
-    - apply impe2_exp_sound with (is_left:=is_left) in H0; simpl in *.
-      apply Cstep_output with (e := e); auto.
+    - eapply impe2_exp_sound in H0.
+      eapply Cstep_output; unfold ccfg_to_ecfg; simpl; eauto. 
       destruct sl; auto.
-    - apply impe2_exp_sound with (is_left:=is_left) in H0; simpl in *.
-      apply Cstep_call with (e := e) (c := c); auto.
-      apply IHcstep2 with (c1 := c); auto.
+    - eapply impe2_exp_sound in H0.
+      eapply Cstep_call; unfold ccfg_to_ecfg; simpl; eauto.
+      eapply IHcstep2; unfold_cfgs; eauto.
     - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
         apply project_merge_inv_reg in H3; apply project_merge_inv_mem in H4.
       destruct_conjs; subst.
       destruct is_left;
         [apply Cstep_call with (e:=e) (c:=c1) | apply Cstep_call with (e:=e) (c:=c2)]; auto;
       unfold ccfg_update_com; simpl; rewrite project_merge_inv_trace; auto.
-    - apply Cstep_enclave with (enc := enc) (c := c); auto.
-      apply IHcstep2 with (c1 := c); auto.
-    - apply Cstep_seq_nil; auto. 
-    - apply Cstep_seq_hd with (hd:=hd) (tl:=tl)
-                                       (r:=(project_reg r0 is_left))
-                                       (m:=(project_mem m0 is_left))
-                                       (tr:=(project_trace tr is_left))
-                                       (tr':=(project_trace tr' is_left)); auto.
-      apply IHcstep2_1 with (c0:=hd); auto.
-      apply IHcstep2_2 with (c:=Cseq tl); auto.
-      admit.
-      (* XXX: getting stuck with a weird induction hypothesis... maybe generalizing wrong *)
+    - eapply Cstep_enclave; eauto.
+    - eapply Cstep_seq_nil; eauto. 
+    - eapply Cstep_seq_hd; eauto.
+      eapply IHcstep2_1; eauto.
+      unfold ccfg_update_com2; eauto.
+      eapply IHcstep2_2; eauto.
       now apply project_app_trace.
-    - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *.
-      apply Cstep_if with (e:=e) (c1:=c1) (c2:=c2); auto.
-      apply IHcstep2 with (c0 := c1); auto.
-    - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *.
-      apply Cstep_else with (e:=e) (c1:=c1) (c2:=c2); auto.
-      apply IHcstep2 with (c0 := c2); auto.
+    - eapply impe2_exp_sound in H0.
+      eapply Cstep_if; unfold ccfg_to_ecfg; simpl; eauto.
+      eapply IHcstep2; unfold_cfgs; simpl; eauto.
+    - eapply impe2_exp_sound in H0.
+      eapply Cstep_else; unfold_cfgs; simpl; eauto.
     - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *.
       destruct H1; apply l2_zero_or_one in H1; apply l2_zero_or_one in H6.
         apply project_merge_inv_reg in H4; apply project_merge_inv_mem in H5;
@@ -128,16 +118,10 @@ Section Soundness.
         7,8: apply Cstep_if with (e := e) (c1 := c1) (c2 := c2).
         all: auto; unfold_cfgs; simpl in *; try rewrite project_merge_inv_trace; auto.
     - rewrite project_app_trace; simpl in *; subst.
-      apply Cstep_while_t with (e := e) (c := c)
-                                        (r := (project_reg r0 is_left))
-                                        (m := (project_mem m0 is_left)); auto.
+      eapply Cstep_while_t; unfold_cfgs; simpl; eauto.
       now apply impe2_exp_sound with (is_left := is_left) in H0.
-      now apply IHcstep2_1 with (c0 := c).
-      (* XXX problem with inductive hypothesis *)
-      apply IHcstep2_2 with (c0 := (Cwhile e c)); auto.
-      admit.
-    - apply Cstep_while_f with (e := e) (c := c); auto.
-      now apply impe2_exp_sound with (is_left := is_left) in H0.
+    - eapply Cstep_while_f; unfold_cfgs; simpl; eauto.      
+      eapply impe2_exp_sound in H0; eauto.
     - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
         apply project_merge_inv_reg in H4; apply project_merge_inv_mem in H5;
           destruct_conjs; apply l2_zero_or_one in H1; apply l2_zero_or_one in H8;
@@ -146,13 +130,12 @@ Section Soundness.
         rewrite project_merge_inv_trace; subst; unfold_cfgs; simpl in *.
       1,2: inversion H2; subst; try discriminate.
       3,4: inversion H3; subst; try discriminate.
-      1,3: apply Cstep_while_f with (e := e) (c := c); auto.
-      all: apply Cstep_while_t with (e := e) (c := c) (r := r0) (m := m0); auto;
-        unfold_cfgs; simpl in *;
-          assert (c = hd) by congruence; rewrite H; auto;
-            assert ([Cwhile e c] = tl) by congruence; subst;
-              now apply -> cstep_seq_singleton in H10. 
-  Admitted.
+      1,3: eapply Cstep_while_f; unfold_cfgs; simpl; eauto.
+      1: inversion H4.
+      2: inversion H5.
+      all: simpl in *; subst; eapply Cstep_while_t; simpl; eauto;
+        now apply -> cstep_seq_singleton.
+  Qed.
 
 End Soundness.
 
