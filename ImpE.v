@@ -540,6 +540,14 @@ Section Typing.
       val_type md G d (Vloc l) (Typ (Tref (Typ s p) md' rt) q) <->
       Loc_Contxt l = Some (Typ s p, rt).
 
+  Axiom subsumption : forall pc1 pc2 md d G1 G1' G2 G2' c,
+      com_type pc1 md G1 d c G1' ->
+      sec_level_le pc2 pc1 ->
+      context_le G2 G1 ->
+      context_le G1' G2' ->
+      (* XXX not including well-typed contexts *)
+      com_type pc2 md G2 d c G2'.
+
   Lemma context_le_refl : forall G, context_le G G.
   Proof.
     intros. apply Context_le. intros. right; exists t; destruct t; auto.

@@ -260,18 +260,6 @@ Section Semantics.
    Qed.
 End Semantics.
 
-Section Typing.
-  
-  Lemma subsumption : forall pc1 pc2 md d G1 G1' G2 G2' c,
-      com_type pc1 md G1 d c G1' ->
-      sec_level_le pc2 pc1 ->
-      context_le G2 G1 ->
-      context_le G1' G2' ->
-      (* XXX not including well-typed contexts *)
-      com_type pc2 md G2 d c G2'.
-  Admitted.
-End Typing.
-
 Section Security.
   (* We somehow need to know that if c performs an assignment or update of x, then *)
   (* the type of x in the env is at a higher security level than pc' *)
@@ -509,7 +497,6 @@ Section Security.
        apply (join_protected_r p0 q); auto.
   Qed.
   
-
 End Security.
 
      
