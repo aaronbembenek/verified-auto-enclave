@@ -182,8 +182,7 @@ Section Completeness.
       edestruct IHestep; eauto; destruct_conjs.
       eexists; repeat split.
       eapply Estep2_deref; eauto.
-      all: apply no_location_pairs in H6; subst; simpl in *; subst; auto;
-        inversion H1; subst; auto.
+      all: eapply no_location_pairs in H6; subst; simpl in *; inversion H1; subst; eauto.
   Qed.
       
   Lemma impe2_complete : forall md d c r m r'1 m'1 t'1 r'2 m'2 t'2,
@@ -250,17 +249,14 @@ Section Completeness.
     (* UPDATE *)
     - inversion H6; subst.
       destruct_exp_complete H11; destruct_exp_complete H7.
-      pose (no_location_pairs x0 l true H7).
-      do 3 eexists; repeat split; eauto.
+      assert (x0 = VSingle (Vloc l)) by (eapply no_location_pairs in H5; eauto);
+        subst; simpl in *; subst.
+      do 3 eexists; repeat split; simpl; eauto.
       eapply Cstep2_update; eauto.
-      all: simpl; auto.
-      rewrite <- e; unfold ccfg_to_ecfg2; auto.
       congruence.
-      inversion Heqcterm1.
-      rewrite <- H2. apply project_update_comm_mem. rewrite H2; auto.
-      rewrite <- H4. rewrite e in H8. simpl in H8. inversion H8. rewrite <- H10.
-      apply project_update_comm_mem.
-      rewrite H4. rewrite e in H8. simpl in H8. inversion H8. auto. 
+      all: inversion H8; subst.
+      1,3: inversion Heqcterm1; apply project_update_comm_mem.
+      all: now simpl.
     (* OUTPUT *)
     - inversion H5; subst.
       destruct_exp_complete H0.
