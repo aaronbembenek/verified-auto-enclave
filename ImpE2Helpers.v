@@ -252,6 +252,7 @@ Section Semantics.
           exists (Vnat (op x1 n0)). exists (Vnat (op x2 n1)); auto.
           1-2: exists (Vnat x1); exists (Vnat x2); auto.
    Qed.
+
 End Semantics.
 
 Section Security.
@@ -259,7 +260,7 @@ Section Security.
   (* the type of x in the env is at a higher security level than pc' *)
   (* Otherwise, the reg/mem and context does not change *)
   Definition assign_in (x: var) tr: Prop :=
-    exists v r, List.In (Assign2 r x v) tr.
+    exists v r, List.In (Assign r x v) tr.
 
   Lemma assign_in_dec : forall x tr,
       {assign_in x tr} + {~assign_in x tr}.
@@ -271,9 +272,9 @@ Section Security.
     left; unfold assign_in in *; destruct a0; destruct H;
       exists x0; exists x1; now apply in_cons.
     destruct a.
-    1-5, 7-9: right; unfold assign_in in *; intuition; destruct H; destruct H;
+    1-4, 6-8: right; unfold assign_in in *; intuition; destruct H; destruct H;
       apply in_inv in H; destruct H; try discriminate;
-        assert (exists v r, List.In (Assign2 r x v) tr)
+        assert (exists v r, List.In (Assign r x v) tr)
         by now exists x0; exists x1.
    1-8: try apply n in H0; auto.
    destruct (eq_nat_dec x v); subst.
@@ -281,30 +282,49 @@ Section Security.
    right. unfold assign_in in *. intuition. destruct H as [v1 [r0 H]].
    apply in_inv in H; destruct H.
    inversion H; omega.
-   assert (exists v r, List.In (Assign2 r x v) tr)
+   assert (exists v r, List.In (Assign r x v) tr)
      by now exists v1; exists r0.
    apply n in H0; auto.
   Qed.
    
   Lemma assignment_more_secure : forall pc md d c G G' x bt q r m r' m' tr,
       com_type pc md G d c G' ->
-      cstep2 md d (c,r,m) (r',m') tr ->
+      cstep md d (c,r,m) (r',m') tr ->
       assign_in x tr ->
       G' x = Some (Typ bt q) ->
       sec_level_le pc q.
   Proof.
   Admitted.
+  
+  Lemma assign_in_while_protected :
+    com_type pc md G d (Cwhile e c) G ->
+    com_type pc' md G d c G ->
+    protected pc' ->
+    cstep md d (Cwhile e c, r, m) (r',m') tr ->
+    assign_in x tr ->
+    G x = Some (Typ bt p) ->
+    protected p.
+    
   Lemma no_assign_reg_context_constant : forall md d c r m r' m' tr x pc G G',
       cstep2 md d (c, r, m) (r', m') tr ->
       com_type pc md G d c G' ->
-      ~assign_in x tr ->
+      ~assign_in x (project_trace tr true) /\
+      ~assign_in x (project_trace tr false) ->
       r x = r' x /\ G x = G' x.
   Proof.
   Admitted.
-
+  Lemma assign_in_app : forall tr tr' x,
+      assign_in x (tr ++ tr') <-> assign_in x tr \/ assign_in x tr'.
+  Proof.
+    unfold assign_in. split; intros. destruct H as [v [r H]]. apply in_app_or in H.
+    destruct H; [left | right]; exists v; exists r; auto.
+    destruct H; destruct H as [v [r H]]; exists v; exists r; apply in_or_app;
+      [now left | now right].
+  Qed.
+      
   (* Same thing as assignments for updates *)
   Definition update_in (l: location) tr: Prop :=
-    exists v m, List.In (Update2 m l v) tr.
+    exists v m, List.In (Update m l v) tr.
 
   Lemma update_in_dec : forall x tr,
       {update_in x tr} + {~update_in x tr}.
@@ -316,9 +336,9 @@ Section Security.
     left; unfold update_in in *; destruct u; destruct H;
       exists x0; exists x1; now apply in_cons.
     destruct a.
-    1-4, 6-9: right; unfold update_in in *; intuition; destruct H; destruct H;
+    1-3, 5-8: right; unfold update_in in *; intuition; destruct H; destruct H;
       apply in_inv in H; destruct H; try discriminate;
-        assert (exists v m, List.In (Update2 m x v) tr)
+        assert (exists v m, List.In (Update m x v) tr)
         by now exists x0; exists x1.
    1-8: try apply n in H0; auto.
    destruct (eq_nat_dec x l); subst.
@@ -326,14 +346,14 @@ Section Security.
    right. unfold update_in in *. intuition. destruct H as [v1 [m0 H]].
    apply in_inv in H; destruct H.
    inversion H; omega.
-   assert (exists v m, List.In (Update2 m x v) tr)
+   assert (exists v m, List.In (Update m x v) tr)
      by now exists v1; exists m0.
    apply n in H0; auto.
   Qed.
    
   Lemma update_more_secure : forall pc md d c G G' x bt q rt r m r' m' tr,
       com_type pc md G d c G' ->
-      cstep2 md d (c,r,m) (r',m') tr ->
+      cstep md d (c,r,m) (r',m') tr ->
       update_in x tr ->
       Loc_Contxt x = Some (Typ bt q, rt) ->
       sec_level_le pc q.
@@ -342,10 +362,18 @@ Section Security.
   Lemma no_update_mem_constant : forall md d c r m r' m' tr x pc G G',
       cstep2 md d (c, r, m) (r', m') tr ->
       com_type pc md G d c G' ->
-      ~update_in x tr ->
+      ~update_in x (project_trace tr true) /\ ~update_in x (project_trace tr false) ->
       m x = m' x.
   Proof.
   Admitted.
+  Lemma update_in_app : forall tr tr' x,
+      update_in x (tr ++ tr') <-> update_in x tr \/ update_in x tr'.
+  Proof.
+    unfold assign_in. split; intros. destruct H as [v [r H]]. apply in_app_or in H.
+    destruct H; [left | right]; exists v; exists r; auto.
+    destruct H; destruct H as [v [r H]]; exists v; exists r; apply in_or_app;
+      [now left | now right].
+  Qed.
 
   Lemma loc_in_exp_deref : forall e md G d typ r m l,
       is_escape_hatch e ->
