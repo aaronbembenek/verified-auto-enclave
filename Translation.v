@@ -64,6 +64,7 @@ Section TypeTrans.
 End TypeTrans.
 
 Section TransDef.
+
   Inductive process_seq_output (coms: list E.com) (md0: E.mode)
             (mds: list E.mode) (Gs: list E.context) (Ks: list (set E.enclave)):
     list E.com -> list E.context -> list (set E.enclave) -> Prop :=
@@ -290,14 +291,12 @@ Section TransDef.
                     E.mode -> E.context -> set E.enclave ->
                     E.loc_mode -> E.com -> E.context -> set E.enclave ->
                     Prop :=
-  | TRprog : forall d sGs eGs drvs mds Ks (*K's*) coms coms' coms'' md0 n
-         sG0 eG0 sGn eGn K0 Kn U pc eGs',
-      length coms = n ->
-      length eGs = n + 1 ->
-      length sGs = n + 1 ->
-      length mds = n + 1 ->
-      length Ks = n ->
-      (*length K's = length coms ->*)
+  | TRprog : forall d sGs eGs drvs mds Ks (*K's*) coms coms' coms'' md0
+                    U pc eGs' mds' Ks',
+      length eGs = length coms + 1 ->
+      length sGs = length coms + 1 ->
+      length mds = length coms + 1 ->
+      length Ks = length coms + 1 ->
       length coms' = length coms ->
       (forall (i: nat),
           i < length eGs ->
@@ -306,28 +305,31 @@ Section TransDef.
           i < length coms ->
           com_trans pc (nth i sGs S.mt) U (nth i coms S.Cskip)
                     (nth (i + 1) sGs S.mt) (nth i drvs S.Cderiv_none)
-                    (nth (i + 1) mds E.Normal) (nth i eGs E.mt)
+                    (nth i mds' E.Normal) (nth i eGs E.mt)
                     (nth i Ks []) d (nth i coms' E.Cskip)
                     (nth (i + 1) eGs E.mt)
-                    (nth (i + 1) Ks []))
-      (*(nth i K's []))*) ->
+                    (nth (i + 1) Ks [])) ->
       (forall (i: nat),
           i < length mds ->
           (nth i mds E.Normal <> E.Normal /\
            nth i mds E.Normal <> nth (i + 1) mds E.Normal ->
            E.is_var_low_context (nth i eGs E.mt))) ->
-      md0 = nth 0 mds E.Normal ->
+      mds = md0 :: mds' ->
       md0 = E.Normal \/
       (forall i, i < length mds -> (nth i mds E.Normal) = md0) ->
-      sG0 = nth 0 sGs S.mt ->
-      sGn = nth n sGs S.mt ->
+      U = [] \/ md0 <> E.Normal ->
+      (*sG0 = nth 0 sGs S.mt ->
+      sGn = last sGs S.mt ->
       eG0 = nth 0 eGs E.mt ->
       K0 = nth 0 Ks [] ->
-      eGn = nth n eGs' E.mt ->
-      Kn = nth n Ks [] ->
+      eGn = last eGs' E.mt ->
+      Kn = last Ks [] -> *)
       (*process_seq_output coms' md0 (skipn 1 mds) eGs coms'' eGs' -> *)
-      prog_trans pc sG0 U (S.Prog coms) sGn (S.Pderiv sGs drvs)
-                 md0 eG0 K0 d (E.Cseq coms'') eGn Kn.
+      process_seq_output coms' md0 mds' eGs Ks coms'' eGs' Ks' ->
+      prog_trans pc (nth 0 sGs S.mt) U (S.Prog coms) (last sGs S.mt)
+                 (S.Pderiv sGs drvs)
+                 md0 (nth 0 eGs' E.mt) (nth 0 Ks' []) d (E.Cseq coms'')
+                 (last eGs' E.mt) (last Ks' []).
 
   Scheme exp_trans_mut := Induction for exp_trans Sort Prop
   with com_trans_mut := Induction for com_trans Sort Prop
@@ -518,42 +520,35 @@ Section TransProof.
     destruct_conjs. subst. eapply E.CTseq; eauto.
   Qed.
   
-  Lemma com_trans_sound : forall pc sG U c sG' md eG K d c' eG' K' drv,
-      S.com_wt pc sG U c sG' drv ->
-      com_trans pc sG U c sG' drv md eG K d c' eG' K' ->
+  Lemma prog_trans_sound : forall pc sG U c sG' md eG K d c' eG' K' drv,
+      S.prog_wt pc sG U c sG' drv ->
+      prog_trans pc sG U c sG' drv md eG K d c' eG' K' ->
       E.com_type pc md eG K U d c' eG' K'.
   Proof.
     intros.
-    induction H0 using com_trans_mut with
+    induction H0 using prog_trans_mut with
     (P:=fun sG e t drv md eG d e' t'
             (et: exp_trans sG e t drv md eG d e' t') =>
           S.exp_wt sG e t drv ->
           E.exp_type md eG d e' t')
-    (P1:=fun pc sG U c sG' drv md eG K d c' eG' K'
-            (ct: prog_trans pc sG U c sG' drv md eG K d c' eG' K') =>
-          S.prog_wt pc sG U c sG' drv ->
-          E.com_type pc md eG K U d c' eG' K'); eauto.
-    1-7: inversion H; subst; eauto.
-    (* Expressions *)
+    (P0:=fun pc sG U c sG' drv md eG K d c' eG' K'
+            (ct: com_trans pc sG U c sG' drv md eG K d c' eG' K') =>
+          S.com_wt pc sG U c sG' drv ->
+          E.com_type pc md eG K U d c' eG' K');
+      eauto; inversion H; subst; eauto.
+    (* Expressions. *)
     - eapply trans_exp_btrans in e.
       inversion e. subst. constructor; eauto.
     (* Commands. *)
-    - inversion H. subst. eapply E.CTassign; eauto.
-      destruct eG. reflexivity.
-    - inversion H. subst. eapply E.CTdeclassify; eauto.
+    - eapply E.CTassign; eauto. destruct eG. reflexivity.
+    - eapply E.CTdeclassify; eauto.
       + eapply trans_pres_exp_novars; eauto.
       + eapply trans_pres_all_loc_immutable; eauto.
-    - inversion H. subst. eauto.
-    - inversion H. subst. eauto.
-    - inversion H. subst. eauto.
-    - inversion H; subst; eauto.
-    - inversion H. subst. eapply E.CTifelse; eauto; intuition.
-    - inversion H. subst. eapply E.CTwhile; eauto; intuition.
-    - inversion H. subst. eapply E.CTcall; eauto.
+    - eapply E.CTifelse; eauto; intuition.
+    - eapply E.CTwhile; eauto; intuition.
     (* Programs. *)
-    - induction p.
-      + eapply E.CTseq; admit.
-      + eapply E.CTseq. admit.
-  Admitted.
+    - eapply process_seq_output_wt; eauto; rewrite e3 in *; eauto.
+      simpl in e1. omega.
+  Qed.
   
 End TransProof.
