@@ -54,12 +54,29 @@ Section Project_Merge.
   (* XXX: these assumptions are gross, but the semantics become a mess if we
      dont' have them... *)
 
-  Lemma no_location_pairs : forall v l is_left,
-      project_value v is_left = Vloc l ->
-      v = VSingle (Vloc l).
+  Lemma no_location_pairs : forall md d e r m v l is_left,
+    estep2 md d (e, r, m) v ->
+    project_value v is_left = Vloc l ->
+    v = VSingle (Vloc l).
   Proof.
+    intros.
+    induction H.
+    1,3: discriminate. 
+    - simpl in H0; inversion H0; now subst.
+    - (* XXX need a hypothesis about registers not having pairs? *)
+      admit.
+    - destruct_conjs. unfold contains_nat in *.
+      do 2 destruct H3; do 2 destruct H4; simpl; subst.
+      + discriminate.
+      + destruct H4; subst; destruct is_left; simpl in *; discriminate.
+      + destruct H3; subst; destruct is_left; simpl in *; discriminate.
+      + destruct H3; destruct H4; destruct is_left; subst; simpl in *; discriminate.
+    - pose (No_Pointers2 m0 l0); destruct a.
+      rewrite <- H2. specialize (H4 l).
+      (* XXX: need value decidability *)
+      admit.
   Admitted.
-  
+      
   Lemma project_comm_reg : forall r b x,
       (project_reg r b) x = project_value (r x) b.
   Proof.
