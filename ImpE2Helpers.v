@@ -295,16 +295,6 @@ Section Security.
       sec_level_le pc q.
   Proof.
   Admitted.
-  
-  Lemma assign_in_while_protected :
-    com_type pc md G d (Cwhile e c) G ->
-    com_type pc' md G d c G ->
-    protected pc' ->
-    cstep md d (Cwhile e c, r, m) (r',m') tr ->
-    assign_in x tr ->
-    G x = Some (Typ bt p) ->
-    protected p.
-    
   Lemma no_assign_reg_context_constant : forall md d c r m r' m' tr x pc G G',
       cstep2 md d (c, r, m) (r', m') tr ->
       com_type pc md G d c G' ->
