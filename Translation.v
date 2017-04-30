@@ -80,18 +80,25 @@ Section TransDef.
       process_seq_output coms' md0 mds' (G2 :: Gs') (K2 :: Ks')
                          coms'' (G2 :: Gs'') (K2 :: Ks'') ->
       process_seq_output coms md0 mds Gs Ks
-                         (c :: coms'') (G1 :: G2 :: Gs'') (K1 :: K2 :: Ks'').
-
-  (*
-  | PSO2: forall j mdsl md1 mdsr c coms',
+                         (c :: coms'') (G1 :: G2 :: Gs'') (K1 :: K2 :: Ks'')
+  | PSO2: forall j mds1 mds2 c coms' coms1 coms2 Gs1 Gs2 Ks1 Ks2
+                 Gs2' Ks2' K1 K2 G1 G2,
       md0 = E.Normal ->
-      mds = mdsl ++ md1 :: mdsr ->
-      Forall (fun md => md = E.Encl j) mdsl ->
-      md1 <> E.Encl j ->
-      c = E.Cenclave j (E.Cseq (firstn (length mdsl) coms)) ->
-      process_seq_output (skipn (length mdsl) coms) md0
-                         (skipn (length mdsl) mds) [] coms' [] ->
-      process_seq_output coms md0 mds Gs (c :: coms') Gs. *)
+      mds = mds1 ++ mds2 ->
+      Forall (fun md => md = E.Encl j) mds ->
+      nth 0 mds2 E.Normal <> E.Encl j ->
+      coms = coms1 ++ coms2 ->
+      length coms1 = length mds1 ->
+      Gs = G1 :: Gs1 ++ G2 :: Gs2 ->
+      length Gs1 = length mds1 ->
+      Ks = K1 :: Ks1 ++ K2 :: Ks2 ->
+      length Ks1 = length mds1 ->
+      c = E.Cenclave j (E.Cseq coms1) ->
+      process_seq_output coms2 md0 mds2 (G2 :: Gs2) (K2 :: Ks2)
+                         coms' (G2 :: Gs2') (K2 :: Ks2') ->
+      process_seq_output coms md0 mds Gs Ks
+                         (c :: coms') (G1 :: G2 :: Gs2') (K1 :: K2 :: Ks2').
+  (* XXX need a base case for [] *)
   
   Inductive exp_trans : S.context -> S.exp -> S.type -> S.ederiv ->
                         E.mode -> E.context -> E.loc_mode -> E.exp ->
@@ -310,9 +317,9 @@ Section TransDef.
                     (nth (i + 1) eGs E.mt)
                     (nth (i + 1) Ks [])) ->
       (forall (i: nat),
-          i < length mds ->
-          (nth i mds E.Normal <> E.Normal /\
-           nth i mds E.Normal <> nth (i + 1) mds E.Normal ->
+          i < length mds' ->
+          (nth i mds' E.Normal <> E.Normal /\
+           nth i mds' E.Normal <> nth (i + 1) mds' E.Normal ->
            E.is_var_low_context (nth i eGs E.mt))) ->
       mds = md0 :: mds' ->
       md0 = E.Normal \/
@@ -437,6 +444,12 @@ Section TransLemmas.
     rewrite H9 in H13. inversion H13. subst.
     eapply H0; eauto.
   Qed.
+
+  Lemma nth_eq_nth_S_cons {A} i xs (x: A) d :
+    nth i xs d = nth (i + 1) (x :: xs) d.
+  Proof.
+    replace (i + 1) with (S i) by omega. reflexivity.
+  Qed.
 End TransLemmas.
 
 Section TransProof.
@@ -447,6 +460,11 @@ Section TransProof.
         (d: E.loc_mode) (U: set condition) (coms: list E.com)
         (HUmd0: U = [] \/ md0 <> E.Normal) :
     forall comsout Gsout Ksout,
+      (forall (i: nat),
+          i < length mds ->
+          (nth i mds E.Normal <> E.Normal /\
+           nth i mds E.Normal <> nth (i + 1) mds E.Normal ->
+           E.is_var_low_context (nth i Gs E.mt))) ->
       process_seq_output coms md0 mds Gs Ks comsout Gsout Ksout ->
       length Gs = length coms + 1 ->
       length Ks = length coms + 1 ->
@@ -464,7 +482,7 @@ Section TransProof.
                      (nth i comsout E.Cskip)
                      (nth (i + 1) Gsout E.mt) (nth (i + 1) Ksout [])).
   Proof.
-    intros.
+    intros comsout Gsout Ksout Hmds. intros.
     induction H.
     - split. omega. split. omega.
       intros. pose H4 as H4'. apply H3 in H4'.
@@ -489,6 +507,14 @@ Section TransProof.
         * apply Nat.neq_0_r in n. destruct n as [ m Hm ].
           rewrite Hm in *. simpl.
           simpl in H13. apply lt_S_n in H13. apply H12 in H13. eauto.
+      + intros.
+        assert (i + 1 < length mds).
+        {
+          rewrite H4. simpl. omega.
+        }
+        apply Hmds in H12.
+        rewrite H6 in H12. now rewrite <- nth_eq_nth_S_cons in H12.
+        rewrite H4. now repeat rewrite <- nth_eq_nth_S_cons.
       + rewrite H5 in H1. rewrite H7 in H1. simpl in *. omega.
       + subst. simpl in *. omega.
       + intros.
@@ -497,12 +523,18 @@ Section TransProof.
           rewrite H5. simpl. omega.
         }
         apply H3 in H11. subst. simpl in *. eauto.
-  Qed.
+    - admit.
+  Admitted.
   
   Lemma process_seq_output_wt (pc: policy) (md0: E.mode) (mds: list E.mode)
         (Gs: list E.context) (Ks: list (set E.enclave))
         (d: E.loc_mode) (U: set condition) (coms: list E.com) :
     forall comsout Gsout Ksout,
+      (forall (i: nat),
+          i < length mds ->
+          (nth i mds E.Normal <> E.Normal /\
+           nth i mds E.Normal <> nth (i + 1) mds E.Normal ->
+           E.is_var_low_context (nth i Gs E.mt))) ->
       U = [] \/ md0 <> E.Normal ->
       length Gs = length coms + 1 ->
       length Ks = length coms + 1 ->
