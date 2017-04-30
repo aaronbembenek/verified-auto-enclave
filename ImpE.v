@@ -156,13 +156,13 @@ End Induction.
 
 Section Decidability.
 
-   Ltac auto_decide :=
+  Ltac auto_decide :=
     try match goal with
-    | [x : nat, y : nat |- _] => destruct (Nat.eq_dec x y)
-    | [x : var, y : var |- _] => destruct (Nat.eq_dec x y)
-    | [x : enclave, y : enclave |- _] => destruct (Nat.eq_dec x y)
-    | [x : location, y : location |- _] => destruct (Nat.eq_dec x y)
-    | _ => idtac            
+        | [x : nat, y : nat |- _] => destruct (Nat.eq_dec x y)
+        | [x : var, y : var |- _] => destruct (Nat.eq_dec x y)
+        | [x : enclave, y : enclave |- _] => destruct (Nat.eq_dec x y)
+        | [x : location, y : location |- _] => destruct (Nat.eq_dec x y)
+        | _ => idtac            
         end; [left; now subst | right; congruence].
 
    Ltac easy_dec :=
@@ -235,7 +235,14 @@ Section Decidability.
     - destruct IHc1_1 with e0; destruct IHc1_2 with c2_1; destruct IHc1_3 with c2_2; easy_dec.
     - destruct IHc1 with e0; destruct IHc0 with c2; easy_dec.
   Admitted.
-
+  
+  Lemma val_decidable : forall (v1 v2 : val), {v1 = v2} + {v1 <> v2}.
+  Proof.
+    intro.
+    induction v1; intros; destruct v2; try (right; discriminate); try auto_decide.
+    destruct (mode_decidable m m0); destruct (com_decidable c c0); easy_dec.
+  Qed.
+      
   Lemma prog_decidable : forall p1 p2 : (com + exp), {p1 = p2} + {p1 <> p2}.
   Proof.
     intros; destruct p1; destruct p2; try (right; discriminate);

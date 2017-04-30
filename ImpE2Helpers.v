@@ -48,6 +48,21 @@ Section Misc.
   Proof.
     induction l1; simpl; auto. rewrite IHl1. destruct (f a); auto.
   Qed.
+
+  Lemma val2_decidable : forall (v1 v2 : val2), {v1 = v2} + {v1 <> v2}.
+  Proof.
+    intro.
+    induction v1; intros; destruct v2; try (right; discriminate).
+    - destruct (val_decidable v v0); subst; auto; right; congruence.
+    - destruct (val_decidable v v1); destruct (val_decidable v0 v2);
+        subst; auto; right; congruence.
+  Qed.
+
+  Lemma val2_neq : forall (v1 v2 : val), v1 <> v2 -> ~ (v1 = v2).
+  Proof.
+    auto.
+  Qed.
+      
 End Misc.
 
 Section Project_Merge.
@@ -72,8 +87,10 @@ Section Project_Merge.
       + destruct H3; subst; destruct is_left; simpl in *; discriminate.
       + destruct H3; destruct H4; destruct is_left; subst; simpl in *; discriminate.
     - pose (No_Pointers2 m0 l0); destruct a.
-      rewrite <- H2. specialize (H4 l).
-      (* XXX: need value decidability *)
+      inversion H0.
+      destruct v; subst; simpl; auto.
+      destruct is_left; subst; simpl in *; subst.
+      (* XXX: need something about pairs of different types *)
       admit.
   Admitted.
       
