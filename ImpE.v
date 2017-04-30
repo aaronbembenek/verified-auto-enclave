@@ -79,38 +79,94 @@ Section Syntax.
                        | Evar _ => False
                        | _ => True
                        end).
+  
+End Syntax.
+
+Section Induction.
+  Variable P : com -> Type.
+  Variable P0: exp -> Type.
+  
+  Inductive Forall' (Q : com -> Type) : list com -> Type :=
+  | Forall_nil' : Forall' Q nil
+  | Forall_cons' : forall x l, Q x -> Forall' Q l -> Forall' Q (x::l).
+
+  Hypothesis Enat_case : forall n, P0 (Enat n).
+  Hypothesis Evar_case : forall x, P0 (Evar x).
+  Hypothesis Ebinop_case : forall e1 e2 op,
+      P0 e1 -> P0 e2 -> P0 (Ebinop e1 e2 op).
+  Hypothesis Eloc_case : forall l, P0 (Eloc l).
+  Hypothesis Ederef_case : forall e,
+      P0 e -> P0 (Ederef e).
+  Hypothesis Elambda_case : forall md c,
+      P c -> P0 (Elambda md c).
+
+  Hypothesis Cskip_case : P Cskip.
+  Hypothesis Cassign_case : forall x e,
+      P0 e -> P (Cassign x e).  
+  Hypothesis Cdeclassify_case : forall x e,
+      P0 e -> P (Cdeclassify x e).
+  Hypothesis Cupdate_case : forall e1 e2,
+      P0 e1 -> P0 e2 -> P (Cupdate e1 e2).
+  Hypothesis Coutput_case : forall e sl,
+      P0 e -> P (Coutput e sl).
+  Hypothesis Ccall_case : forall e,
+      P0 e -> P (Ccall e).
+  Hypothesis Cenclave_case : forall enc c,
+      P c -> P (Cenclave enc c).
+  Hypothesis Cseq_case : forall coms,
+      Forall' P coms -> P (Cseq coms).
+  Hypothesis Cif_case : forall e c1 c2,
+      P0 e -> P c1 -> P c2 -> P (Cif e c1 c2).
+  Hypothesis Cwhile_case : forall e c,
+      P0 e -> P c -> P (Cwhile e c).
+
+  Fixpoint com_rect' (c: com) : P c :=
+    match c with
+    | Cskip => Cskip_case
+    | Cassign x e => Cassign_case x e (exp_rect' e)
+    | Cdeclassify x e => Cdeclassify_case x e (exp_rect' e)
+    | Cupdate e1 e2 => Cupdate_case e1 e2 (exp_rect' e1) (exp_rect' e2)
+    | Coutput e sl => Coutput_case e sl (exp_rect' e)
+    | Ccall e => Ccall_case e (exp_rect' e)
+    | Cenclave enc c => Cenclave_case enc c (com_rect' c)
+    | Cseq coms =>
+      Cseq_case coms
+                ((fix com_list_rect (coms: list com) : Forall' P coms :=
+                    match coms with
+                    | [] => Forall_nil' P
+                    | h :: t => Forall_cons' P h t (com_rect' h) (com_list_rect t)
+                    end) coms)
+    | Cif e c1 c2 =>
+      Cif_case e c1 c2 (exp_rect' e) (com_rect' c1) (com_rect' c2)
+    | Cwhile e c => Cwhile_case e c (exp_rect' e) (com_rect' c)
+    end
+      
+  with
+  exp_rect' (e: exp) : P0 e :=
+    match e with
+    | Enat n => Enat_case n
+    | Evar x => Evar_case x
+    | Ebinop e1 e2 op => Ebinop_case e1 e2 op (exp_rect' e1) (exp_rect' e2)
+    | Eloc l => Eloc_case l
+    | Ederef e => Ederef_case e (exp_rect' e)
+    | Elambda md c => Elambda_case md c (com_rect' c)
+    end.
+  
+End Induction.
+
+Section Decidability.
 
    Ltac auto_decide :=
     try match goal with
     | [x : nat, y : nat |- _] => destruct (Nat.eq_dec x y)
     | [x : var, y : var |- _] => destruct (Nat.eq_dec x y)
-    | _ => idtac
-    end; [left; now subst | right; congruence].
+    | [x : enclave, y : enclave |- _] => destruct (Nat.eq_dec x y)
+    | [x : location, y : location |- _] => destruct (Nat.eq_dec x y)
+    | _ => idtac            
+        end; [left; now subst | right; congruence].
 
-  Lemma exp_decidable : forall e1 e2 : exp, {e1 = e2} + {e1 <> e2}.
-  Proof. (*
-    Print exp_ind.
-    intro; induction e1; destruct e2; try (right; discriminate).
-    1-2: auto_decide.
-    1-2: destruct IHe1_1 with (e2:=e2_1); destruct IHe1_2 with (e2:=e2_2); subst; auto;
-      right; congruence.
-    destruct l, l0; try (right; discriminate); auto_decide.
-    destruct IHe1 with (e2:=e2); [left; now subst | right; congruence].
-    auto_decide.
-    (* Lambdas require that commands are decidable... :( *)*)
-    Admitted.
-
-  (*FIXME: Ezra needs to come back and figure out how to prove that expressions
-    and commands are decidable. Is there a way to do a mutually recursive proof...?*)
-  Lemma com_decidable : forall c1 c2 : com, {c1 = c2} + {c1 <> c2}.
-  Admitted.
- 
-  Lemma prog_decidable : forall p1 p2 : (com + exp), {p1 = p2} + {p1 <> p2}.
-  Proof.
-    intros; destruct p1; destruct p2; try (right; discriminate).
-    - destruct (com_decidable c c0). left; now subst. right; congruence.
-    - destruct (exp_decidable e e0). left; now subst. right; congruence.
-  Qed.
+   Ltac easy_dec :=
+     subst; auto; right; congruence.
 
   Lemma mode_decidable : forall m1 m2 : mode, {m1 = m2} + {m1 <> m2}.
   Proof.
@@ -118,8 +174,56 @@ Section Syntax.
     - left; auto.
     - destruct (Nat.eq_dec e e0); [left; now subst | right; congruence].
   Qed.
+   
+   Lemma exp_decidable : forall (e1 e2 : exp), {e1 = e2} + {e1 <> e2}.
+  Proof.
+    intro.
+    induction e1 using exp_rect' with
+    (P := fun c1 =>
+            forall c2, {c1 = c2} + {c1 <> c2}); intros.
+    1-6: destruct e2; try (right; discriminate).
+    7-14,16: destruct c2; try (right; discriminate).
+    1-2, 4: auto_decide.
+    - admit.
+    - destruct IHe1 with e2; easy_dec.
+    - destruct IHe1 with c0; destruct (mode_decidable md m); easy_dec.
+    - auto.
+    - destruct IHe1 with e; subst; [auto_decide | right; congruence].
+    - destruct IHe1 with e; subst; [auto_decide | right; congruence].
+    - destruct IHe1_1 with e; destruct IHe1_2 with e0; easy_dec.
+    - destruct s; destruct sl; destruct IHe1 with e; easy_dec.
+    - destruct IHe1 with e; easy_dec.
+    - destruct IHe1 with c2; subst; [auto_decide | right; congruence].
+    - generalize l; induction coms; intros; destruct l0; try (right; discriminate); auto.
+      inversion X; subst.
+      destruct X0 with c; try (right; congruence).
+      apply IHcoms with (l := l0) in X1.
+      destruct X1; subst.
+      + left; inversion e0; subst; auto.
+      + right; congruence.
+    - destruct IHe1 with e; destruct IHe0 with c2; easy_dec.
+    - destruct c0; try (right; discriminate).
+      destruct IHe1 with e; destruct IHe0 with c0_1; destruct IHe2 with c0_2; easy_dec.
+  Admitted.
+
+  Lemma com_decidable : forall (c1 c2 : com), {c1 = c2} + {c1 <> c2}.
+  Proof.
+    intuition.
+  Admitted.
+
+  Lemma prog_decidable : forall p1 p2 : (com + exp), {p1 = p2} + {p1 <> p2}.
+  Proof.
+    intros; destruct p1; destruct p2; try (right; discriminate);
+      [destruct (com_decidable c c0) | destruct (exp_decidable e e0)]; easy_dec.
+  Qed.
+
+  Lemma mode_prog_decidable : forall ep1 ep2 : (mode * (com + exp)), {ep1 = ep2} + {ep1 <> ep2}.
+  Proof.
+    intros; destruct ep1, ep2; destruct (mode_decidable m m0); destruct (prog_decidable s s0);
+      easy_dec.
+  Qed.
   
-End Syntax.
+End Decidability.
 
 (*******************************************************************************
 *
@@ -128,13 +232,6 @@ End Syntax.
 *******************************************************************************)
 
 Section Enclave_Equiv.
-  Lemma mode_prog_decidable : forall ep1 ep2 : (mode * (com + exp)), {ep1 = ep2} + {ep1 <> ep2}.
-  Proof.
-    intros; destruct ep1, ep2; destruct (mode_decidable m m0); destruct (prog_decidable s s0).
-    1: left; now subst.
-    all: right; congruence.
-  Qed.
-
   Fixpoint chi (c : com) : set (mode * (com + exp)) :=
   let chi_exp :=
       (fix chi_exp (e : exp) : set (mode * (com + exp)) :=
