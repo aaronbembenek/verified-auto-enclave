@@ -657,8 +657,8 @@ Section Typing.
           i < length coms ->
           com_type pc md (nth i Gs mt) (nth i Ks []) U d (nth i coms Cskip)
                    (nth (i + 1) Gs mt) (nth (i + 1) Ks [])) ->
-      G' = nth (length coms) Gs mt ->
-      K' = nth (length coms) Ks [] ->
+      G' = last Gs mt ->
+      K' = last Ks [] ->
       com_type pc md G K U d (Cseq coms) G' K'
   | CTcall : forall pc md G u d e Gm km Gp kp Gout q p,
       exp_type md G d e (Typ (Tlambda Gm km u p md Gp kp) q) ->

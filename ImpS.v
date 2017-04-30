@@ -270,13 +270,19 @@ Section Typing.
   Inductive ederiv : Type :=
   | Ederiv_none : ederiv
   | Ederiv_e1 : type -> ederiv -> ederiv
-  | Ederiv_e2: type -> ederiv -> type -> ederiv -> ederiv.
+  | Ederiv_e2: type -> ederiv -> type -> ederiv -> ederiv
+  | Ederiv_prog : pderiv -> ederiv
 
-  Inductive cderiv : Type :=
+  with cderiv : Type :=
   | Cderiv_none : cderiv
   | Cderiv_e1 : type -> ederiv -> cderiv
   | Cderiv_e2 : type -> ederiv -> type -> ederiv -> cderiv
-  | Cderiv_e1_p : type -> ederiv -> policy -> cderiv.
+  | Cderiv_e1_prog2 : type -> ederiv -> pderiv -> pderiv -> cderiv
+  | Cderiv_e1_p_prog1 : type -> ederiv -> policy -> pderiv -> cderiv
+  | Cderiv_e1_p_prog2 : type -> ederiv -> policy -> pderiv -> pderiv -> cderiv
+
+  with pderiv : Type :=
+  | Pderiv : list context -> list cderiv -> pderiv.
   
   (* XXX need this for using List.nth... maybe better option *)
   Definition mt := Cntxt (fun _ => None) (fun _ => None).
@@ -303,9 +309,9 @@ Section Typing.
       exp_wt G e2 (Typ Tnat q) drv2 ->
       exp_wt G (Ebinop e1 e2 op) (Typ Tnat (JoinP p q))
              (Ederiv_e2 (Typ Tnat p) drv1 (Typ Tnat q) drv2)
-  | STlambda : forall p G U c G' G'',
-      prog_wt p G' U c G'' ->
-      exp_wt G (Elambda c) (Typ (Tlambda G' U p G'') low) Ederiv_none
+  | STlambda : forall p G U c G' G'' drv,
+      prog_wt p G' U c G'' drv ->
+      exp_wt G (Elambda c) (Typ (Tlambda G' U p G'') low) (Ederiv_prog drv)
 
   with com_wt : policy -> context -> set condition -> com ->
                 context -> cderiv -> Prop :=
@@ -347,25 +353,27 @@ Section Typing.
   | STsetcnd : forall G U cnd,
       ~set_In cnd U ->
       com_wt low G U (Cset cnd) G Cderiv_none
-  | STifunset : forall pc G U cnd c1 c2 G' drv,
+  | STifunset : forall pc G U cnd c1 c2 G' drv pdrv1 pdrv2,
       exp_wt G (Eisunset cnd) (Typ Tnat low) drv ->
-      prog_wt pc G (set_add Nat.eq_dec cnd U) c1 G' ->
-      prog_wt pc G U c2 G' ->
+      prog_wt pc G (set_add Nat.eq_dec cnd U) c1 G' pdrv1 ->
+      prog_wt pc G U c2 G' pdrv2 ->
       com_wt pc G U (Cif (Eisunset cnd) c1 c2) G'
-             (Cderiv_e1 (Typ Tnat low) drv)
-  | STifelse : forall pc G U e c1 c2 pc' G' p drv,
+             (Cderiv_e1_prog2 (Typ Tnat low) drv pdrv1 pdrv2)
+  | STifelse : forall pc G U e c1 c2 pc' G' p drv pdrv1 pdrv2,
       exp_wt G e (Typ Tnat p) drv ->
-      prog_wt pc' G U c1 G' ->
-      prog_wt pc' G U c2 G' ->
+      prog_wt pc' G U c1 G' pdrv1 ->
+      prog_wt pc' G U c2 G' pdrv2 ->
       policy_le (JoinP pc p) pc' ->
       ~pdenote p (LevelP T) ->
-      com_wt pc G U (Cif e c1 c2) G' (Cderiv_e1_p (Typ Tnat p) drv pc')
-  | STwhile : forall pc G U e c p pc' drv,
+      com_wt pc G U (Cif e c1 c2) G'
+             (Cderiv_e1_p_prog2 (Typ Tnat p) drv pc' pdrv1 pdrv2)
+  | STwhile : forall pc G U e c p pc' drv pdrv,
       exp_wt G e (Typ Tnat p) drv ->
-      prog_wt pc' G U c G ->
+      prog_wt pc' G U c G pdrv ->
       policy_le (JoinP pc p) pc' ->
       ~pdenote p (LevelP T) ->
-      com_wt pc G U (Cwhile e c) G (Cderiv_e1_p (Typ Tnat p) drv pc')
+      com_wt pc G U (Cwhile e c) G
+             (Cderiv_e1_p_prog1 (Typ Tnat p) drv pc' pdrv)
   | STcall : forall pc G U e Gout Gplus Gminus p q drv,
       exp_wt G e (Typ (Tlambda Gminus U p Gplus) q) drv ->
       policy_le (JoinP pc q) p ->
@@ -389,17 +397,20 @@ Section Typing.
              (Cderiv_e1 (Typ (Tlambda Gminus U p Gplus) q) drv)
 
   with prog_wt : policy -> context -> set condition -> prog ->
-                 context -> Prop :=
-  | STprog : forall pc G U coms (Gs: list context) drv,
+                 context -> pderiv -> Prop :=
+  | STprog : forall pc G U coms (Gs: list context) drvs,
       (* There might be a better way to write this with a function
          that recurses over the list of commands. *)
       (* XXX fix drv part *)
       length Gs = length coms + 1 ->
+      length drvs = length coms ->
       nth 0 Gs mt = G ->
       (forall (i: nat),
           i < length coms ->
-          com_wt pc (nth i Gs mt) U (nth i coms Cskip) (nth (i + 1) Gs mt) drv) ->
-      prog_wt pc G U (Prog coms) (nth (length coms) Gs mt).
+          com_wt pc (nth i Gs mt) U (nth i coms Cskip) (nth (i + 1) Gs mt)
+                 (nth i drvs Cderiv_none)) ->
+      prog_wt pc G U (Prog coms) (last Gs mt)
+              (Pderiv Gs drvs).
   (*
 
   Scheme exp_wt_mut := Induction for exp_wt Sort Prop
