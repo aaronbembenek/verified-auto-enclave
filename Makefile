@@ -9,6 +9,9 @@ ImpE2Security.vo: ImpE2Security.v ImpE2TypeSystem.vo ImpE2Adequacy.vo ImpE2Helpe
 ImpE2TypeSystem.vo: ImpE2TypeSystem.v ImpE2Adequacy.vo ImpE2Helpers.vo ImpE2.vo ImpE.vo Common.vo
 	coqc $<
 
+ImpE2SecurityHelpers.vo : ImpE2SecurityHelpers.v ImpE2Adequacy.vo ImpE2Helpers.vo ImpE2.vo ImpE.vo Common.vo
+	coqc $<
+
 ImpE2Adequacy.vo: ImpE2Adequacy.v ImpE2Helpers.vo ImpE2.vo ImpE.vo Common.vo
 	coqc $<
 
@@ -17,9 +20,6 @@ ImpE2Helpers.vo : ImpE2Helpers.v ImpE2.vo ImpE.vo Common.vo
 
 ImpE2.vo: ImpE2.v ImpE.vo Common.vo
 	coqc $<
-
-ImpS.vo : ImpS.v Common.vo
-	coqc $< 
 
 ImpE.vo: ImpE.v Common.vo
 	coqc $<
