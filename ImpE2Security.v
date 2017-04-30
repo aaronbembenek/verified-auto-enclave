@@ -98,38 +98,36 @@ Section Secure_Passive.
       destruct is_left. rewrite H7, H3; auto. rewrite H8, H9; auto.
       rewrite <- tobs_sec_level_app. rewrite H; rewrite H3; auto.
   Qed.
-
-  Lemma protected_c_in_while_no_obs_output : forall pc pc' md d G e c r m r' m' tr,
-    com_type pc md G d (Cwhile e c) G ->
-    com_type pc' md G d c G ->
-    protected pc' ->
-    cstep md d (Cwhile e c, r, m) (r',m') tr ->
-    tobs_sec_level L tr = [].
-  Proof.
-    intros. inversion H; try discriminate; subst.
-  Admitted.
     
-  Lemma protected_while_no_obs_output : forall pc pc' md d G e c r m r' m' tr,
+  Lemma protected_while_no_obs_output : forall pc pc' md d G e c r m r' m' tr p,
       com_type pc md G d (Cwhile e c) G ->
       com_type pc' md G d c G ->
+      exp_type md G d e (Typ Tnat p) ->
+      protected p ->
+      sec_level_le p L \/ md <> Normal ->
       protected pc' ->
       cstep md d (Cseq [c; Cwhile e c],r,m) (r',m') tr ->
       tobs_sec_level L tr = [].
   Proof.
     intros.
-    inversion H2; try discriminate; subst; unfold_cfgs; unfold_cfgs.
-    inversion H5; subst.
-    assert (tobs_sec_level L tr0 = []).
+    inversion H5; try discriminate; subst; unfold_cfgs; unfold_cfgs.
+    inversion H8; subst. inversion H2; inversion H4; subst.
     pose (merge_reg_exists r r). pose (merge_mem_exists m m).
     destruct e0, e1.
-    apply project_merge_inv_reg in H3; apply project_merge_inv_mem in H4; destruct_pairs.
+    apply project_merge_inv_reg in H6; apply project_merge_inv_mem in H7; destruct_pairs.
+    assert (tobs_sec_level L tr0 = []).
     assert (cstep md d (hd, project_reg x true, project_mem x0 true) (r0, m0) tr0).
-    rewrite H4, H3; auto.
-    pose (protected_typ_no_obs_output x x0 true pc' md d G hd G r0 m0 tr0); auto.
+    rewrite H6, H7; auto.
+    eapply (protected_typ_no_obs_output x x0 true Common.H md d G hd G r0 m0 tr0); eauto.
     assert (tobs_sec_level L tr' = []).
-    rewrite cstep_seq_singleton in H10.
-    eapply protected_c_in_while_no_obs_output; eauto.
-    now rewrite <- tobs_sec_level_app, H3, H4.
+    rewrite cstep_seq_singleton in H13.
+    assert (com_type Common.H md G d (Cwhile e hd) G).
+    eapply Twhile; eauto. unfold sec_level_join; unfold sec_level_le; auto.
+    pose (merge_reg_exists r0 r0). pose (merge_mem_exists m0 m0). destruct e0, e1.
+    apply project_merge_inv_reg in H15; apply project_merge_inv_mem in H16; destruct_pairs.
+    eapply (protected_typ_no_obs_output x1 x2 true Common.H md d G (Cwhile e hd) G r' m' tr');
+      eauto; rewrite H15; rewrite H16; auto.
+    rewrite <- tobs_sec_level_app; rewrite H12; rewrite H14; auto.
   Qed.
 
   Lemma diff_loc_protected : forall l,
@@ -351,17 +349,13 @@ Section Secure_Passive.
          apply skip_typ. auto.
          apply skip_typ. auto.
       -- eapply protected_typ_no_obs_output in H2; auto. 
-         eapply protected_while_no_obs_output in H3; auto.
-         apply H. apply H14. auto.
+         eapply protected_while_no_obs_output in H3; eauto.
          apply skip_typ. auto.
       -- eapply protected_while_no_obs_output in H2; auto.
-         eapply protected_typ_no_obs_output in H3; auto.
-         apply skip_typ. auto.
-         apply H. apply H14. auto.
-      -- eapply protected_while_no_obs_output in H2; auto.
-         eapply protected_while_no_obs_output in H3; auto.
-         apply H. apply H14; auto.
-         auto. apply H. apply H14. auto.
+         eapply protected_typ_no_obs_output in H3; eauto.
+         apply H. apply H14. apply H13. auto. auto. auto.
+      -- eapply protected_while_no_obs_output in H2; eauto.
+         eapply protected_while_no_obs_output in H3; eauto.
       -- destruct_pairs.
          pose (project_merge_inv_trace t1 t2 true) as Ht1; simpl in *.
          pose (project_merge_inv_trace t1 t2 false) as Ht2; simpl in *.
