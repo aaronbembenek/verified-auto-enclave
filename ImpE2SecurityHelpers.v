@@ -199,12 +199,12 @@ Section Security.
       exists x. destruct H3; auto. 
       destruct_pairs.
       
-      pose (IHe1 H5 H6 H7 _ H2 _ H12) as He1; destruct He1 as [x He1].
-      pose (IHe2 H10 H9 H8 _ H3 _ H13) as He2; destruct He2 as [y He2].
+      pose (IHe1 H5 H6 H7 _ H2 _ H10) as He1; destruct He1 as [x He1].
+      pose (IHe2 H11 H9 H8 _ H3 _ H12) as He2; destruct He2 as [y He2].
       unfold contains_nat in *.
-      destruct H4 as [[n0 H41']|[n0 [n1 blah]]]; destruct H11 as [[n4 H11']|[n2 [n3 blah']]];
+      destruct H4 as [[n0 H41']|[n0 [n1 blah]]]; destruct H13 as [[n4 H11']|[n2 [n3 blah']]];
         subst; try discriminate.
-      exists (Vnat (op n0 n4)). now unfold apply_op.
+      exists (Vnat (n0 + n4)). now unfold apply_op.
     - exists (Vloc l0); auto.
     - inversion H1; subst. 
       assert (loc_in_exp e0 l).
@@ -254,10 +254,10 @@ Section Security.
        apply (H0 x v1 v2 bt p); split; auto.
      - rewrite H3 in *.
        assert (exists v' v'', v1 = VPair v' v'' \/ v2 = VPair v' v'').
-       pose (apply_op_pair op v1 v2) as Hop_pair.
+       pose (apply_op_pair (fun x y => x + y) v1 v2) as Hop_pair.
        destruct Hop_pair as [Hop1 Hop2].
        assert (contains_nat v1 /\ contains_nat v2 /\
-               (exists v3 v4 : val, apply_op op v1 v2 = VPair v3 v4)).
+               (exists v3 v4 : val, apply_op (fun x y => x + y) v1 v2 = VPair v3 v4)).
        split; auto. split; auto. exists v3. exists v0.  auto.
        apply Hop1 in H. destruct H. destruct H. destruct_pairs.
        exists x. exists x0. auto.
@@ -265,11 +265,11 @@ Section Security.
        destruct H. destruct H; destruct H.
        -- assert (protected p0).
           eapply (IHHestep2_1 Hestep2_1). unfold cterm2_ok; auto.
-          apply H. apply H14. auto.
+          apply H. apply H15. auto.
           now apply (join_protected_l p0 q).
        -- assert (protected q ).
           eapply (IHHestep2_2 Hestep2_2). unfold cterm2_ok; auto.
-          apply H. apply H18. auto.
+          apply H. apply H17. auto.
           now apply (join_protected_r p0 q).
      - inversion Heqecfg; subst.
        inversion H5; subst.

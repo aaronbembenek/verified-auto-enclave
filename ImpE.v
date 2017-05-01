@@ -29,7 +29,7 @@ Section Syntax.
   Inductive exp : Type :=
   | Enat : nat -> exp
   | Evar : var -> exp
-  | Ebinop : exp -> exp -> (nat -> nat -> nat) -> exp
+  | Eadd : exp -> exp -> exp
   | Eloc : location -> exp
   | Ederef : exp -> exp
   | Elambda : mode -> com -> exp
@@ -54,7 +54,7 @@ Section Syntax.
   Function forall_subexp (e: exp) (P: exp -> Prop) : Prop :=
     P e /\
     match e with
-    | Ebinop e1 e2 _ => forall_subexp e1 P /\ forall_subexp e2 P
+    | Eadd e1 e2 => forall_subexp e1 P /\ forall_subexp e2 P
     | Ederef e' => forall_subexp e' P
     | Elambda _ c => forall_subexp' c P
     | _ => True
@@ -92,8 +92,8 @@ Section Induction.
 
   Hypothesis Enat_case : forall n, P0 (Enat n).
   Hypothesis Evar_case : forall x, P0 (Evar x).
-  Hypothesis Ebinop_case : forall e1 e2 op,
-      P0 e1 -> P0 e2 -> P0 (Ebinop e1 e2 op).
+  Hypothesis Eadd_case : forall e1 e2,
+      P0 e1 -> P0 e2 -> P0 (Eadd e1 e2).
   Hypothesis Eloc_case : forall l, P0 (Eloc l).
   Hypothesis Ederef_case : forall e,
       P0 e -> P0 (Ederef e).
@@ -146,7 +146,7 @@ Section Induction.
     match e with
     | Enat n => Enat_case n
     | Evar x => Evar_case x
-    | Ebinop e1 e2 op => Ebinop_case e1 e2 op (exp_rect' e1) (exp_rect' e2)
+    | Eadd e1 e2 => Eadd_case e1 e2 (exp_rect' e1) (exp_rect' e2)
     | Eloc l => Eloc_case l
     | Ederef e => Ederef_case e (exp_rect' e)
     | Elambda md c => Elambda_case md c (com_rect' c)
@@ -184,7 +184,7 @@ Section Decidability.
     1-6: destruct e2; try (right; discriminate).
     7-14,16: destruct c2; try (right; discriminate).
     1-2, 4: auto_decide.
-    - admit.
+    - destruct IHe1_1 with e2_1; destruct IHe1_2 with e2_2; easy_dec.
     - destruct IHe1 with e2; easy_dec.
     - destruct IHe1 with c0; destruct (mode_decidable md m); easy_dec.
     - auto.
@@ -204,7 +204,7 @@ Section Decidability.
     - destruct IHe1 with e; destruct IHe0 with c2; easy_dec.
     - destruct c0; try (right; discriminate).
       destruct IHe1 with e; destruct IHe0 with c0_1; destruct IHe2 with c0_2; easy_dec.
-  Admitted.
+  Qed.
   
   Lemma com_decidable : forall (c1 c2 : com), {c1 = c2} + {c1 <> c2}.
   Proof.
@@ -217,7 +217,8 @@ Section Decidability.
     1-3: auto_decide.
     - destruct IHc1 with e2; easy_dec.
     - destruct IHc1 with c; destruct (mode_decidable md m); easy_dec.
-    - admit.
+    - destruct e0; try (right; discriminate);
+        destruct IHc1 with e0_1; destruct IHc0 with e0_2; easy_dec.
     - auto.
     - destruct IHc1 with e0; subst; [auto_decide | right; congruence].
     - destruct IHc1 with e0; subst; [auto_decide | right; congruence].
@@ -234,7 +235,7 @@ Section Decidability.
       + right; congruence.
     - destruct IHc1_1 with e0; destruct IHc1_2 with c2_1; destruct IHc1_3 with c2_2; easy_dec.
     - destruct IHc1 with e0; destruct IHc0 with c2; easy_dec.
-  Admitted.
+  Qed.
   
   Lemma val_decidable : forall (v1 v2 : val), {v1 = v2} + {v1 <> v2}.
   Proof.
@@ -268,7 +269,7 @@ Section Enclave_Equiv.
   let chi_exp :=
       (fix chi_exp (e : exp) : set (mode * (com + exp)) :=
          match e with
-         | Ebinop e1 e2 _ => set_union mode_prog_decidable (chi_exp e1) (chi_exp e2)
+         | Eadd e1 e2 => set_union mode_prog_decidable (chi_exp e1) (chi_exp e2)
          | Ederef e1 => chi_exp e1
          | Elambda Normal c => chi c
          | Elambda m _ => set_add mode_prog_decidable (m, inr e) nil
@@ -351,11 +352,11 @@ Section Semantics.
       ecfg_exp ecfg = Evar x ->
       ecfg_reg ecfg x = v ->
       estep md d ecfg v
-  | Estep_binop : forall md d ecfg e1 e2 op n1 n2,
-      ecfg_exp ecfg = Ebinop e1 e2 op ->
+  | Estep_add : forall md d ecfg e1 e2 n1 n2,
+      ecfg_exp ecfg = Eadd e1 e2 ->
       estep md d (ecfg_update_exp ecfg e1) (Vnat n1) ->
       estep md d (ecfg_update_exp ecfg e2) (Vnat n2) ->
-      estep md d ecfg (Vnat (op n1 n2))
+      estep md d ecfg (Vnat (n1 + n2))
   | Estep_deref : forall md d ecfg e r m l v,
       ecfg = (Ederef e, r, m) ->
       estep md d (e, r, m) (Vloc l) ->
@@ -545,7 +546,7 @@ Section Typing.
     match e with
     | Eloc l' => l = l'
     | Ederef e' => loc_in_exp e' l
-    | Ebinop e1 e2 _ => loc_in_exp e1 l \/ loc_in_exp e2 l
+    | Eadd e1 e2 => loc_in_exp e1 l \/ loc_in_exp e2 l
     | _ => False
     end.
 
@@ -597,10 +598,10 @@ Section Typing.
   | ETlambda : forall md g d c p g' g'',
       com_type p md g' d c g''->
       exp_type md g d (Elambda md c) (Typ (Tlambda g' p md g'') (L))
-  | ETbinop : forall md g d e1 e2 p q f,
+  | ETadd : forall md g d e1 e2 p q,
       exp_type md g d e1 (Typ Tnat p) ->
       exp_type md g d e2 (Typ Tnat q) ->
-      exp_type md g d (Ebinop e1 e2 f) (Typ Tnat (sec_level_join p q))
+      exp_type md g d (Eadd e1 e2) (Typ Tnat (sec_level_join p q))
 
   with com_type : sec_level -> mode -> context -> loc_mode -> com -> context -> Prop :=
   | CTskip : forall pc md g d,
