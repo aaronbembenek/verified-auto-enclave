@@ -342,6 +342,9 @@ Axiom No_Pointers2 : forall (m: mem2) l,
       let cright := (match n2 with
                      | 0 => Cskip
                      | _ => Cseq [c; Cwhile e c] end) in
+      cstep md d (cright, project_reg (ccfg_reg2 ccfg) false,
+                  project_mem (ccfg_mem2 ccfg) false)
+            (r2, m2) t2 ->
       merge_reg r1 r2 = rmerge ->
       merge_mem m1 m2 = mmerge ->
       cstep2 md d (cleft, (merge_reg (project_reg (ccfg_reg2 ccfg) true)

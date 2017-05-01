@@ -298,10 +298,14 @@ Section Security.
          discriminate.
       -- apply Nat.eqb_neq in n; rewrite n; auto.
     - unfold_cfgs.
+      assert (com_type p md Gm d c Gp).
+      eapply call_fxn_typ; eauto.
+      apply (impe2_exp_sound md d e r m (VSingle (Vlambda md c)) true H0).
       assert (com_type pc md G d c G').
-      pose call_fxn_typ.
-      admit.
-      Admitted.
+      eapply subsumption; eauto. now apply sec_level_join_le_l in H4.
+      eapply IHHcstep; eauto.
+    - 
+  Admitted.
 
   Lemma assign_in_app : forall tr tr' x,
       assign_in x (tr ++ tr') <-> assign_in x tr \/ assign_in x tr'.
