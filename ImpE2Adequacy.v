@@ -53,12 +53,14 @@ Section Soundness.
     1-3: constructor; simpl; auto.
     - apply Estep_var with (x:=x); auto; subst; apply project_comm_reg.
     - destruct_conjs.
-      apply contains_nat_project_nat with (is_left := is_left) in H2; destruct H2.
-      apply contains_nat_project_nat with (is_left := is_left) in H3; destruct H3.
-      unfold val2_add. assert (H2' := H2).
-      eapply project_value_apply_op with (v2 := v2) in H2'; eauto; erewrite H2'.
+      pose (contains_nat_project_nat v1 is_left) as tmp;
+        destruct tmp as [H4 trash]; destruct H4; auto; clear trash.
+      pose (contains_nat_project_nat v2 is_left) as tmp;
+        destruct tmp as [H5 trash]; destruct H5; auto; clear trash.
+      unfold val2_add. assert (H4' := H4).
+      eapply project_value_apply_op with (v2 := v2) in H4'; eauto; erewrite H4'.
       eapply Estep_add; simpl; eauto;
-        [ rewrite <- H2; eapply IHestep2_1 | rewrite <- H3; eapply IHestep2_2 ];
+        [ rewrite <- H4; eapply IHestep2_1 | rewrite <- H5; eapply IHestep2_2 ];
         rewrite Heqecfg; unfold ecfg_update_exp2; auto.
     - inversion H; subst.
       apply Estep_deref with (e:=e) (l:=l) (m:=project_mem m0 is_left)
@@ -175,6 +177,7 @@ Section Completeness.
       split; [destruct x | destruct x0]; simpl in *; subst; unfold contains_nat;
         [left | right | left | right]; eexists; eauto.
       1,2: apply project_value_apply_op; auto.
+      all: apply <- contains_nat_project_nat; eauto.
     - inversion H4; subst.
       inversion Heqecfg1; subst.
       edestruct IHestep; eauto; destruct_conjs.

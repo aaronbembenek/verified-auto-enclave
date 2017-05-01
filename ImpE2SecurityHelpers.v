@@ -90,7 +90,7 @@ Section Value_Preservation.
             try inversion PairNat; try inversion PairNat2; subst.
       -- split; constructor; auto.
       -- unfold project_value in *. split; constructor; auto.
-      -- unfold project_value in *. rewrite sec_level_join_comm.
+      -- unfold project_value in *.
          split; constructor; auto.
       -- unfold project_value in *. split; constructor; auto.
   Qed.

@@ -180,27 +180,54 @@ Section Project_Merge.
     - rewrite app_nil_l; now cbn.
     - cbn; rewrite IHt1; now destruct (event2_to_event a is_left).
   Qed.
-
+  
   Lemma contains_nat_project_nat : forall v is_left,
-      contains_nat v -> exists n, project_value v is_left = Vnat n.
+      contains_nat v <-> exists n, project_value v is_left = Vnat n.
   Proof.
-    intros.
-    destruct v.
-    - unfold contains_nat in H; destruct H.
-      + destruct H; exists x; simpl; congruence.
-      + destruct H; destruct H; discriminate.
-    - unfold contains_nat in H; destruct H.
-      + destruct H; discriminate.
-      + destruct H; destruct H.
-        destruct is_left; [exists x | exists x0]; simpl; congruence.
-  Qed.
+    split; intros.
+    - destruct v.
+      + unfold contains_nat in H; destruct H.
+        -- destruct H; exists x; simpl; congruence.
+        -- destruct H; destruct H; discriminate.
+      + unfold contains_nat in H; destruct H.
+        -- destruct H; discriminate.
+        -- destruct H; destruct H.
+           destruct is_left; [exists x | exists x0]; simpl; congruence.
+    - (* XXX: pairs don't necessarily contain the same value type... *) admit.
+  Admitted.
 
   Lemma project_value_apply_op : forall op v1 v2 n1 n2 is_left,
+      contains_nat v1 ->
+      contains_nat v2 ->
       project_value v1 is_left = Vnat n1 ->
       project_value v2 is_left = Vnat n2 ->
       (project_value (apply_op op v1 v2) is_left) = Vnat (op n1 n2).
   Proof.
-  Admitted.
+    intros; destruct v1; destruct v2.
+    - destruct v; destruct v0; simpl; try discriminate; auto.
+      destruct (Nat.eq_dec n n1); destruct (Nat.eq_dec n0 n2);
+        subst; simpl in *; auto; congruence.
+    - unfold contains_nat in *.
+      do 2 destruct H; try (destruct H; discriminate).
+      do 2 destruct H0; try discriminate; destruct H0.
+      rewrite H0, H; simpl; destruct is_left;
+        destruct (Nat.eq_dec x n1); destruct (Nat.eq_dec x0 n2);
+          simpl in *; auto; congruence.
+    - unfold contains_nat in *.
+      do 2 destruct H; try discriminate; destruct H.
+      do 2 destruct H0; try (destruct H0; discriminate).
+      rewrite H0, H; simpl; destruct is_left; destruct (Nat.eq_dec x1 n1).
+      1,2: destruct (Nat.eq_dec x n2).
+      3,4: destruct (Nat.eq_dec x0 n2).
+      all: subst; simpl in *; congruence.
+    - unfold contains_nat in *.
+      do 2 destruct H; try discriminate; destruct H.
+      do 2 destruct H0; try discriminate; destruct H0.
+      rewrite H0, H; simpl; destruct is_left.
+      1: destruct (Nat.eq_dec x n1); destruct (Nat.eq_dec x1 n2).
+      2: destruct (Nat.eq_dec x0 n1); destruct (Nat.eq_dec x2 n2).
+      all: subst; simpl in *; congruence.
+  Qed.
 
 End Project_Merge.
 
@@ -276,7 +303,7 @@ Section Semantics.
              destruct x; auto. exists (Vlambda m c). exists x0; auto.
              destruct x0; auto.
              exists (Vnat n0). exists (Vlambda m c); auto.
-             exists (Vnat (op n n0)); exists (Vnat (op n n1)); auto.
+             exists (Vnat (op n0 n)); exists (Vnat (op n1 n)); auto.
              exists (Vnat n0); exists (Vloc l); auto.
              exists (Vloc l); exists x0; auto.
          --- unfold apply_op.

@@ -158,7 +158,7 @@ Axiom No_Pointers2 : forall (m: mem2) l,
      | VSingle (Vnat n1), VPair (Vnat n2) (Vnat n3) => VPair (Vnat (op n1 n2)) (Vnat (op n1 n3))
      | VPair (Vnat n1) (Vnat n2), VPair (Vnat n3) (Vnat n4) =>
                                   VPair (Vnat (op n1 n3)) (Vnat (op n2 n4))
-     | VPair (Vnat n2) (Vnat n3), VSingle (Vnat n1) => VPair (Vnat (op n1 n2)) (Vnat (op n1 n3))
+     | VPair (Vnat n2) (Vnat n3), VSingle (Vnat n1) => VPair (Vnat (op n2 n1)) (Vnat (op n3 n1))
      | _, _ => v1
      end.
    
