@@ -36,6 +36,7 @@ Ltac unfold_cfgs :=
   unfold ccfg_update_com in *;
   unfold ccfg_to_ecfg in *;
   unfold project_ccfg.
+
 Section Value_Preservation.
   Lemma impe2_value_type_preservation : forall md G d e bt sl r m v,
     exp_type md G d e (Typ bt sl) ->
@@ -252,6 +253,7 @@ Section Security.
       sec_level_le pc q.
   Proof.
   Admitted.
+    
   Lemma no_assign_pair_reg_context_constant : forall md d c r m r' m' tr x pc G G' v1 v2,
       cstep2 md d (c, r, m) (r', m') tr ->
       com_type pc md G d c G' ->

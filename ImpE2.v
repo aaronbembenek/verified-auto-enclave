@@ -45,6 +45,10 @@ Section Semantics.
   Definition mem2 : Type := memory val2.
   Parameter minit : mem2.
 
+Axiom No_Pointers2 : forall (m: mem2) l,
+    (forall l', m l <> VSingle (Vloc l')) /\
+    (forall l' l'', m l <> VPair (Vloc l') (Vloc l'')).
+
   Inductive event2 : Type :=
   | Emp2 : event2
   | Decl2 : exp -> mem2 -> event2
@@ -244,7 +248,8 @@ Section Semantics.
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vlambda md c)) ->
       cstep2 md d (ccfg_update_com2 c ccfg) (r', m') tr ->
       cstep2 md d ccfg (r', m') tr
-  | Cstep2_call_div : forall md d ccfg e c1 c2 r1 m1 t1 r2 m2 t2 rmerge mmerge,
+  | Cstep2_call_div : forall md d ccfg e c1 c2 r1 m1 t1 r2 m2 t2 rmerge mmerge
+                             r1rep r2rep m1rep m2rep r1rep' r2rep' m1rep' m2rep',
       ccfg_com2 ccfg = Ccall e ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VPair (Vlambda md c1) (Vlambda md c2)) ->
       cstep md d (c1, project_reg (ccfg_reg2 ccfg) true,
@@ -255,6 +260,20 @@ Section Semantics.
             (r2, m2) t2 ->
       merge_reg r1 r2 rmerge ->
       merge_mem m1 m2 mmerge ->
+      merge_reg (project_reg (ccfg_reg2 ccfg) true) (project_reg (ccfg_reg2 ccfg) true)
+                r1rep ->
+      merge_reg (project_reg (ccfg_reg2 ccfg) false) (project_reg (ccfg_reg2 ccfg) false)
+                r2rep ->
+      merge_mem (project_mem (ccfg_mem2 ccfg) true) (project_mem (ccfg_mem2 ccfg) true)
+                m1rep ->
+      merge_mem (project_mem (ccfg_mem2 ccfg) false) (project_mem (ccfg_mem2 ccfg) false)
+                m2rep ->
+      merge_reg r1 r1 r1rep' ->
+      merge_reg r2 r2 r2rep' ->
+      merge_mem m1 m1 m1rep' ->
+      merge_mem m2 m2 m2rep' ->
+      cstep2 md d (c1, r1rep, m1rep) (r1rep', m1rep') (merge_trace (t1, t1)) ->
+      cstep2 md d (c2, r2rep, m2rep) (r2rep', m2rep') (merge_trace (t2, t2)) ->
       cstep2 md d ccfg (rmerge, mmerge) (merge_trace (t1, t2))
   | Cstep2_enclave : forall md d ccfg enc c r' m' tr,
     md = Normal ->
@@ -279,7 +298,8 @@ Section Semantics.
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vnat 0)) ->
       cstep2 md d (ccfg_update_com2 c2 ccfg) (r', m') tr ->
       cstep2 md d ccfg (r', m') tr
-  | Cstep2_if_div : forall md d ccfg e c1 c2 n1 n2 r1 m1 t1 r2 m2 t2 rmerge mmerge,
+  | Cstep2_if_div : forall md d ccfg e c1 c2 n1 n2 r1 m1 t1 r2 m2 t2 rmerge mmerge
+                           r1rep r2rep m1rep m2rep r1rep' r2rep' m1rep' m2rep',
       ccfg_com2 ccfg = Cif e c1 c2 ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VPair (Vnat n1) (Vnat n2)) ->
       n1 < 2 /\ n2 < 2 ->
@@ -297,6 +317,22 @@ Section Semantics.
                   (r2, m2) t2 ->
       merge_reg r1 r2 rmerge ->
       merge_mem m1 m2 mmerge ->
+            merge_reg r1 r2 rmerge ->
+      merge_mem m1 m2 mmerge ->
+      merge_reg (project_reg (ccfg_reg2 ccfg) true) (project_reg (ccfg_reg2 ccfg) true)
+                r1rep ->
+      merge_reg (project_reg (ccfg_reg2 ccfg) false) (project_reg (ccfg_reg2 ccfg) false)
+                r2rep ->
+      merge_mem (project_mem (ccfg_mem2 ccfg) true) (project_mem (ccfg_mem2 ccfg) true)
+                m1rep ->
+      merge_mem (project_mem (ccfg_mem2 ccfg) false) (project_mem (ccfg_mem2 ccfg) false)
+                m2rep ->
+      merge_reg r1 r1 r1rep' ->
+      merge_reg r2 r2 r2rep' ->
+      merge_mem m1 m1 m1rep' ->
+      merge_mem m2 m2 m2rep' ->
+      cstep2 md d (cleft, r1rep, m1rep) (r1rep', m1rep') (merge_trace (t1, t1)) ->
+      cstep2 md d (cright, r2rep, m2rep) (r2rep', m2rep') (merge_trace (t2, t2)) ->
       cstep2 md d ccfg (rmerge, mmerge) (merge_trace (t1, t2))
   | Cstep2_while_t : forall md d ccfg e c r m tr r' m' tr',
       ccfg_com2 ccfg = Cwhile e c ->
@@ -308,7 +344,8 @@ Section Semantics.
       ccfg_com2 ccfg = Cwhile e c ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VSingle (Vnat 0)) ->
       cstep2 md d ccfg (ccfg_reg2 ccfg, ccfg_mem2 ccfg) []
-  | Cstep2_while_div : forall md d ccfg e c n1 n2 r1 m1 t1 r2 m2 t2 rmerge mmerge,
+  | Cstep2_while_div : forall md d ccfg e c n1 n2 r1 m1 t1 r2 m2 t2 rmerge mmerge
+                              r1rep r2rep m1rep m2rep r1rep' r2rep' m1rep' m2rep',
       ccfg_com2 ccfg = Cwhile e c ->
       estep2 md d (ccfg_to_ecfg2 e ccfg) (VPair (Vnat n1) (Vnat n2)) ->
       n1 < 2 /\ n2 < 2 ->
@@ -326,6 +363,20 @@ Section Semantics.
                   (r2, m2) t2 ->
       merge_reg r1 r2 rmerge ->
       merge_mem m1 m2 mmerge ->
+      merge_reg (project_reg (ccfg_reg2 ccfg) true) (project_reg (ccfg_reg2 ccfg) true)
+                r1rep ->
+      merge_reg (project_reg (ccfg_reg2 ccfg) false) (project_reg (ccfg_reg2 ccfg) false)
+                r2rep ->
+      merge_mem (project_mem (ccfg_mem2 ccfg) true) (project_mem (ccfg_mem2 ccfg) true)
+                m1rep ->
+      merge_mem (project_mem (ccfg_mem2 ccfg) false) (project_mem (ccfg_mem2 ccfg) false)
+                m2rep ->
+      merge_reg r1 r1 r1rep' ->
+      merge_reg r2 r2 r2rep' ->
+      merge_mem m1 m1 m1rep' ->
+      merge_mem m2 m2 m2rep' ->
+      cstep2 md d (cleft, r1rep, m1rep) (r1rep', m1rep') (merge_trace (t1, t1)) ->
+      cstep2 md d (cright, r2rep, m2rep) (r2rep', m2rep') (merge_trace (t2, t2)) ->
       cstep2 md d ccfg (rmerge, mmerge) (merge_trace (t1, t2))
   .
   Hint Constructors cstep2.
@@ -452,8 +503,3 @@ Section Security_Defn.
     /\ mem_sl_ind L
     /\ mem_esc_hatch_ind.
 End Security_Defn.
-
-Axiom No_Pointers2 : forall (m: mem2) l,
-    (forall l', m l <> VSingle (Vloc l')) /\
-    (forall l' l'', m l <> VPair (Vloc l') (Vloc l'')).
-
