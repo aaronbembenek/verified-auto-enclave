@@ -36,10 +36,6 @@ Ltac unfold_cfgs :=
   unfold project_ccfg.
 
 Section Misc.
-  Axiom No_Pointers2 : forall (m: mem2) l,
-    (forall l', m l <> VSingle (Vloc l')) /\
-    (forall l' l'', m l <> VPair (Vloc l') (Vloc l'')).
-
   Lemma l2_zero_or_one (n : nat) : n < 2 -> n = 0 \/ n = 1.
   Proof. omega. Qed.
 
@@ -213,57 +209,58 @@ Section Semantics.
       try econstructor; now simpl.
       now rewrite app_nil_r.
   Qed.
-   Lemma apply_op_pair (op : nat -> nat -> nat) (v1 v2: val2) :
-       contains_nat v1 /\ contains_nat v2 /\
-       (exists v3 v4, apply_op op v1 v2 = VPair v3 v4) <->
-       exists v' v'', contains_nat v1 /\ contains_nat v2 /\
-                      (v1 = VPair v' v'' \/ v2 = VPair v' v'').
-   Proof.
-     intros.
-     split; intros; destruct_pairs.
-     induction v1, v2; unfold apply_op in *; destruct H1; destruct H1.
-     destruct v, v0; try discriminate.
-     - destruct v, v0; try discriminate.
-       destruct v1; try discriminate.
-       exists (Vnat n0). exists (Vnat n1).
-       split; auto. 
-     - destruct v, v0; try discriminate.
-       1-4: unfold contains_nat in H; destruct H; destruct H;
-         [discriminate | destruct H; inversion H].
-       2-5: unfold contains_nat in H; destruct H; destruct H;
-         [discriminate | destruct H; inversion H].
-       exists (Vnat n). exists (Vnat n0). split; auto.
-     - destruct v, v0; try discriminate.
-       1-4: unfold contains_nat in H; destruct H; destruct H;
-         [discriminate | destruct H; inversion H].
-       2-5: unfold contains_nat in H; destruct H; destruct H;
-         [discriminate | destruct H; inversion H].
-       exists (Vnat n). exists (Vnat n0). split; auto.
-     - destruct H. destruct H. destruct H; destruct_pairs.
-       split; [ | split]; auto.
-       destruct H1.
-       -- rewrite H1. destruct v2; destruct v.
-          destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
-          2-5: destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
-          --- unfold apply_op.
-              destruct x; auto. exists (Vlambda m c). exists x0; auto.
-              destruct x0; auto.
-              exists (Vnat n0). exists (Vlambda m c); auto.
-              exists (Vnat (op n n0)); exists (Vnat (op n n1)); auto.
-              exists (Vnat n0); exists (Vloc l); auto.
-              exists (Vloc l); exists x0; auto.
-          --- unfold apply_op.
-              destruct x; auto. exists (Vlambda m c). exists x0; auto.
-              destruct x0; auto.
-              exists (Vnat n0); exists (Vlambda m c); auto.
-              exists (Vnat (op n0 x1)). exists (Vnat (op n1 x2)); auto.
-              exists (Vnat n0). exists (Vloc l). auto.
-              exists (Vloc l). exists x0. auto.
-       -- rewrite H1 in *. destruct v1; destruct v.
-          destruct H; destruct H; [discriminate | destruct H; inversion H].
-          2-5: destruct H; destruct H; [discriminate | destruct H; inversion H].
-          unfold apply_op.
-          destruct x. destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
+  
+  Lemma apply_op_pair (op : nat -> nat -> nat) (v1 v2: val2) :
+    contains_nat v1 /\ contains_nat v2 /\
+    (exists v3 v4, apply_op op v1 v2 = VPair v3 v4) <->
+    exists v' v'', contains_nat v1 /\ contains_nat v2 /\
+                   (v1 = VPair v' v'' \/ v2 = VPair v' v'').
+  Proof.
+    intros.
+    split; intros; destruct_pairs.
+    induction v1, v2; unfold apply_op in *; destruct H1; destruct H1.
+    destruct v, v0; try discriminate.
+    - destruct v, v0; try discriminate.
+      destruct v1; try discriminate.
+      exists (Vnat n0). exists (Vnat n1).
+      split; auto. 
+    - destruct v, v0; try discriminate.
+      1-4: unfold contains_nat in H; destruct H; destruct H;
+        [discriminate | destruct H; inversion H].
+      2-5: unfold contains_nat in H; destruct H; destruct H;
+        [discriminate | destruct H; inversion H].
+      exists (Vnat n). exists (Vnat n0). split; auto.
+    - destruct v, v0; try discriminate.
+      1-4: unfold contains_nat in H; destruct H; destruct H;
+        [discriminate | destruct H; inversion H].
+      2-5: unfold contains_nat in H; destruct H; destruct H;
+        [discriminate | destruct H; inversion H].
+      exists (Vnat n). exists (Vnat n0). split; auto.
+    - destruct H. destruct H. destruct H; destruct_pairs.
+      split; [ | split]; auto.
+      destruct H1.
+      -- rewrite H1. destruct v2; destruct v.
+         destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
+         2-5: destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
+         --- unfold apply_op.
+             destruct x; auto. exists (Vlambda m c). exists x0; auto.
+             destruct x0; auto.
+             exists (Vnat n0). exists (Vlambda m c); auto.
+             exists (Vnat (op n n0)); exists (Vnat (op n n1)); auto.
+             exists (Vnat n0); exists (Vloc l); auto.
+             exists (Vloc l); exists x0; auto.
+         --- unfold apply_op.
+             destruct x; auto. exists (Vlambda m c). exists x0; auto.
+             destruct x0; auto.
+             exists (Vnat n0); exists (Vlambda m c); auto.
+             exists (Vnat (op n0 x1)). exists (Vnat (op n1 x2)); auto.
+             exists (Vnat n0). exists (Vloc l). auto.
+             exists (Vloc l). exists x0. auto.
+      -- rewrite H1 in *. destruct v1; destruct v.
+         destruct H; destruct H; [discriminate | destruct H; inversion H].
+         2-5: destruct H; destruct H; [discriminate | destruct H; inversion H].
+         unfold apply_op.
+         destruct x. destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
           destruct x0. destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
           exists (Vnat (op n n0)). exists (Vnat (op n n1)). auto.
           destruct H0; destruct H0; [discriminate | destruct H0; inversion H0].
@@ -273,251 +270,9 @@ Section Semantics.
           destruct x0; auto. exists (Vnat x1). exists (Vnat x2); auto.
           exists (Vnat (op x1 n0)). exists (Vnat (op x2 n1)); auto.
           1-2: exists (Vnat x1); exists (Vnat x2); auto.
-   Qed.
+  Qed.
 
 End Semantics.
 
-Section Security.
-  (* We somehow need to know that if c performs an assignment or update of x, then *)
-  (* the type of x in the env is at a higher security level than pc' *)
-  (* Otherwise, the reg/mem and context does not change *)
-  Definition assign_in (x: var) tr: Prop :=
-    exists v r, List.In (Assign r x v) tr.
-
-  Lemma assign_in_dec : forall x tr,
-      {assign_in x tr} + {~assign_in x tr}.
-  Proof.
-    intros.
-    induction tr.
-    right; auto. unfold assign_in. intuition. destruct H. destruct H; apply in_nil in H. auto.
-    destruct IHtr.
-    left; unfold assign_in in *; destruct a0; destruct H;
-      exists x0; exists x1; now apply in_cons.
-    destruct a.
-    1-4, 6-8: right; unfold assign_in in *; intuition; destruct H; destruct H;
-      apply in_inv in H; destruct H; try discriminate;
-        assert (exists v r, List.In (Assign r x v) tr)
-        by now exists x0; exists x1.
-   1-8: try apply n in H0; auto.
-   destruct (eq_nat_dec x v); subst.
-   left; unfold assign_in. exists v0; exists r. apply in_eq.
-   right. unfold assign_in in *. intuition. destruct H as [v1 [r0 H]].
-   apply in_inv in H; destruct H.
-   inversion H; omega.
-   assert (exists v r, List.In (Assign r x v) tr)
-     by now exists v1; exists r0.
-   apply n in H0; auto.
-  Qed.
-   
-  Lemma assignment_more_secure : forall pc md d c G G' x bt q r m r' m' tr,
-      com_type pc md G d c G' ->
-      cstep md d (c,r,m) (r',m') tr ->
-      assign_in x tr ->
-      G' x = Some (Typ bt q) ->
-      sec_level_le pc q.
-  Proof.
-  Admitted.
-  Lemma no_assign_reg_context_constant : forall md d c r m r' m' tr x pc G G',
-      cstep2 md d (c, r, m) (r', m') tr ->
-      com_type pc md G d c G' ->
-      ~assign_in x (project_trace tr true) /\
-      ~assign_in x (project_trace tr false) ->
-      r x = r' x /\ G x = G' x.
-  Proof.
-  Admitted.
-  Lemma assign_in_app : forall tr tr' x,
-      assign_in x (tr ++ tr') <-> assign_in x tr \/ assign_in x tr'.
-  Proof.
-    unfold assign_in. split; intros. destruct H as [v [r H]]. apply in_app_or in H.
-    destruct H; [left | right]; exists v; exists r; auto.
-    destruct H; destruct H as [v [r H]]; exists v; exists r; apply in_or_app;
-      [now left | now right].
-  Qed.
-      
-  (* Same thing as assignments for updates *)
-  Definition update_in (l: location) tr: Prop :=
-    exists v m, List.In (Update m l v) tr.
-
-  Lemma update_in_dec : forall x tr,
-      {update_in x tr} + {~update_in x tr}.
-  Proof.
-    intros.
-    induction tr.
-    right; auto. unfold update_in. intuition. destruct H. destruct H; apply in_nil in H. auto.
-    destruct IHtr.
-    left; unfold update_in in *; destruct u; destruct H;
-      exists x0; exists x1; now apply in_cons.
-    destruct a.
-    1-3, 5-8: right; unfold update_in in *; intuition; destruct H; destruct H;
-      apply in_inv in H; destruct H; try discriminate;
-        assert (exists v m, List.In (Update m x v) tr)
-        by now exists x0; exists x1.
-   1-8: try apply n in H0; auto.
-   destruct (eq_nat_dec x l); subst.
-   left; unfold update_in. exists v; exists m. apply in_eq.
-   right. unfold update_in in *. intuition. destruct H as [v1 [m0 H]].
-   apply in_inv in H; destruct H.
-   inversion H; omega.
-   assert (exists v m, List.In (Update m x v) tr)
-     by now exists v1; exists m0.
-   apply n in H0; auto.
-  Qed.
-   
-  Lemma update_more_secure : forall pc md d c G G' x bt q rt r m r' m' tr,
-      com_type pc md G d c G' ->
-      cstep md d (c,r,m) (r',m') tr ->
-      update_in x tr ->
-      Loc_Contxt x = Some (Typ bt q, rt) ->
-      sec_level_le pc q.
-  Proof.
-  Admitted.
-  Lemma no_update_mem_constant : forall md d c r m r' m' tr x pc G G',
-      cstep2 md d (c, r, m) (r', m') tr ->
-      com_type pc md G d c G' ->
-      ~update_in x (project_trace tr true) /\ ~update_in x (project_trace tr false) ->
-      m x = m' x.
-  Proof.
-  Admitted.
-  Lemma update_in_app : forall tr tr' x,
-      update_in x (tr ++ tr') <-> update_in x tr \/ update_in x tr'.
-  Proof.
-    unfold assign_in. split; intros. destruct H as [v [r H]]. apply in_app_or in H.
-    destruct H; [left | right]; exists v; exists r; auto.
-    destruct H; destruct H as [v [r H]]; exists v; exists r; apply in_or_app;
-      [now left | now right].
-  Qed.
-
-  Lemma loc_in_exp_deref : forall e md G d typ r m l,
-      is_escape_hatch e ->
-      exp_type md G d (Ederef e) typ ->
-      estep2 md d (e,r,m) (VSingle (Vloc l)) ->
-      loc_in_exp e l.
-  Proof.
-    intros. remember (e, r, m) as ecfg.
-    generalize dependent e. generalize dependent r. generalize dependent m.
-    generalize dependent l. generalize dependent typ.
-    unfold is_escape_hatch in *; destruct_pairs.
-    induction e; intros; unfold_cfgs; subst; unfold loc_in_exp; auto;
-      inversion Heqecfg; subst.
-    -- inversion H1; try discriminate.
-    -- unfold exp_novars in H; simpl in *. omega.
-    -- inversion H0; try discriminate; subst.
-       inversion H3.
-    -- inversion H1; try discriminate; subst; unfold_cfgs.
-       now inversion H6.
-    -- inversion H1; try discriminate; subst; unfold_cfgs. inversion H2; subst.
-       pose (No_Pointers2 m l0); destruct_pairs.
-       pose (H6 l). intuition. apply n in H4. omega.
-    -- inversion H0; try discriminate; subst.
-       inversion H3.
-  Qed.
-  
-  Lemma same_mem_locs_evals_same_value : forall e r m md d G typ vfin,
-      exp_type md G d e typ ->
-      estep2 md d (e,r,m) vfin ->
-      is_escape_hatch e ->      (forall l, loc_in_exp e l -> exists v, m l = VSingle v) ->
-      exists v, vfin = (VSingle v).
-  Proof.
-    intros e r m md d G typ vfin Hwt Hestep Heh Helocs. unfold is_escape_hatch in *; destruct_pairs.
-    generalize dependent typ. generalize dependent vfin.
-    induction e; intros; inversion Hestep; try discriminate; unfold_cfgs. subst.
-    - exists (Vnat n0); auto.
-    - unfold exp_novars in *; simpl in *; omega.
-    - inversion H1; subst.
-      inversion Hwt; try discriminate; subst.
-
-      assert (exp_novars e0 /\ exp_novars e3).
-      unfold exp_novars in *. now inversion H.
-
-      assert (exp_locs_immutable e0 /\ exp_locs_immutable e3).
-      inversion H0. unfold exp_locs_immutable in *; auto.
-
-      assert (forall l : location, loc_in_exp e0 l -> exists v, m l = VSingle v).
-      intros. pose (Helocs l) as nolocs. unfold loc_in_exp in nolocs. destruct nolocs.
-      left; auto.
-      exists x. destruct H3; auto.
-      assert (forall l : location, loc_in_exp e3 l -> exists v, m l = VSingle v).
-      intros. pose (Helocs l) as nolocs. unfold loc_in_exp in nolocs. destruct nolocs.
-      right; auto.
-      exists x. destruct H3; auto. 
-      destruct_pairs.
-      
-      pose (IHe1 H5 H6 H7 _ H2 _ H12) as He1; destruct He1 as [x He1].
-      pose (IHe2 H10 H9 H8 _ H3 _ H13) as He2; destruct He2 as [y He2].
-      unfold contains_nat in *.
-      destruct H4 as [[n0 H41']|[n0 [n1 blah]]]; destruct H11 as [[n4 H11']|[n2 [n3 blah']]];
-        subst; try discriminate.
-      exists (Vnat (op n0 n4)). now unfold apply_op.
-    - exists (Vloc l0); auto.
-    - inversion H1; subst. 
-      assert (loc_in_exp e0 l).
-      eapply loc_in_exp_deref; eauto.
-      unfold is_escape_hatch. split; [inversion H | inversion H0]; auto.
-      assert (loc_in_exp (Ederef e0) l).
-      unfold loc_in_exp in *; auto.
-      destruct (Helocs l H5). exists x. auto. 
-    - subst. exists (Vlambda md c0); auto.
-  Qed.
-
-  Lemma tobs_sec_level_app (sl: sec_level) (l l': trace) :
-    tobs_sec_level sl l ++ tobs_sec_level sl l' = tobs_sec_level sl (l ++ l').
-  Proof.
-    unfold tobs_sec_level. now rewrite (filter_app _ l l').
-  Qed.
-
-  (* If there has been an update to l from minit to m0, we can assume the updated values were *)
-  (* protected because the update values must have derived from the initial memory locations *)
-  (* which were different and thus protected *)
-  (* Else there has not been an update, and the initial memory location l was protected in minit *)
-  Lemma sl_ind_iff_mem_pairs_protected : forall (m: mem2) l md d r e G v1 v2 bt p,
-      mem_sl_ind L ->
-      estep2 md d (e,r,m) (VSingle (Vloc l)) ->
-      exp_type md G d (Ederef e) (Typ bt p) ->
-      m l = VPair v1 v2 <-> protected p.
-  Admitted.
-
-  Lemma econfig2_pair_protected : forall md G d e p r m v v1 v2 bt,
-      v = VPair v1 v2 ->
-      exp_type md G d e (Typ bt p) ->
-      estep2 md d (e,r,m) v ->
-      cterm2_ok G d r m ->
-      protected p.
-  Proof.
-    intros.
-    remember (e,r,m) as ecfg.
-    generalize dependent e.
-    generalize dependent v1.
-    generalize dependent v2.
-    generalize dependent p.
-    pose H1 as Hestep2.
-    induction Hestep2; intros; subst; try discriminate; unfold_cfgs;
-      unfold cterm2_ok in *; destruct_pairs; subst.
-     - inversion H4; subst.
-       apply (H0 x v1 v2 bt p); split; auto.
-     - rewrite H3 in *.
-       assert (exists v' v'', v1 = VPair v' v'' \/ v2 = VPair v' v'').
-       pose (apply_op_pair op v1 v2) as Hop_pair.
-       destruct Hop_pair as [Hop1 Hop2].
-       assert (contains_nat v1 /\ contains_nat v2 /\
-               (exists v3 v4 : val, apply_op op v1 v2 = VPair v3 v4)).
-       split; auto. split; auto. exists v3. exists v0.  auto.
-       apply Hop1 in H. destruct H. destruct H. destruct_pairs.
-       exists x. exists x0. auto.
-       inversion H4; subst; try discriminate.
-       destruct H. destruct H; destruct H.
-       -- assert (protected p0).
-          eapply (IHHestep2_1 Hestep2_1). unfold cterm2_ok; auto.
-          apply H. apply H14. auto.
-          now apply (join_protected_l p0 q).
-       -- assert (protected q ).
-          eapply (IHHestep2_2 Hestep2_2). unfold cterm2_ok; auto.
-          apply H. apply H18. auto.
-          now apply (join_protected_r p0 q).
-     - inversion Heqecfg; subst.
-       inversion H5; subst.
-       eapply sl_ind_iff_mem_pairs_protected; eauto.
-  Qed.
-  
-End Security.
 
      

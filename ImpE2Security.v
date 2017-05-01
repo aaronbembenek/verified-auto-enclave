@@ -17,6 +17,7 @@ Require Import ImpE2.
 Require Import ImpE2Helpers.
 Require Import ImpE2Adequacy.
 Require Import ImpE2TypeSystem.
+Require Import ImpE2SecurityHelpers.
 
 Ltac unfold_cfgs :=
   unfold ccfg_update_reg2 in *;
@@ -125,26 +126,6 @@ Section Secure_Passive.
     eapply (protected_typ_no_obs_output r2 m2 true Common.H md d G (Cwhile e hd) G r' m' tr');
       eauto; unfold r2, m2; rewrite project_merge_inv_reg, project_merge_inv_mem; auto.
     rewrite <- tobs_sec_level_app; rewrite H6; rewrite H7; auto.
-  Qed.
-
-  Lemma diff_loc_protected : forall l,
-      mem_sl_ind L ->
-      (project_mem minit true) l <> (project_mem minit false) l ->
-      protected (g0 l).
-  Proof.
-    intros. remember (g0 l) as p.
-    unfold mem_sl_ind in *.
-    rewrite <- (H l) in H0. unfold sec_level_le in H0. 
-    destruct p; rewrite <- Heqp in H0. intuition.
-    now unfold protected.
-  Qed.
-  
-  Lemma vpair_if_diff : forall m1 m2 v1 v2 l,
-      merge_mem m1 m2 = minit ->
-      minit l = VPair v1 v2 -> m1 l <> m2 l.
-  Proof.
-    intros. inversion H; subst. rewrite <- H2 in H0.
-    unfold merge_mem in H0. destruct (val_decidable (m1 l) (m2 l)); auto; discriminate.
   Qed.
 
   Lemma config2_ok_implies_obs_equal (m: mem2) (c: com) (t: trace2) :

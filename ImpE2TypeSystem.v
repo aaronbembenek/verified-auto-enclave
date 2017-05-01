@@ -16,6 +16,7 @@ Require Import ImpE.
 Require Import ImpE2.
 Require Import ImpE2Helpers.
 Require Import ImpE2Adequacy.
+Require Import ImpE2SecurityHelpers.
 
 Ltac unfold_cfgs :=
   unfold ccfg_update_reg2 in *;
@@ -37,108 +38,8 @@ Ltac unfold_cfgs :=
   unfold ccfg_to_ecfg in *;
   unfold project_ccfg.
 
-Section Preservation.
-  Lemma impe2_value_type_preservation : forall md G d e bt sl r m v,
-    exp_type md G d e (Typ bt sl) ->
-    estep2 md d (e,r,m) v ->
-    val_type md G d (project_value v true) (Typ bt sl) /\
-    val_type md G d (project_value v false) (Typ bt sl).
-  Proof.
-    intros md G d e bt sl r m v Hetyp Hestep. pose Hetyp as Hetyp'.
-    generalize dependent v.
-    induction Hetyp'; intros; inversion Hestep; try discriminate; unfold_cfgs; subst.
-    - unfold project_value. split; constructor.
-    - inversion H0; subst.
-      split; destruct t.
-      eapply (VTvar md g d x0 (project_reg r true) b s
-                    (project_value (r x0) true)); eauto.
-      eapply (VTvar md g d x0 (project_reg r false) b s
-                    (project_value (r x0) false)); eauto.
-    - unfold project_value. inversion H1; subst.
-      split; constructor; auto.
-    - inversion H0; subst.
-      assert (val_type md g d (project_value (VSingle (Vloc l)) true)
-                       (Typ (Tref (Typ s p) md' rt) q) /\
-              val_type md g d (project_value (VSingle (Vloc l)) false)
-                       (Typ (Tref (Typ s p) md' rt) q))
-        as IHe0 by now eapply IHHetyp'; eauto. destruct_pairs.
-      unfold project_value in H2, H4.
-      split.
-      eapply (VTmem md g d md' p rt q (project_mem m0 true) l
-                    (project_value (m0 l) true) s); eauto.
-      eapply (VTmem md g d md' p rt q (project_mem m0 false) l
-                    (project_value (m0 l) false) s); eauto.
-    - inversion H0; subst. split; constructor; auto.
-    - inversion H; subst.
-      assert (val_type md g d (project_value v1 true) (Typ Tnat p)
-              /\ val_type md g d (project_value v1 false) (Typ Tnat p))
-        as VTe1 by now eapply IHHetyp'1; eauto.
-      assert (val_type md g d (project_value v2 true) (Typ Tnat q)
-              /\ val_type md g d (project_value v2 false) (Typ Tnat q))
-        as VTe2 by now eapply IHHetyp'2; eauto.
-      destruct_pairs.
-      destruct v1, v2; simpl;
-      destruct v, v0; unfold contains_nat in *;
-        destruct H2 as [SingNat | PairNat];
-        destruct H7 as [SingNat2 | PairNat2];
-        try destruct SingNat as [n1 SingNat];
-        try destruct SingNat2 as [n'1 SingNat2];
-        try destruct PairNat as [n1 [n2 PairNat]];
-        try destruct PairNat2 as [n'1 [n'2 PairNat2]];
-        try discriminate; simpl in *;
-          try inversion SingNat; try inversion SingNat2;
-            try inversion PairNat; try inversion PairNat2; subst.
-      -- split; constructor; auto.
-      -- unfold project_value in *. split; constructor; auto.
-      -- unfold project_value in *. rewrite sec_level_join_comm.
-         split; constructor; auto.
-      -- unfold project_value in *. split; constructor; auto.
-  Qed.
-    
-  (* XXX I feel like this should be provable from something... but our typing *)
-  (* system seems to be lacking something *)
-  Lemma call_fxn_typ : forall pc md G d e r m Gm p Gp q c Gout,
-    com_type pc md G d (Ccall e) Gout ->
-    estep md d (e,r,m) (Vlambda md c) ->
-    exp_type md G d e (Typ (Tlambda Gm p md Gp) q) -> com_type p md Gm d c Gp.
-  Proof.
-    intros.
-    pose (merge_reg r r) as merger.
-    pose (merge_mem m m) as mergem.
-    pose (project_merge_inv_reg r r true) as projTr.
-    pose (project_merge_inv_reg r r false) as projFr.
-    pose (project_merge_inv_mem m m true) as projTm.
-    pose (project_merge_inv_mem m m false) as projFm; simpl in *.
-    assert (H0' := H0).
-    rewrite <- projTm, <- projTr in H0.
-    rewrite <- projFm, <- projFr in H0'.
-    pose (impe2_exp_complete md d e merger mergem (Vlambda md c) (Vlambda md c) H0 H0') as tmp.
-    destruct tmp; destruct_pairs; auto.
-    assert (val_type md G d (Vlambda md c) (Typ (Tlambda Gm p md Gp) q)).
-    pose (impe2_value_type_preservation md G d e
-                                        (Tlambda Gm p md Gp) q
-                                        merger mergem x H1 H2).
-    destruct_pairs. rewrite H3 in *; auto.
-    rewrite VlambdaWT_iff_ComWT; eauto. (*GRRRRRR*)
-  Qed.
+Section Config_Preservation.
 
-  (* XXX nothing connecting loc_context to actual type at location *)
-  Lemma ref_type : forall pc md md' d e1 e2 r m G bt s p0 p p' q l rt,
-    com_type pc md G d (Cupdate e1 e2) G ->
-    estep2 md d (e1, r, m) (VSingle (Vloc l)) ->
-    exp_type md G d e1 (Typ (Tref (Typ s p) md' Mut) q) ->
-    exp_type md G d e2 (Typ s p') ->
-    Loc_Contxt l = Some (Typ bt p0, rt) ->
-    s = bt /\ p = p0.
-  Proof.
-    intros.
-    assert (val_type md G d (Vloc l) (Typ (Tref (Typ s p) md' Mut) q)).
-    pose (impe2_value_type_preservation
-            md G d e1 (Tref (Typ s p) md' Mut) q r m (VSingle (Vloc l))
-            H1 H0); destruct_pairs; unfold project_value in *; auto.
-    rewrite VlocWT_iff_LocContxt in H4. rewrite H4 in H3. inversion H3; subst; auto.
-  Qed.
-    
   Lemma impe2_final_config_preservation (G: context) (d: loc_mode) :
     forall G' c r m pc md r' m' t,
       cstep2 md d (c,r,m) (r', m') t ->
@@ -406,6 +307,10 @@ Section Preservation.
                 md d (Cif e c1 c2) r m (merge_reg r1 r2) (merge_mem m1 m2)
                 (merge_trace (t1, t2)) x pc G G' Hcstep H4);
         assert (~assign_in x t1 /\ ~assign_in x t2) as noassign by auto;
+        pose (no_assign_pair_reg_context_constant
+                md d (Cif e c1 c2) r m (merge_reg r1 r2) (merge_mem m1 m2)
+                (merge_trace (t1, t2)) x pc G G' v1 v2
+                Hcstep H4);
         repeat rewrite project_merge_inv_trace in a;
         apply a in noassign; destruct_pairs;
           apply (H5 x v1 v2 bt p0); split; try rewrite H11; try rewrite H14; auto.
@@ -566,8 +471,7 @@ Section Preservation.
       1-6: destruct p0; unfold sec_level_le in *; [omega | unfold protected in *; auto].
   Qed.  
 
-  Lemma impe2_type_preservation 
-        (G: context) (d: loc_mode) :
+  Lemma impe2_type_preservation (G: context) (d: loc_mode) :
     forall pc md c r m G' mdmid cmid rmid mmid rmid' mmid' tmid rfin mfin tfin,
       cconfig2_ok pc md G d c r m G' ->
       cstep2 mdmid d (cmid, rmid, mmid) (rmid', mmid') tmid
@@ -641,4 +545,4 @@ Section Preservation.
       unfold cconfig2_ok in *; unfold cterm2_ok in *; destruct_pairs; unfold_cfgs; auto.
   Qed.
   
-End Preservation.
+End Config_Preservation.

@@ -449,3 +449,8 @@ Section Security_Defn.
     /\ mem_sl_ind L
     /\ mem_esc_hatch_ind.
 End Security_Defn.
+
+Axiom No_Pointers2 : forall (m: mem2) l,
+    (forall l', m l <> VSingle (Vloc l')) /\
+    (forall l' l'', m l <> VPair (Vloc l') (Vloc l'')).
+
