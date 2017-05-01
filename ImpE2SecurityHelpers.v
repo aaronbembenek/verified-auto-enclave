@@ -296,10 +296,6 @@ Section Security.
     unfold merge_mem in H0. destruct (val_decidable (m1 l) (m2 l)); auto; discriminate.
   Qed.
 
-  
-  (* We somehow need to know that if c performs an assignment or update of x, then *)
-  (* the type of x in the env is at a higher security level than pc' *)
-  (* Otherwise, the reg/mem and context does not change *)
   Definition assign_in (x: var) tr: Prop :=
     exists v r, List.In (Assign r x v) tr.
 
@@ -327,7 +323,99 @@ Section Security.
      by now exists v1; exists r0.
    apply n in H0; auto.
   Qed.
-   
+
+  Lemma context_never_shrinks : forall pc md d c G G' x bt q r m r' m' tr,
+      com_type pc md G d c G' ->
+      cstep md d (c,r,m) (r',m') tr ->
+      G x = Some (Typ bt q) ->
+      exists bt' q', G' x = Some (Typ bt' q').
+  Proof.
+    intros pc md d c G G' x bt q r m r' m' tr Hctyp Hcstep Hctx.
+    remember (c,r,m) as ccfg; remember (r',m') as cterm.
+    generalize dependent x; generalize dependent r; generalize dependent m;
+      generalize dependent c; generalize dependent pc;
+        generalize dependent G; generalize dependent G';
+          generalize dependent bt; generalize dependent q;
+          generalize dependent r'; generalize dependent m'; generalize dependent md;
+            generalize dependent d.
+    intros d md Hcstep. pose Hcstep as Hcstep'.
+    induction Hcstep'; intros; unfold assign_in in *;
+      rewrite Heqccfg in *;  rewrite Heqcterm in *; unfold_cfgs; subst;
+        inversion Hctyp; try discriminate; subst.
+    - exists bt. exists q. auto.
+    - destruct (eq_nat_dec x0 x).
+      -- subst. rewrite <- (beq_nat_refl x) in *. exists s. exists (sec_level_join p pc). auto.
+      -- apply Nat.eqb_neq in n. rewrite n. exists bt. exists q. auto.
+    - destruct (eq_nat_dec x0 x).
+      -- subst. rewrite <- (beq_nat_refl x) in *. exists s. exists L. auto.
+      -- apply Nat.eqb_neq in n. rewrite n. exists bt. exists q. auto.
+    - exists bt. exists q. auto.
+    - exists bt. exists q. auto.
+    - assert (com_type p md Gm d c Gp) as ctyp.
+      eapply call_fxn_typ; eauto.
+      assert (com_type pc md G d c G') as ctyp2.
+      eapply subsumption; eauto. now apply sec_level_join_le_l in H2.
+      eapply IHHcstep'; eauto.
+    - unfold_cfgs. inversion H; subst. eapply IHHcstep'; eauto.
+    - exists bt. exists q. auto.
+    - assert (exists bt' q', g' x = Some (Typ bt' q')) as Hg'.
+      eapply IHHcstep'1; eauto.
+      destruct Hg' as [bt' [q' Hg']].
+      eapply IHHcstep'2; eauto.
+    - unfold_cfgs. refine (IHHcstep' _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+      apply Hcstep'. assert ((r'0, m'0) = (r'0, m'0)) by auto. apply H.
+      apply H3. assert ( (c1, r, m)  = (c1, r, m)) by auto; apply H.
+      apply Hctx.
+    - unfold_cfgs. refine (IHHcstep' _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+      apply Hcstep'. assert ((r'0, m'0) = (r'0, m'0)) by auto. apply H.
+      apply H4. assert ( (c2, r, m)  = (c2, r, m)) by auto; apply H.
+      apply Hctx.
+    - unfold_cfgs. exists bt. exists q. auto.
+    - exists bt. exists q. auto.
+  Qed.
+  
+  Lemma assign_in_cntxt :  forall pc md d c G G' x r m r' m' tr,
+      com_type pc md G d c G' ->
+      cstep md d (c,r,m) (r',m') tr ->
+      assign_in x tr ->
+      exists bt q, G' x = Some (Typ bt q).
+  Proof.
+    intros pc md d c G G' x r m r' m' tr Hctyp Hcstep Hassn.
+    remember (c,r,m) as ccfg; remember (r',m') as cterm.
+    generalize dependent x; generalize dependent r; generalize dependent m;
+      generalize dependent c; generalize dependent pc;
+          generalize dependent G; generalize dependent G';
+          generalize dependent r'; generalize dependent m'; generalize dependent md;
+            generalize dependent d.
+    intros d md Hcstep. pose Hcstep as Hcstep'.
+    induction Hcstep'; intros; unfold assign_in in *; destruct Hassn as [va [ra Hassn]];
+      rewrite Heqccfg in *;  rewrite Heqcterm in *; unfold_cfgs; subst.
+    - inversion Hassn.
+    - inversion Hctyp; try discriminate; subst. admit.
+    - inversion Hassn; try discriminate; subst. inversion H.
+    - inversion Hassn; try discriminate; subst. inversion H.
+    - inversion Hassn; try discriminate; subst.
+      inversion H; try discriminate; subst.
+      inversion H2.
+    - unfold_cfgs. inversion Hctyp; try discriminate; subst.
+      assert (com_type p md Gm d c Gp) as ctyp.
+      eapply call_fxn_typ; eauto.
+      assert (com_type pc md G d c G') as ctyp2.
+      eapply subsumption; eauto. now apply sec_level_join_le_l in H2.
+      eapply IHHcstep'; eauto.
+    - inversion Hctyp; try discriminate; subst.
+      inversion H; subst.
+      eapply IHHcstep'; eauto.
+    - inversion Hassn.
+    - unfold_cfgs; inversion Hctyp; try discriminate; subst.
+      apply in_app_or in Hassn; destruct Hassn as [Hassn1 | Hassn2].
+      assert (exists bt' q', g' x = Some (Typ bt' q')) as Hg'.
+      eapply IHHcstep'1; eauto.
+      destruct Hg' as [bt' [q' Hg']].
+      eapply context_never_shrinks; eauto.
+      
+      
+  Admitted.
   Lemma assignment_more_secure : forall pc md d c G G' x bt q r m r' m' tr,
       com_type pc md G d c G' ->
       cstep md d (c,r,m) (r',m') tr ->
@@ -335,6 +423,47 @@ Section Security.
       G' x = Some (Typ bt q) ->
       sec_level_le pc q.
   Proof.
+    intros pc md d c G G' x bt q r m r' m' tr Hctyp Hcstep Hassn Hctx.
+    remember (c,r,m) as ccfg; remember (r',m') as cterm.
+    generalize dependent x; generalize dependent r; generalize dependent m;
+      generalize dependent c; generalize dependent pc;
+        generalize dependent G; generalize dependent G';
+          generalize dependent bt; generalize dependent q;
+          generalize dependent r'; generalize dependent m'; generalize dependent md;
+            generalize dependent d.
+    intros d md Hcstep. pose Hcstep as Hcstep'.
+    induction Hcstep'; intros; unfold assign_in in *; destruct Hassn as [va [ra Hassn]];
+      rewrite Heqccfg in *;  rewrite Heqcterm in *; unfold_cfgs; subst.
+    - inversion Hassn.
+    - admit.
+    - inversion Hassn; try discriminate; subst. inversion H.
+    - inversion Hassn; try discriminate; subst. inversion H.
+    - inversion Hassn; try discriminate; subst.
+      inversion H; try discriminate; subst.
+      inversion H2.
+    - unfold_cfgs. inversion Hctyp; try discriminate; subst.
+      assert (com_type p md Gm d c Gp) as ctyp.
+      eapply call_fxn_typ; eauto.
+      assert (com_type pc md G d c G') as ctyp2.
+      eapply subsumption; eauto. now apply sec_level_join_le_l in H2.
+      eapply IHHcstep'; eauto.
+    - inversion Hctyp; try discriminate; subst.
+      inversion H; subst.
+      eapply IHHcstep'; eauto.
+    - inversion Hassn.
+    - unfold_cfgs; inversion Hctyp; try discriminate; subst.
+      Search (List.In).
+      apply in_app_or in Hassn; destruct Hassn as [Hassn1 | Hassn2].
+      assert (exists bt' q', g' x = Some (Typ bt' q')) as Hg'.
+      eapply assign_in_cntxt; eauto. unfold assign_in. exists va; exists ra; auto.
+      destruct Hg' as [bt' [q' Hg']].
+      eapply IHHcstep'1; eauto.
+      (* if assignment in tr', then use other ind principle... if not, then G' x = g' x *)
+      admit.
+      eapply IHHcstep'2; eauto.
+    - unfold_cfgs. inversion Hctyp; try discriminate; subst.
+      assert (com_type pc md G d c1 G'). eapply subsumption; eauto.
+      eapply IHHcstep'; eauto.
   Admitted.
 
   Lemma assign_in_app : forall tr tr' x,

@@ -675,7 +675,6 @@ Section Typing.
 End Typing.
 
 Section Axioms.
-
   Definition meminit_wf (m: mem) d := forall l,
       match m l with
       | Vlambda md c => exists Gm p md Gp q rt,
