@@ -534,6 +534,14 @@ Section Typing.
           G2 x = Some t' -> exists t, G1 x = Some t /\ type_le t t') ->
       context_le G1 G2.
   
+  Lemma context_le_refl : forall G, context_le G G.
+  Proof.
+    intros. apply Context_le. intros. right; exists t; destruct t; auto.
+    split; auto. apply Type_le. apply Base_type_le_refl. apply sec_level_le_refl.
+    intros; exists t'; split; auto; destruct t'; auto.
+    apply Type_le. apply Base_type_le_refl. apply sec_level_le_refl.
+  Qed.
+  
   Definition context_wt (G: context) (d: loc_mode) : Prop :=
     forall_loc (fun l t _ =>
                   let (_, p) := t in
@@ -556,7 +564,8 @@ Section Typing.
                        | Eloc n => set_In n (immutable_locs g0)
                        | _ => True
                        end).
-
+      
+  
   (* FIXME: don't have subsumption rule *)
   Inductive val_type : mode -> context -> loc_mode -> val -> type -> Prop :=
   | VTnat: forall md g d n,
@@ -663,7 +672,22 @@ Section Typing.
   Hint Constructors exp_type.
   Hint Constructors val_type.
   Hint Constructors com_type.
+End Typing.
 
+Section Axioms.
+
+  Definition meminit_wf (m: mem) d := forall l,
+      match m l with
+      | Vlambda md c => exists Gm p md Gp q rt,
+                        Loc_Contxt l = Some (Typ (Tlambda Gm p md Gp) q, rt) ->
+                        com_type p md Gm d c Gp
+      | Vloc l => False
+      | Vnat n => True
+      end.
+  
+  Axiom Initial_State: forall minit d r' m',
+      meminit_wf minit d -> exists c md tr, cstep md d (c,reg_init,minit) (r',m') tr.
+    
   Axiom VlambdaWT_iff_ComWT : forall p md' Gm d Gp md G c q,
     com_type p md' Gm d c Gp <->
     val_type md G d (Vlambda md' c) (Typ (Tlambda Gm p md Gp) q).
@@ -680,15 +704,7 @@ Section Typing.
       (* XXX not including well-typed contexts *)
       com_type pc2 md G2 d c G2'.
 
-  Lemma context_le_refl : forall G, context_le G G.
-  Proof.
-    intros. apply Context_le. intros. right; exists t; destruct t; auto.
-    split; auto. apply Type_le. apply Base_type_le_refl. apply sec_level_le_refl.
-    intros; exists t'; split; auto; destruct t'; auto.
-    apply Type_le. apply Base_type_le_refl. apply sec_level_le_refl.
-  Qed.
-  
-End Typing.
+End Axioms.
 
 
 

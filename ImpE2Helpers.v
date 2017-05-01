@@ -76,7 +76,7 @@ Section Project_Merge.
       + destruct H4; subst; destruct is_left; simpl in *; discriminate.
       + destruct H3; subst; destruct is_left; simpl in *; discriminate.
       + destruct H3; destruct H4; destruct is_left; subst; simpl in *; discriminate.
-    - pose (No_Pointers2 m0 l0); destruct a.
+    - pose (No_Loc_Mem m0 l0); destruct a.
       inversion H0.
       destruct v; subst; simpl; auto.
       destruct is_left; subst; simpl in *; subst.
@@ -136,33 +136,23 @@ Section Project_Merge.
         destruct (val_decidable (m1 z) (m2 z)); destruct is_left; subst; auto.
   Qed.
 
-  Lemma reg_pair_distinct : forall (r : reg2) x v1 v2,
-      r x = VPair v1 v2 <-> v1 <> v2.
-  Proof.
-  Admitted.
-  
   Lemma merge_project_inv_reg : forall r,
       r = merge_reg (project_reg r true) (project_reg r false).
   Proof.
     intros. extensionality z; unfold merge_reg; unfold project_reg.
     remember (r z) as rz. destruct rz; rewrite Heqrz. assert (v = v). auto.
     destruct val_decidable; try contradiction; auto.
-    symmetry in Heqrz. apply (reg_pair_distinct r) in Heqrz. 
+    symmetry in Heqrz. apply (pair_distinct) in Heqrz. 
     destruct val_decidable; try contradiction; auto.
   Qed.
-    
-  Lemma mem_pair_distinct : forall (m : mem2) x v1 v2,
-      m x = VPair v1 v2 <-> v1 <> v2.
-  Proof.
-  Admitted.
-  
+      
   Lemma merge_project_inv_mem : forall r,
       r = merge_mem (project_mem r true) (project_mem r false).
   Proof.
     intros. extensionality z; unfold merge_mem; unfold project_mem.
     remember (r z) as rz. destruct rz; rewrite Heqrz. assert (v = v). auto.
     destruct val_decidable; try contradiction; auto.
-    symmetry in Heqrz. apply (mem_pair_distinct r) in Heqrz. 
+    symmetry in Heqrz. apply pair_distinct in Heqrz. 
     destruct val_decidable; try contradiction; auto.
   Qed.
     

@@ -162,7 +162,7 @@ Section Security.
     -- inversion H1; try discriminate; subst; unfold_cfgs.
        now inversion H6.
     -- inversion H1; try discriminate; subst; unfold_cfgs. inversion H2; subst.
-       pose (No_Pointers2 m l0); destruct_pairs.
+       pose (No_Loc_Mem m l0); destruct_pairs.
        pose (H6 l). intuition. apply n in H4. omega.
     -- inversion H0; try discriminate; subst.
        inversion H3.

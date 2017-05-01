@@ -45,10 +45,6 @@ Section Semantics.
   Definition mem2 : Type := memory val2.
   Parameter minit : mem2.
 
-Axiom No_Pointers2 : forall (m: mem2) l,
-    (forall l', m l <> VSingle (Vloc l')) /\
-    (forall l' l'', m l <> VPair (Vloc l') (Vloc l'')).
-
   Inductive event2 : Type :=
   | Emp2 : event2
   | Decl2 : exp -> mem2 -> event2
@@ -454,4 +450,22 @@ Section Security_Defn.
            -> protected p)
     /\ mem_sl_ind L
     /\ mem_esc_hatch_ind.
+  
 End Security_Defn.
+
+Section Axioms.
+  Axiom No_Loc_Mem : forall (m: mem2) l,
+    (forall l', m l <> VSingle (Vloc l')) /\
+    (forall l' l'', m l <> VPair (Vloc l') (Vloc l'')).
+  
+  Axiom No_Pair_Loc_Reg : forall (r: reg2) l,
+      (forall l' l'', r l <> VPair (Vloc l') (Vloc l'')).
+
+  Axiom pair_distinct : forall v v1 v2,
+    v = VPair v1 v2 <-> v1 <> v2.
+
+  Axiom pair_wf : forall v v1 v2,
+      v = VPair v1 v2 <->
+      (exists n1 n2, v1 = Vnat n1 /\ v2 = Vnat n2) \/
+      (exists md1 md2 c1 c2, v1 = Vlambda md1 c1 /\ v2 = Vlambda md2 c2).
+End Axioms.
