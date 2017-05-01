@@ -337,139 +337,6 @@ Section Security.
   Proof.
   Admitted.
 
-  Lemma no_assign_cstep_protected_reg_context_constant : forall md d c r m r' m' tr x pc
-                                                                G G' is_left ,
-      cstep md d (c, (project_reg r is_left), (project_mem m is_left))
-            ((project_reg r' is_left), (project_mem m' is_left)) tr ->
-      com_type pc md G d c G' ->
-      protected pc ->
-      ~assign_in x tr ->
-      ((project_reg r is_left) x = (project_reg r' is_left) x /\ G x = G' x).
-Proof.
-    intros md d c r m r' m' tr x pc G G' is_left Hcstep Hctyp Hprot Hnoassign.   
-    remember (c, (project_reg r is_left), (project_mem m is_left)) as ccfg;
-      remember ((project_reg r' is_left), (project_mem m' is_left)) as cterm.
-    generalize dependent x; generalize dependent r; generalize dependent m;
-      generalize dependent c; generalize dependent pc;
-        generalize dependent r'; generalize dependent m'; generalize dependent md;
-            generalize dependent G; generalize dependent d; generalize dependent G';
-              generalize dependent is_left.
-    intros is_left G' d G md Hcstep. pose Hcstep as Hcstep'.
-    induction Hcstep'; intros.
-    all: inversion Heqcterm; subst; unfold_cfgs; subst.
-    all: inversion Hctyp; try discriminate; auto; subst.
-    - destruct (eq_nat_dec x0 x); subst.
-      unfold assign_in in *; unfold project_trace in *; simpl in *; unfold not in *. 
-      assert (exists (v0 : val) (r0 : reg),
-                 Assign (project_reg r is_left) x v
-                 = Assign r0 x v0 \/ False) as tmp.
-      exists v. exists (project_reg r is_left). auto.
-      apply Hnoassign in tmp; omega.
-      unfold_cfgs. rewrite <- H3. apply Nat.eqb_neq in n. now rewrite n.
-    - inversion Hprot.
-    - assert (com_type pc md G d c G') as ctyp.
-      assert (com_type p md Gm d c Gp).
-      eapply call_fxn_typ; eauto. unfold_cfgs.
-      eapply subsumption; eauto. now apply sec_level_join_le_l in H2.
-      pose IHHcstep' as tmp; unfold_cfgs. eapply (tmp Hcstep' m'0 r'0); eauto.
-   - 
-  Admitted.
-  
-  Lemma no_assign_pair_reg_context_constant : forall md d c r m r' m' tr x pc G G' v1 v2,
-    cconfig2_ok pc md G d c r m G' ->
-    cstep2 md d (c, r, m) (r', m') tr ->
-    com_type pc md G d c G' ->
-    ~assign_in x (project_trace tr true) /\
-    ~assign_in x (project_trace tr false) ->
-    r' x = VPair v1 v2 ->
-    mem_esc_hatch_ind ->
-    r x = r' x /\ G x = G' x.
-  Proof.
-    intros md d c r m r' m' tr x pc G G' v1 v2 Hconfigok Hcstep Hctyp Hnoassign Hrpair HEHI;
-      remember (c,r,m) as ccfg; remember (r',m') as cterm.
-    generalize dependent x; generalize dependent r; generalize dependent m;
-      generalize dependent c; generalize dependent pc;
-        generalize dependent r'; generalize dependent m'; generalize dependent v1;
-          generalize dependent v2; generalize dependent md;
-            generalize dependent G; generalize dependent d; generalize dependent G'.
-    intros G' d G md Hcstep2.
-    pose Hcstep2 as Hcstep.
-    induction Hcstep; intros; subst; unfold_cfgs; destruct_pairs.
-    all: inversion Heqcterm; subst.
-    all: inversion Hctyp; try discriminate; subst; auto.
-    - destruct (eq_nat_dec x0 x); subst.
-      unfold assign_in in *; unfold project_trace in *; simpl in *; unfold not in *. 
-      assert (exists (v0 : val) (r0 : reg),
-                 Assign (project_reg r false) x (project_value v false)
-                 = Assign r0 x v0 \/ False) as tmp.
-      exists (project_value v false). exists (project_reg r false). auto.
-      apply H2 in tmp; omega.
-      apply Nat.eqb_neq in n; now rewrite n.
-    - destruct (eq_nat_dec x0 x); subst.
-      -- rewrite <- beq_nat_refl in *; subst.
-         assert (exists v, (VPair v1 v2) = VSingle v) as hah.
-         unfold mem_esc_hatch_ind in *.
-         assert (is_escape_hatch e) as Heh by now unfold is_escape_hatch.
-         pose (HEHI e Heh m').
-         eapply same_mem_locs_evals_same_value; eauto.
-         intros. pose (e0 l H) as tmp; destruct tmp; destruct_pairs.
-         exists x0; rewrite <- H7; auto.
-         destruct hah as [blah hah].
-         discriminate.
-      -- apply Nat.eqb_neq in n; rewrite n; auto.
-    - unfold_cfgs.
-      assert (com_type p md Gm d c Gp).
-      eapply call_fxn_typ; eauto.
-      apply (impe2_exp_sound md d e r m (VSingle (Vlambda md c)) true H0).
-      assert (com_type pc md G d c G').
-      eapply subsumption; eauto. now apply sec_level_join_le_l in H4.
-      eapply IHHcstep; eauto.
-      unfold cconfig2_ok in *; destruct_pairs; auto.
-    - assert (com_type p md G d c1 G') as c1typ.
-      assert (com_type p md Gm d c1 Gp).
-      eapply call_fxn_typ; eauto.
-      apply (impe2_exp_sound md d e r m (VPair (Vlambda md c1) (Vlambda md c2)) true H0).
-      eapply subsumption; eauto. now apply sec_level_le_refl. 
-      assert (com_type p md G d c2 G') as c2typ.
-      assert (com_type p md Gm d c2 Gp).
-      eapply call_fxn_typ; eauto.
-      apply (impe2_exp_sound md d e r m (VPair (Vlambda md c1) (Vlambda md c2)) false H0).
-      eapply subsumption; eauto. now apply sec_level_le_refl.
-      rewrite project_merge_inv_trace in *; auto.
-
-      assert (protected p) as Pp.
-      assert (protected q).
-      remember (VPair (Vlambda md c1) (Vlambda md c2)) as ev. 
-      eapply econfig2_pair_protected. apply Heqev. apply H5. apply H0.
-      assert (cterm2_ok G d r m) as Hcterm2_ok.
-      unfold cconfig2_ok in *; destruct_pairs; unfold cterm2_ok in *; auto.
-      apply Hcterm2_ok.
-      (* get that pc' is protected *)
-      assert (protected (sec_level_join pc q)) by now apply (join_protected_r pc q).
-      inversion H9; subst; rewrite H11 in H6; 
-        destruct p; unfold protected; unfold sec_level_le in *; auto. omega.
-
-      assert (project_reg r true x = project_reg (merge_reg r1 r2) true x /\ G x = G' x)
-        as c1_noassign.
-      eapply (no_assign_cstep_protected_reg_context_constant
-                md d c1 r m (merge_reg r1 r2) (merge_mem m1 m2) t1); eauto.
-      rewrite project_merge_inv_reg. rewrite project_merge_inv_mem; auto.
-      
-      assert (project_reg r false x = project_reg (merge_reg r1 r2) false x /\ G x = G' x)
-        as c2_noassign.
-      eapply (no_assign_cstep_protected_reg_context_constant
-                md d c2 r m (merge_reg r1 r2)
-                (merge_mem m1 m2) t2); eauto.
-      rewrite project_merge_inv_reg. rewrite project_merge_inv_mem; auto.
-
-      destruct_pairs.
-      assert (r x = (merge_reg (project_reg r true) (project_reg r false)) x).
-      rewrite <- (merge_project_inv_reg r); auto.
-      rewrite project_merge_inv_reg in H10, H. 
-      unfold merge_reg in *. rewrite H10, H in H12.
-      split; auto.
-  Admitted.
-
   Lemma assign_in_app : forall tr tr' x,
       assign_in x (tr ++ tr') <-> assign_in x tr \/ assign_in x tr'.
   Proof.
@@ -479,6 +346,77 @@ Proof.
       [now left | now right].
   Qed.
       
+  Lemma no_assign_cstep_protected_reg_context_constant : forall md d c r m r' m' tr x pc
+                                                                G G',
+      cstep md d (c,r,m) (r', m') tr ->
+      com_type pc md G d c G' ->
+      protected pc ->
+      ~assign_in x tr ->
+      r x = r' x /\ G x = G' x.
+  Proof.
+    intros md d c r m r' m' tr x pc G G' Hcstep Hctyp Hprot Hnoassign.   
+    remember (c,r,m) as ccfg;
+      remember (r',m') as cterm;
+    generalize dependent x; generalize dependent r; generalize dependent m;
+      generalize dependent c; generalize dependent pc;
+        generalize dependent G; generalize dependent G';
+          generalize dependent r'; generalize dependent m'; generalize dependent md;
+            generalize dependent d.
+    intros d md Hcstep. pose Hcstep as Hcstep'.
+    induction Hcstep'; intros.
+    all: inversion Heqcterm; subst; unfold_cfgs; subst.
+    all: inversion Hctyp; try discriminate; auto; subst.
+    - destruct (eq_nat_dec x0 x); subst.
+      unfold assign_in in *; unfold project_trace in *; simpl in *; unfold not in *. 
+      assert (exists (v0 : val) (r0 : reg),
+                 Assign r x v
+                 = Assign r0 x v0 \/ False) as tmp.
+      exists v. exists r; auto.
+      apply Hnoassign in tmp; omega.
+      unfold_cfgs. apply Nat.eqb_neq in n. now rewrite n.
+    - inversion Hprot.
+    - assert (com_type pc md G d c G') as ctyp.
+      assert (com_type p md Gm d c Gp).
+      eapply call_fxn_typ; eauto. unfold_cfgs.
+      eapply subsumption; eauto. now apply sec_level_join_le_l in H2.
+      pose IHHcstep' as tmp; unfold_cfgs. eapply (tmp Hcstep' m'0 r'0); eauto.
+    - inversion H; subst.
+      eapply IHHcstep'; eauto.
+    - unfold_cfgs.
+      rewrite assign_in_app in Hnoassign.
+      apply not_or_and in Hnoassign; destruct_pairs.
+      assert (r0 x = r x /\ G x = g' x) as hdtmp.
+      eapply IHHcstep'1; eauto.
+      assert (r x = r'0 x /\ g' x = G' x) as tltmp.
+      eapply IHHcstep'2; eauto.
+      destruct_pairs.
+      rewrite <- H1; rewrite <- H2; split; auto.
+    - unfold_cfgs. assert (protected pc') as P.
+      apply sec_level_join_le_l in H11. inversion Hprot; subst. 
+      unfold sec_level_le in H11; destruct pc'; try omega; auto.
+      assert ((r'0, m'0) = (r'0, m'0)) as Hr by auto.
+      apply (IHHcstep' Hcstep' m'0 r'0 Hr G' G pc' P c1 H3 m r); eauto.
+    - unfold_cfgs. assert (protected pc') as P.
+      apply sec_level_join_le_l in H11. inversion Hprot; subst. 
+      unfold sec_level_le in H11; destruct pc'; try omega; auto.
+      assert ((r'0, m'0) = (r'0, m'0)) as Hr by auto.
+      eapply (IHHcstep' Hcstep' m'0 r'0 Hr G' G pc' P c2); eauto.
+    - unfold_cfgs. 
+      rewrite assign_in_app in Hnoassign.
+      apply not_or_and in Hnoassign; destruct_pairs.
+      assert (protected pc') as P.
+      apply sec_level_join_le_l in H8. inversion Hprot; subst. 
+      unfold sec_level_le in H8; destruct pc'; try omega; auto.
+      assert (r0 x = r x /\ G' x = G' x) as hdtmp.
+      assert ((r,m) = (r,m)) as Hr by auto.
+      eapply (IHHcstep'1 Hcstep'1 m r Hr G' G' pc' P c); eauto.
+      assert (r x = r'0 x /\ G' x = G' x) as tltmp.
+      assert ((r'0,m'0) = (r'0,m'0)) as Hr by auto.
+      eapply (IHHcstep'2 Hcstep'2 m'0 r'0 Hr G' G' pc Hprot (Cwhile e c)); eauto.
+      destruct_pairs.
+      rewrite <- H4; auto.
+  Qed.
+  
   (* Same thing as assignments for updates *)
   Definition update_in (l: location) tr: Prop :=
     exists v m, List.In (Update m l v) tr.
@@ -516,22 +454,85 @@ Proof.
       sec_level_le pc q.
   Proof.
   Admitted.
-  Lemma no_update_mem_constant : forall md d c r m r' m' tr x pc G G',
-      cconfig2_ok pc md G d c r m G' ->
-      cstep2 md d (c, r, m) (r', m') tr ->
-      com_type pc md G d c G' ->
-      ~update_in x (project_trace tr true) /\ ~update_in x (project_trace tr false) ->
-      m x = m' x.
-  Proof.
-  Admitted.
+
   Lemma update_in_app : forall tr tr' x,
       update_in x (tr ++ tr') <-> update_in x tr \/ update_in x tr'.
   Proof.
-    unfold assign_in. split; intros. destruct H as [v [r H]]. apply in_app_or in H.
+    unfold update_in. split; intros. destruct H as [v [r H]]. apply in_app_or in H.
     destruct H; [left | right]; exists v; exists r; auto.
     destruct H; destruct H as [v [r H]]; exists v; exists r; apply in_or_app;
       [now left | now right].
   Qed.
 
+  Lemma no_update_cstep_protected_mem_constant : forall md d c r m r' m' tr x pc G G',
+      cstep md d (c,r,m) (r', m') tr ->
+      com_type pc md G d c G' ->
+      protected pc ->
+      ~update_in x tr ->
+      m x = m' x.
+  Proof.
+    intros md d c r m r' m' tr x pc G G' Hcstep Hctyp Hprot Hnoupdate.   
+    remember (c,r,m) as ccfg;
+      remember (r',m') as cterm;
+    generalize dependent x; generalize dependent r; generalize dependent m;
+      generalize dependent c; generalize dependent pc;
+        generalize dependent G; generalize dependent G';
+          generalize dependent r'; generalize dependent m'; generalize dependent md;
+            generalize dependent d.
+    intros d md Hcstep. pose Hcstep as Hcstep'.
+    induction Hcstep'; intros.
+    all: inversion Heqcterm; subst; unfold_cfgs; subst.
+    all: inversion Hctyp; try discriminate; auto; subst.
+    - destruct (eq_nat_dec x l); subst.
+      unfold update_in in *; unfold project_trace in *; simpl in *; unfold not in *. 
+      assert (exists (v0 : val) (m0 : mem),
+                 Update m l v
+                 = Update m0 l v0 \/ False) as tmp.
+      exists v. exists m; auto.
+      apply Hnoupdate in tmp; omega.
+      unfold_cfgs. apply Nat.eqb_neq in n. now rewrite n.
+    - assert (com_type pc md G d c G') as ctyp.
+      assert (com_type p md Gm d c Gp).
+      eapply call_fxn_typ; eauto. unfold_cfgs.
+      eapply subsumption; eauto. now apply sec_level_join_le_l in H2.
+      pose IHHcstep' as tmp; unfold_cfgs. eapply (tmp Hcstep' m'0 r'0); eauto.
+    - inversion H; subst.
+      eapply IHHcstep'; eauto.
+    - unfold_cfgs.
+      rewrite update_in_app in Hnoupdate.
+      apply not_or_and in Hnoupdate; destruct_pairs.
+      assert (m0 x = m x) as hdtmp.
+      assert ((r,m) = (r,m)) as Hr by auto.
+      eapply (IHHcstep'1 Hcstep'1 m r Hr g' G pc Hprot hd H5 m0 r0); eauto.
+      assert (m x = m'0 x) as tltmp.
+      assert ((r'0,m'0) = (r'0,m'0)) as Hr by auto.
+      eapply (IHHcstep'2 Hcstep'2 m'0 r'0 Hr G' g' pc Hprot (Cseq tl) H7 m r); eauto.
+      destruct_pairs.
+      rewrite hdtmp, <- tltmp; auto.
+    - unfold_cfgs. assert (protected pc') as P.
+      apply sec_level_join_le_l in H11. inversion Hprot; subst. 
+      unfold sec_level_le in H11; destruct pc'; try omega; auto.
+      assert ((r'0, m'0) = (r'0, m'0)) as Hr by auto.
+      apply (IHHcstep' Hcstep' m'0 r'0 Hr G' G pc' P c1 H3 m r); eauto.
+    - unfold_cfgs. assert (protected pc') as P.
+      apply sec_level_join_le_l in H11. inversion Hprot; subst. 
+      unfold sec_level_le in H11; destruct pc'; try omega; auto.
+      assert ((r'0, m'0) = (r'0, m'0)) as Hr by auto.
+      eapply (IHHcstep' Hcstep' m'0 r'0 Hr G' G pc' P c2); eauto.
+    - unfold_cfgs. 
+      rewrite update_in_app in Hnoupdate.
+      apply not_or_and in Hnoupdate; destruct_pairs.
+      assert (protected pc') as P.
+      apply sec_level_join_le_l in H8. inversion Hprot; subst. 
+      unfold sec_level_le in H8; destruct pc'; try omega; auto.
+      assert (m0 x = m x) as hdtmp.
+      assert ((r,m) = (r,m)) as Hr by auto.
+      eapply (IHHcstep'1 Hcstep'1 m r Hr G' G' pc' P c H3 m0 r0); eauto.
+      assert (m x = m'0 x) as tltmp.
+      assert ((r'0,m'0) = (r'0,m'0)) as Hr' by auto.
+      eapply (IHHcstep'2 Hcstep'2 m'0 r'0 Hr' G' G' pc Hprot (Cwhile e c)); eauto.
+      destruct_pairs.
+      rewrite <- tltmp; auto.
+  Qed.
   
 End Security.

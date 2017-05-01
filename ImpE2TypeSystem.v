@@ -186,13 +186,22 @@ Section Config_Preservation.
                                           r2 m2 t2 lifted_c2typ H2 a H12). 
              destruct p. unfold sec_level_le in *. omega.
              unfold protected; auto.
-         --- pose (no_assign_pair_reg_context_constant
-                     md d (Ccall e) r m (merge_reg r1 r2) (merge_mem m1 m2)
-                     (merge_trace (t1, t2)) x pc G G' v1 v2 Hcfgok Hcstep H3).
-             assert (~assign_in x t1 /\ ~assign_in x t2) as noassign by auto.
-             repeat rewrite project_merge_inv_trace in a.
-             apply a in noassign; destruct_pairs; auto.
-             apply (H4 x v1 v2 bt p); auto. split; auto. rewrite H13; auto. rewrite H14; auto.
+         --- pose (no_assign_cstep_protected_reg_context_constant
+                     md d c1 (project_reg r true) (project_mem m true) r1 m1 t1
+                     x Common.H G G' H1 lifted_c1typ) as c1rconst.
+             pose (no_assign_cstep_protected_reg_context_constant
+                     md d c2 (project_reg r false) (project_mem m false) r2 m2 t2
+                     x Common.H G G' H2 lifted_c2typ) as c2rconst.
+             assert (project_reg r true x = r1 x /\ G x = G' x) as r1const by
+                   now eapply c1rconst; auto.
+             assert (project_reg r false x = r2 x /\ G x = G' x) as r2const by
+                   now eapply c2rconst; auto.
+             destruct_pairs.
+             assert (r x = (merge_reg r1 r2) x).
+             rewrite (merge_project_inv_reg r).
+             unfold merge_reg. rewrite H13, H15; auto.
+             apply (H4 x v1 v2 bt p); auto. split; auto.
+             rewrite <- H; auto. rewrite H17; auto.
       -- split; auto. intros; destruct_pairs.
          destruct (update_in_dec l t1), (update_in_dec l t2).
          --- pose (update_more_secure Common.H md d c1 G G' l bt p rt
@@ -210,14 +219,21 @@ Section Config_Preservation.
                                           r2 m2 t2 lifted_c2typ H2 u H12). 
              destruct p. unfold sec_level_le in *. omega.
              unfold protected; auto.
-         --- pose (no_update_mem_constant
-                     md d (Ccall e) r m (merge_reg r1 r2) (merge_mem m1 m2)
-                     (merge_trace (t1, t2)) l pc G G' Hcfgok Hcstep H3).
-             assert (~update_in l t1 /\ ~update_in l t2) as noupdate by auto.
-             repeat rewrite project_merge_inv_trace in e0.
-             apply e0 in noupdate; destruct_pairs.
-             apply (H5 l v1 v2 bt p rt). split; auto. rewrite noupdate; auto. 
-    (* Cenclave *)
+         --- pose (no_update_cstep_protected_mem_constant
+                     md d c1 (project_reg r true) (project_mem m true) r1 m1 t1
+                     l Common.H G G' H1 lifted_c1typ) as c1rconst.
+             pose (no_update_cstep_protected_mem_constant
+                     md d c2 (project_mem r false) (project_mem m false) r2 m2 t2
+                     l Common.H G G' H2 lifted_c2typ) as c2rconst.
+             assert (project_mem m true l = m1 l) as r1const by
+                   now eapply c1rconst; auto.
+             assert (project_mem m false l = m2 l) as r2const by
+                   now eapply c2rconst; auto.
+             destruct_pairs.
+             assert (m l = (merge_mem m1 m2) l).
+             rewrite (merge_project_inv_mem m).
+             unfold merge_mem. rewrite r1const; rewrite r2const; auto.
+             apply (H5 l v1 v2 bt p rt). split; auto. rewrite <- H; auto. 
     - inversion H; try discriminate; subst. inversion H0; subst.
       eapply IHHcstep'; auto.
       unfold cconfig2_ok; auto; split.
@@ -303,18 +319,38 @@ Section Config_Preservation.
                                     r2 m2 t2 H12 H3 a H10) |
       ].
       1-3,5-7,9-11,13-15: destruct p0; [unfold sec_level_le in *; omega | unfold protected; auto].
-      1-4: 
-        pose (no_assign_pair_reg_context_constant
-                md d (Cif e c1 c2) r m (merge_reg r1 r2) (merge_mem m1 m2)
-                (merge_trace (t1, t2)) x pc G G' v1 v2 Hcfgok Hcstep H4);
-        assert (~assign_in x t1 /\ ~assign_in x t2) as noassign by auto;
-        pose (no_assign_pair_reg_context_constant
-                md d (Cif e c1 c2) r m (merge_reg r1 r2) (merge_mem m1 m2)
-                (merge_trace (t1, t2)) x pc G G' v1 v2
-                Hcfgok Hcstep H4);
-        repeat rewrite project_merge_inv_trace in a;
-        apply a in noassign; destruct_pairs; auto;
-          apply (H5 x v1 v2 bt p0); split; try rewrite H11; try rewrite H14; auto.
+      1: pose (no_assign_cstep_protected_reg_context_constant
+              md d c2 (project_reg r true) (project_mem m true) r1 m1 t1
+              x Common.H G G' H2 H13) as c1rconst;
+        pose (no_assign_cstep_protected_reg_context_constant
+                md d c2 (project_reg r false) (project_mem m false) r2 m2 t2
+                x Common.H G G' H3 H13) as c2rconst.
+      2: pose (no_assign_cstep_protected_reg_context_constant
+              md d c2 (project_reg r true) (project_mem m true) r1 m1 t1
+              x Common.H G G' H2 H13) as c1rconst;
+        pose (no_assign_cstep_protected_reg_context_constant
+                md d c1 (project_reg r false) (project_mem m false) r2 m2 t2
+                x Common.H G G' H3 H12) as c2rconst.
+      3: pose (no_assign_cstep_protected_reg_context_constant
+              md d c1 (project_reg r true) (project_mem m true) r1 m1 t1
+              x Common.H G G' H2 H12) as c1rconst;
+        pose (no_assign_cstep_protected_reg_context_constant
+                md d c2 (project_reg r false) (project_mem m false) r2 m2 t2
+                x Common.H G G' H3 H13) as c2rconst.
+      4:  pose (no_assign_cstep_protected_reg_context_constant
+              md d c1 (project_reg r true) (project_mem m true) r1 m1 t1
+              x Common.H G G' H2 H12) as c1rconst;
+        pose (no_assign_cstep_protected_reg_context_constant
+                md d c1 (project_reg r false) (project_mem m false) r2 m2 t2
+                x Common.H G G' H3 H12) as c2rconst.
+      1-4: assert (project_reg r true x = r1 x /\ G x = G' x) as r1const by
+              now eapply c1rconst; auto.
+      1-4: assert (project_reg r false x = r2 x /\ G x = G' x) as r2const by
+            now eapply c2rconst; auto.
+      1-4: destruct_pairs; assert (r x = (merge_reg r1 r2) x).
+      1,3,5,7: rewrite (merge_project_inv_reg r); 
+        unfold merge_reg; rewrite H11, H15; auto.
+      1-4: apply (H5 x v1 v2 bt p0); auto; split; auto; try rewrite <- H; auto; rewrite H14; auto.
 
       (* Same thing for updates *)
       split; auto; intros; destruct_pairs.
@@ -358,14 +394,38 @@ Section Config_Preservation.
                                     r2 m2 t2 H12 H3 u H10) |
       ].
       1-3,5-7,9-11,13-15: destruct p0; [unfold sec_level_le in *; omega | unfold protected; auto].
-      1-4: 
-        pose (no_update_mem_constant
-                md d (Cif e c1 c2) r m (merge_reg r1 r2) (merge_mem m1 m2)
-                (merge_trace (t1, t2)) l pc G G' Hcfgok Hcstep H4);
-        assert (~update_in l t1 /\ ~update_in l t2) as noupdate by auto;
-        repeat rewrite project_merge_inv_trace in e0;
-        apply e0 in noupdate; destruct_pairs;
-          apply (H6 l v1 v2 bt p0 rt); split; try rewrite noupdate; auto.
+      1: pose (no_update_cstep_protected_mem_constant
+              md d c2 (project_mem r true) (project_mem m true) r1 m1 t1
+              l Common.H G G' H2 H13) as c1rconst;
+        pose (no_update_cstep_protected_mem_constant
+                md d c2 (project_mem r false) (project_mem m false) r2 m2 t2
+                l Common.H G G' H3 H13) as c2rconst.
+      2: pose (no_update_cstep_protected_mem_constant
+              md d c2 (project_mem r true) (project_mem m true) r1 m1 t1
+              l Common.H G G' H2 H13) as c1rconst;
+        pose (no_update_cstep_protected_mem_constant
+                md d c1 (project_mem r false) (project_mem m false) r2 m2 t2
+                l Common.H G G' H3 H12) as c2rconst.
+      3: pose (no_update_cstep_protected_mem_constant
+              md d c1 (project_mem r true) (project_mem m true) r1 m1 t1
+              l Common.H G G' H2 H12) as c1rconst;
+        pose (no_update_cstep_protected_mem_constant
+                md d c2 (project_mem r false) (project_mem m false) r2 m2 t2
+                l Common.H G G' H3 H13) as c2rconst.
+      4:  pose (no_update_cstep_protected_mem_constant
+              md d c1 (project_reg r true) (project_mem m true) r1 m1 t1
+              l Common.H G G' H2 H12) as c1rconst;
+        pose (no_update_cstep_protected_mem_constant
+                md d c1 (project_reg r false) (project_mem m false) r2 m2 t2
+                l Common.H G G' H3 H12) as c2rconst.
+      1-4: assert (project_mem m true l = m1 l) as r1const by
+            now eapply c1rconst; auto.
+      1-4: assert (project_mem m false l = m2 l) as r2const by
+            now eapply c2rconst; auto.
+      1-4: destruct_pairs; assert (m l = (merge_mem m1 m2) l).
+      1,3,5,7: rewrite (merge_project_inv_mem m); 
+        unfold merge_mem; rewrite r1const, r2const; auto.
+      1-4: apply (H6 l v1 v2 bt p0 rt); auto; split; auto; try rewrite <- H; auto.
     (* Cwhile-T *)
     - inversion H1; try discriminate; subst.
       (* cterm after executing c is ok *)
@@ -403,13 +463,122 @@ Section Config_Preservation.
         unfold assign_in in *; destruct a as [x1 [x2 a]];
           try destruct a0 as [x3 [x4 a0]];
           simpl in *; try omega.
-      1,3,5,9: pose (no_assign_pair_reg_context_constant
-                       md d (Cwhile e c) r m (merge_reg r1 r2) (merge_mem m1 m2)
-                       (merge_trace (t1, t2)) x pc G' G' v1 v2 Hcfgok Hcstep H4);
-        assert (~assign_in x t1 /\ ~assign_in x t2) as noassign by auto;
-        repeat rewrite project_merge_inv_trace in a;
-        apply a in noassign; destruct_pairs; auto;
-          apply (H5 x v1 v2 bt p0); split; try rewrite H16; try rewrite H18; auto.
+
+      1: inversion H2; inversion H3; try discriminate; subst; unfold_cfgs;
+            rewrite <- merge_project_inv_reg in H13;
+            assert (r x = VPair v1 v2 /\ G' x = Some (Typ bt p0)) as tmp by auto;
+            apply (H5 x v1 v2 bt p0 tmp).
+
+      Focus 2.
+      inversion H2; inversion H3; try discriminate; subst; unfold_cfgs; unfold_cfgs.
+      inversion H27; subst.
+      assert (com_type Common.H md G' d (Cwhile e hd) G') as whiletyp.
+      eapply Twhile; eauto.
+      rewrite cstep_seq_singleton in H32.
+      pose (no_assign_cstep_protected_reg_context_constant
+              md d hd (project_reg r false) (project_mem m false) r0 m0 tr
+              x Common.H G' G' H28 H12) as c1rconst.
+      rewrite assign_in_app in n0. 
+      apply not_or_and in n0.
+      assert (project_reg r false x = r0 x /\ G' x = G' x) as r1const by now eapply c1rconst.
+      destruct_pairs.
+      pose (no_assign_cstep_protected_reg_context_constant
+              md d (Cwhile e hd) r0 m0 r2 m2 tr'
+              x Common.H G' G' H32 whiletyp) as c2rconst.
+      assert (r0 x = r2 x /\ G' x = G' x) as r2const by now eapply c2rconst.
+      destruct_pairs.
+      assert (project_reg r false x = r2 x /\ G' x = G' x) as tmp.
+      rewrite <- H22; rewrite H16; auto.
+      destruct tmp as [t1 t2].
+      unfold merge_reg in H13. rewrite <- t1 in H13.
+      assert (merge_reg (project_reg r true) (project_reg r false) x =
+              (if val_decidable (project_reg r true x) (project_reg r false x)
+                then VSingle (project_reg r true x)
+               else VPair (project_reg r true x) (project_reg r false x))) as t3.
+      unfold merge_reg; auto.
+      rewrite <- t3 in H13.
+      rewrite <- merge_project_inv_reg in H13.
+      assert (r x = VPair v1 v2 /\ G' x = Some (Typ bt p0)) as tmp by auto.
+      apply (H5 x v1 v2 bt p0 tmp).
+
+      Focus 3.
+      inversion H2; inversion H3; try discriminate; subst; unfold_cfgs; unfold_cfgs.
+      inversion H20; subst.
+      assert (com_type Common.H md G' d (Cwhile e hd) G') as whiletyp.
+      eapply Twhile; eauto.
+      rewrite cstep_seq_singleton in H25.
+      pose (no_assign_cstep_protected_reg_context_constant
+              md d hd (project_reg r true) (project_mem m true) r0 m0 tr
+              x Common.H G' G' H21 H12) as c1rconst.
+      rewrite assign_in_app in n. apply not_or_and in n.
+      assert (project_reg r true x = r0 x /\ G' x = G' x) as r1const by now eapply c1rconst.
+      destruct_pairs.
+      pose (no_assign_cstep_protected_reg_context_constant
+              md d (Cwhile e hd) r0 m0 r1 m1 tr'
+              x Common.H G' G' H25 whiletyp) as c2rconst.
+      assert (r0 x = r1 x /\ G' x = G' x) as r2const by now eapply c2rconst.
+      destruct_pairs.
+      assert (project_reg r true x = r1 x /\ G' x = G' x) as tmp.
+      rewrite <- H24; rewrite H16; auto.
+      destruct tmp as [t1 t2].
+      unfold merge_reg in H13. rewrite <- t1 in H13.
+      assert (merge_reg (project_reg r true) (project_reg r false) x =
+              (if val_decidable (project_reg r true x) (project_reg r false x)
+                then VSingle (project_reg r true x)
+               else VPair (project_reg r true x) (project_reg r false x))) as t3.
+      unfold merge_reg; auto.
+      rewrite <- t3 in H13.
+      rewrite <- merge_project_inv_reg in H13.
+      assert (r x = VPair v1 v2 /\ G' x = Some (Typ bt p0)) as tmp by auto.
+      apply (H5 x v1 v2 bt p0 tmp).
+
+      Focus 6.
+      inversion H2; inversion H3; try discriminate; subst; unfold_cfgs; unfold_cfgs.
+      inversion H20; subst. inversion H30; subst.
+      assert (com_type Common.H md G' d (Cwhile e hd0) G') as whiletyp.
+      eapply Twhile; eauto.
+      rewrite cstep_seq_singleton in H25, H35.
+      pose (no_assign_cstep_protected_reg_context_constant
+              md d hd0 (project_reg r true) (project_mem m true) r0 m0 tr
+              x Common.H G' G' H21 H12) as c1rconst.
+      rewrite assign_in_app in n. apply not_or_and in n.
+      assert (project_reg r true x = r0 x /\ G' x = G' x) as r1const by now eapply c1rconst.
+      destruct_pairs.
+      pose (no_assign_cstep_protected_reg_context_constant
+              md d (Cwhile e hd0) r0 m0 r1 m1 tr'
+              x Common.H G' G' H25 whiletyp) as c2rconst.
+      assert (r0 x = r1 x /\ G' x = G' x) as r2const by now eapply c2rconst.
+      destruct_pairs.
+      assert (project_reg r true x = r1 x /\ G' x = G' x) as tmp.
+      rewrite <- H24; rewrite H16; auto.
+      destruct tmp as [t1 t2].
+
+      pose (no_assign_cstep_protected_reg_context_constant
+              md d hd0 (project_reg r false) (project_mem m false) r3 m3 tr0
+              x Common.H G' G' H31 H12) as c1rconst'.
+      rewrite assign_in_app in n0. apply not_or_and in n0.
+      assert (project_reg r false x = r3 x /\ G' x = G' x) as r1const' by now eapply c1rconst'.
+      destruct_pairs.
+      pose (no_assign_cstep_protected_reg_context_constant
+              md d (Cwhile e hd0) r3 m3 r2 m2 tr'0
+              x Common.H G' G' H35 whiletyp) as c2rconst'.
+      assert (r3 x = r2 x /\ G' x = G' x) as r2const' by now eapply c2rconst'.
+      destruct_pairs.
+      assert (project_reg r false x = r2 x /\ G' x = G' x) as tmp.
+      rewrite <- H33; rewrite H27; auto.
+      destruct tmp as [t1' t2'].
+      
+      unfold merge_reg in H13. rewrite <- t1 in H13. rewrite <- t1' in H13.
+      assert (merge_reg (project_reg r true) (project_reg r false) x =
+              (if val_decidable (project_reg r true x) (project_reg r false x)
+                then VSingle (project_reg r true x)
+               else VPair (project_reg r true x) (project_reg r false x))) as t3.
+      unfold merge_reg; auto.
+      rewrite <- t3 in H13.
+      rewrite <- merge_project_inv_reg in H13.
+      assert (r x = VPair v1 v2 /\ G' x = Some (Typ bt p0)) as tmp by auto.
+      apply (H5 x v1 v2 bt p0 tmp).
+
       1,5: inversion H3; try discriminate; unfold_cfgs; subst; unfold_cfgs;
         inversion H20; subst; rewrite cstep_seq_singleton in H25;
           assert (com_type Common.H md G' d (Cwhile e hd) G') as cwhiletyp
@@ -441,13 +610,124 @@ Section Config_Preservation.
         unfold update_in in *; destruct u as [x1 [x2 a]];
           try destruct u0 as [x3 [x4 a0]];
           simpl in *; try omega.
-      1,3,5,9: pose (no_update_mem_constant
-                       md d (Cwhile e c) r m (merge_reg r1 r2) (merge_mem m1 m2)
-                       (merge_trace (t1, t2)) l pc G' G' Hcfgok Hcstep H4);
-        assert (~update_in l t1 /\ ~update_in l t2) as noupdate by auto;
-        repeat rewrite project_merge_inv_trace in e0;
-        apply e0 in noupdate; destruct_pairs;
-          apply (H6 l v1 v2 bt p0 rt); split; try rewrite noupdate; auto.
+
+
+      1: inversion H2; inversion H3; try discriminate; subst; unfold_cfgs;
+            rewrite <- merge_project_inv_mem in H13;
+            assert (m l = VPair v1 v2 /\ Loc_Contxt l = Some (Typ bt p0, rt)) as tmp by auto;
+            apply (H6 l v1 v2 bt p0 rt tmp).
+
+      Focus 2.
+      inversion H2; inversion H3; try discriminate; subst; unfold_cfgs; unfold_cfgs.
+      inversion H27; subst.
+      assert (com_type Common.H md G' d (Cwhile e hd) G') as whiletyp.
+      eapply Twhile; eauto.
+      rewrite cstep_seq_singleton in H32.
+      pose (no_update_cstep_protected_mem_constant
+              md d hd (project_reg r false) (project_mem m false) r0 m0 tr
+              l Common.H G' G' H28 H12) as c1rconst.
+      rewrite update_in_app in n0. 
+      apply not_or_and in n0.
+      assert (project_mem m false l = m0 l) as r1const by now eapply c1rconst.
+      destruct_pairs.
+      pose (no_update_cstep_protected_mem_constant
+              md d (Cwhile e hd) r0 m0 r2 m2 tr'
+              l Common.H G' G' H32 whiletyp) as c2rconst.
+      assert (m0 l = m2 l) as r2const by now eapply c2rconst.
+      destruct_pairs.
+      assert (project_mem m false l = m2 l /\ Loc_Contxt l = Some (Typ bt p0, rt)) as tmp.
+      rewrite <- r2const. rewrite <- r1const; auto.
+      destruct tmp as [t1 t2].
+      unfold merge_mem in H13. rewrite <- t1 in H13.
+      assert (merge_mem (project_mem m true) (project_mem m false) l =
+              (if val_decidable (project_mem m true l) (project_mem m false l)
+                then VSingle (project_mem m true l)
+               else VPair (project_mem m true l) (project_mem m false l))) as t3.
+      unfold merge_mem; auto.
+      rewrite <- t3 in H13.
+      rewrite <- merge_project_inv_mem in H13.
+      assert (m l = VPair v1 v2 /\ Loc_Contxt l = Some (Typ bt p0, rt)) as tmp by auto.
+      apply (H6 l v1 v2 bt p0 rt tmp).
+
+      Focus 3.
+      inversion H2; inversion H3; try discriminate; subst; unfold_cfgs; unfold_cfgs.
+      inversion H20; subst.
+      assert (com_type Common.H md G' d (Cwhile e hd) G') as whiletyp.
+      eapply Twhile; eauto.
+      rewrite cstep_seq_singleton in H25.
+      pose (no_update_cstep_protected_mem_constant
+              md d hd (project_reg r true) (project_mem m true) r0 m0 tr
+              l Common.H G' G' H21 H12) as c1rconst.
+      rewrite update_in_app in n. 
+      apply not_or_and in n.
+      assert (project_mem m true l = m0 l) as r1const by now eapply c1rconst.
+      destruct_pairs.
+      pose (no_update_cstep_protected_mem_constant
+              md d (Cwhile e hd) r0 m0 r1 m1 tr'
+              l Common.H G' G' H25 whiletyp) as c2rconst.
+      assert (m0 l = m1 l) as r2const by now eapply c2rconst.
+      destruct_pairs.
+      assert (project_mem m true l = m1 l /\ Loc_Contxt l = Some (Typ bt p0, rt)) as tmp.
+      rewrite <- r2const. rewrite <- r1const; auto.
+      destruct tmp as [t1 t2].
+      unfold merge_mem in H13. rewrite <- t1 in H13.
+      assert (merge_mem (project_mem m true) (project_mem m false) l =
+              (if val_decidable (project_mem m true l) (project_mem m false l)
+                then VSingle (project_mem m true l)
+               else VPair (project_mem m true l) (project_mem m false l))) as t3.
+      unfold merge_mem; auto.
+      rewrite <- t3 in H13.
+      rewrite <- merge_project_inv_mem in H13.
+      assert (m l = VPair v1 v2 /\ Loc_Contxt l = Some (Typ bt p0, rt)) as tmp by auto.
+      apply (H6 l v1 v2 bt p0 rt tmp).
+
+      Focus 6.
+      inversion H2; inversion H3; try discriminate; subst; unfold_cfgs; unfold_cfgs.
+      inversion H20; subst. inversion H30; subst.
+      assert (com_type Common.H md G' d (Cwhile e hd0) G') as whiletyp.
+      eapply Twhile; eauto.
+      rewrite cstep_seq_singleton in H25, H35.
+      pose (no_update_cstep_protected_mem_constant
+              md d hd0 (project_reg r true) (project_mem m true) r0 m0 tr
+              l Common.H G' G' H21 H12) as c1rconst.
+      rewrite update_in_app in n. 
+      apply not_or_and in n.
+      assert (project_mem m true l = m0 l) as r1const by now eapply c1rconst.
+      destruct_pairs.
+      pose (no_update_cstep_protected_mem_constant
+              md d (Cwhile e hd0) r0 m0 r1 m1 tr'
+              l Common.H G' G' H25 whiletyp) as c2rconst.
+      assert (m0 l = m1 l) as r2const by now eapply c2rconst.
+      destruct_pairs.
+      assert (project_mem m true l = m1 l /\ Loc_Contxt l = Some (Typ bt p0, rt)) as tmp.
+      rewrite <- r2const. rewrite <- r1const; auto.
+      destruct tmp as [t1 t2].
+
+      pose (no_update_cstep_protected_mem_constant
+              md d hd0 (project_reg r false) (project_mem m false) r3 m3 tr0
+              l Common.H G' G' H31 H12) as c1rconst'.
+      rewrite update_in_app in n0. apply not_or_and in n0.
+      assert (project_mem m false l = m3 l) as r1const' by now eapply c1rconst'.
+      destruct_pairs.
+      pose (no_update_cstep_protected_mem_constant
+              md d (Cwhile e hd0) r3 m3 r2 m2 tr'0
+              l Common.H G' G' H35 whiletyp) as c2rconst'.
+      assert (m3 l = m2 l) as r2const' by now eapply c2rconst'.
+      destruct_pairs.
+      assert (project_mem m false l = m2 l /\ Loc_Contxt l = Some (Typ bt p0, rt)) as tmp.
+      rewrite <- r2const'; rewrite <- r1const'; auto.
+      destruct tmp as [t1' t2'].      
+      unfold merge_mem in H13. rewrite <- t1 in H13. rewrite <- t1' in H13.
+      assert (merge_mem (project_mem m true) (project_mem m false) l =
+              (if val_decidable (project_mem m true l) (project_mem m false l)
+                then VSingle (project_mem m true l)
+               else VPair (project_mem m true l) (project_mem m false l))) as t3.
+      unfold merge_mem; auto.
+      rewrite <- t3 in H13.
+      rewrite <- merge_project_inv_mem in H13.
+      assert (m l = VPair v1 v2 /\ Loc_Contxt l = Some (Typ bt p0, rt)) as tmp by auto.
+      apply (H6 l v1 v2 bt p0 rt tmp).
+      
       1,5: inversion H3; try discriminate; unfold_cfgs; subst; unfold_cfgs;
         inversion H20; subst; rewrite cstep_seq_singleton in H25;
           assert (com_type Common.H md G' d (Cwhile e hd) G') as cwhiletyp
