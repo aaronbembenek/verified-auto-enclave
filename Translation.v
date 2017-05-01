@@ -316,10 +316,9 @@ Section TransDef.
                     (nth (i + 1) eGs E.mt)
                     (nth (i + 1) Ks [])) ->
       (forall (i: nat),
-          i < length mds' ->
           (nth i mds' E.Normal <> E.Normal /\
            nth i mds' E.Normal <> nth (i + 1) mds' E.Normal ->
-           E.is_var_low_context (nth i eGs E.mt))) ->
+           E.is_var_low_context (nth (i + 1) eGs E.mt))) ->
       mds = md0 :: mds' ->
       md0 = E.Normal \/
       (forall i, i < length mds -> (nth i mds E.Normal) = md0) ->
@@ -456,6 +455,25 @@ Section TransLemmas.
     simpl. replace (y :: ys) with ([y] ++ ys) by reflexivity.
     now rewrite app_assoc.
   Qed.
+
+  Lemma  last_app {A} (x d: A) xs :
+    last (xs ++ [x]) d = x.
+    induction xs. reflexivity. simpl.
+    remember (xs ++ [x]) as l. destruct l.
+    assert (xs ++ [x] <> []).
+    {
+      destruct xs; simpl; contradict Heql; simpl; discriminate.
+    }
+    rewrite <- Heql in H. contradict H. reflexivity. auto.
+  Qed.
+
+  Lemma nth_app_helper {A} (x: A) xs ys d :
+    nth (length xs) (xs ++ x :: ys) d = x.
+  Proof.
+    rewrite app_nth2; auto.
+    replace (length xs - length xs) with 0 by omega. reflexivity.
+  Qed.
+    
 End TransLemmas.
 
 Section TransProof.
@@ -467,10 +485,9 @@ Section TransProof.
         (HUmd0: U = [] \/ md0 <> E.Normal) :
     forall comsout Gsout Ksout,
       (forall (i: nat),
-          i < length mds ->
           (nth i mds E.Normal <> E.Normal /\
            nth i mds E.Normal <> nth (i + 1) mds E.Normal ->
-           E.is_var_low_context (nth i Gs E.mt))) ->
+           E.is_var_low_context (nth (i + 1) Gs E.mt))) ->
       process_seq_output coms md0 mds Gs Ks comsout Gsout Ksout ->
       length Gs = length coms + 1 ->
       length Ks = length coms + 1 ->
@@ -513,14 +530,21 @@ Section TransProof.
         * apply Nat.neq_0_r in n. destruct n as [ m Hm ].
           rewrite Hm in *. simpl.
           simpl in H13. apply lt_S_n in H13. apply H12 in H13. eauto.
-      + intros.
+      + intros. (*
         assert (i + 1 < length mds).
         {
           rewrite H4. simpl. omega.
         }
-        apply Hmds in H12.
-        rewrite H6 in H12. now rewrite <- nth_eq_nth_S_cons in H12.
-        rewrite H4. now repeat rewrite <- nth_eq_nth_S_cons.
+        apply Hmds in H12. *)
+        pose (Hmds (i + 1)) as H12.
+        rewrite H6 in H12.
+        rewrite H4 in H12.
+        replace (nth (i + 1) (E.Normal :: mds') E.Normal) with
+        (nth i mds' E.Normal) in H12.
+        replace (nth (i + 1 + 1) (E.Normal :: mds') E.Normal) with
+        (nth (i + 1) mds' E.Normal) in H12.
+        apply H12 in H10. now rewrite <- nth_eq_nth_S_cons in H10.
+        1-2: now rewrite <- nth_eq_nth_S_cons.
       + rewrite H5 in H1. rewrite H7 in H1. simpl in *. omega.
       + subst. simpl in *. omega.
       + intros.
@@ -581,6 +605,34 @@ Section TransProof.
         1: destruct U; auto. destruct HUmd0. discriminate. now contradict H11.
         1-4: rewrite app_comm_cons; rewrite app_cons_helper;
           rewrite <- app_comm_cons; symmetry; apply app_nth1; omega.
+        1-2: rewrite app_comm_cons; now rewrite last_app.
+        * pose (Hmds (length mds1 - 1)).
+          assert (nth (length mds1 - 1) mds E.Normal = E.Encl j).
+          {
+            simpl in H10.
+            replace (nth (length mds1 - 1) mds E.Normal) with
+            (nth (length mds1 - 1) mds1 E.Normal).
+            rewrite Forall_forall in H5. apply H5.
+            apply nth_In. omega.
+            rewrite H4. symmetry. apply app_nth1. omega.
+          }
+          rewrite H19 in i0.
+          assert (E.Encl j <> nth (length mds1 - 1 + 1) mds E.Normal).
+          {
+            rewrite H4.
+            replace (nth (length mds1 - 1 + 1) (mds1 ++ mds2) E.Normal) with
+            (nth 0 mds2 E.Normal).
+            intuition.
+            rewrite app_nth2. simpl in H10.
+            now replace (length mds1 - 1 + 1 - length mds1) with 0 by omega.
+            omega.
+          }
+          assert (E.Encl j <> E.Normal) by (contradict H; discriminate).
+          replace (nth (length mds1 - 1 + 1) Gs E.mt) with G2 in i0.
+          apply i0; intuition.
+          rewrite H9. replace (length mds1 - 1 + 1) with (length (G1 :: Gs1)).
+          symmetry. rewrite app_comm_cons. now rewrite nth_app_helper.
+          rewrite H10. simpl in H10. omega.
   Admitted.
   
   Lemma process_seq_output_wt (pc: policy) (md0: E.mode) (mds: list E.mode)
@@ -588,10 +640,9 @@ Section TransProof.
         (d: E.loc_mode) (U: set condition) (coms: list E.com) :
     forall comsout Gsout Ksout,
       (forall (i: nat),
-          i < length mds ->
           (nth i mds E.Normal <> E.Normal /\
            nth i mds E.Normal <> nth (i + 1) mds E.Normal ->
-           E.is_var_low_context (nth i Gs E.mt))) ->
+           E.is_var_low_context (nth (i + 1) Gs E.mt))) ->
       U = [] \/ md0 <> E.Normal ->
       length Gs = length coms + 1 ->
       length Ks = length coms + 1 ->
