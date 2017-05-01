@@ -156,13 +156,13 @@ End Induction.
 
 Section Decidability.
 
-   Ltac auto_decide :=
+  Ltac auto_decide :=
     try match goal with
-    | [x : nat, y : nat |- _] => destruct (Nat.eq_dec x y)
-    | [x : var, y : var |- _] => destruct (Nat.eq_dec x y)
-    | [x : enclave, y : enclave |- _] => destruct (Nat.eq_dec x y)
-    | [x : location, y : location |- _] => destruct (Nat.eq_dec x y)
-    | _ => idtac            
+        | [x : nat, y : nat |- _] => destruct (Nat.eq_dec x y)
+        | [x : var, y : var |- _] => destruct (Nat.eq_dec x y)
+        | [x : enclave, y : enclave |- _] => destruct (Nat.eq_dec x y)
+        | [x : location, y : location |- _] => destruct (Nat.eq_dec x y)
+        | _ => idtac            
         end; [left; now subst | right; congruence].
 
    Ltac easy_dec :=
@@ -205,12 +205,44 @@ Section Decidability.
     - destruct c0; try (right; discriminate).
       destruct IHe1 with e; destruct IHe0 with c0_1; destruct IHe2 with c0_2; easy_dec.
   Admitted.
-
+  
   Lemma com_decidable : forall (c1 c2 : com), {c1 = c2} + {c1 <> c2}.
   Proof.
-    intuition.
+    intro.
+    induction c1 using com_rect' with
+    (P0 := fun e1 =>
+             forall e2, {e1 = e2} + {e1 <> e2}); intros.
+    1-2, 4-6: destruct e2; try (right; discriminate).
+    7-16: destruct c2; try (right; discriminate).
+    1-3: auto_decide.
+    - destruct IHc1 with e2; easy_dec.
+    - destruct IHc1 with c; destruct (mode_decidable md m); easy_dec.
+    - admit.
+    - auto.
+    - destruct IHc1 with e0; subst; [auto_decide | right; congruence].
+    - destruct IHc1 with e0; subst; [auto_decide | right; congruence].
+    - destruct IHc1 with e; destruct IHc0 with e0; easy_dec.
+    - destruct s; destruct sl; destruct IHc1 with e0; easy_dec.
+    - destruct IHc1 with e0; easy_dec.
+    - destruct IHc1 with c2; subst; [auto_decide | right; congruence].
+    - generalize l; induction coms; intros; destruct l0; try (right; discriminate); auto.
+      inversion X; subst.
+      destruct X0 with c; try (right; congruence).
+      apply IHcoms with (l := l0) in X1.
+      destruct X1; subst.
+      + left; inversion e0; subst; auto.
+      + right; congruence.
+    - destruct IHc1_1 with e0; destruct IHc1_2 with c2_1; destruct IHc1_3 with c2_2; easy_dec.
+    - destruct IHc1 with e0; destruct IHc0 with c2; easy_dec.
   Admitted.
-
+  
+  Lemma val_decidable : forall (v1 v2 : val), {v1 = v2} + {v1 <> v2}.
+  Proof.
+    intro.
+    induction v1; intros; destruct v2; try (right; discriminate); try auto_decide.
+    destruct (mode_decidable m m0); destruct (com_decidable c c0); easy_dec.
+  Qed.
+      
   Lemma prog_decidable : forall p1 p2 : (com + exp), {p1 = p2} + {p1 <> p2}.
   Proof.
     intros; destruct p1; destruct p2; try (right; discriminate);

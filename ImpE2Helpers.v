@@ -44,6 +44,15 @@ Section Misc.
   Proof.
     induction l1; simpl; auto. rewrite IHl1. destruct (f a); auto.
   Qed.
+
+  Lemma val2_decidable : forall (v1 v2 : val2), {v1 = v2} + {v1 <> v2}.
+  Proof.
+    intro.
+    induction v1; intros; destruct v2; try (right; discriminate).
+    - destruct (val_decidable v v0); subst; auto; right; congruence.
+    - destruct (val_decidable v v1); destruct (val_decidable v0 v2);
+        subst; auto; right; congruence.
+  Qed.
 End Misc.
 
 Section Project_Merge.
@@ -68,8 +77,10 @@ Section Project_Merge.
       + destruct H3; subst; destruct is_left; simpl in *; discriminate.
       + destruct H3; destruct H4; destruct is_left; subst; simpl in *; discriminate.
     - pose (No_Pointers2 m0 l0); destruct a.
-      rewrite <- H2. specialize (H4 l).
-      (* XXX: need value decidability *)
+      inversion H0.
+      destruct v; subst; simpl; auto.
+      destruct is_left; subst; simpl in *; subst.
+      (* XXX: need something about pairs of different types *)
       admit.
   Admitted.
       
@@ -85,7 +96,6 @@ Section Project_Merge.
     intros; unfold project_mem; destruct (m x); auto.
   Qed.
 
-  (* XXX: this might be a pain to prove with registers as functions. Used below in soundness. *)
   Lemma project_update_comm_reg : forall ccfg x v is_left,
       project_reg (ccfg_update_reg2 ccfg x v) is_left = 
       ccfg_update_reg (project_ccfg ccfg is_left) x (project_value v is_left).
@@ -109,28 +119,23 @@ Section Project_Merge.
     - unfold project_value; auto.
     - simpl; now unfold project_mem.
   Qed.
-
-  (* XXX: these lemmata are necessary because merge_reg and merge_mem are propositional *)
-  Lemma merge_reg_exists : forall r1 r2,
-      exists r, merge_reg r1 r2 r.
-  Proof.
-  Admitted.
-
-  Lemma merge_mem_exists : forall m1 m2,
-      exists m, merge_mem m1 m2 m.
-  Proof.
-  Admitted.
   
-  Lemma project_merge_inv_reg : forall r1 r2 r,
-      merge_reg r1 r2 r -> (project_reg r true = r1) /\ (project_reg r false = r2).
+  Lemma project_merge_inv_reg : forall r1 r2 is_left,
+      project_reg (merge_reg r1 r2) is_left = (if is_left then r1 else r2).
   Proof.
-  Admitted.
+    intros.
+    extensionality z; unfold project_reg; unfold merge_reg;
+      destruct (val_decidable (r1 z) (r2 z)); destruct is_left; subst; auto.
+  Qed.
 
-  Lemma project_merge_inv_mem : forall m1 m2 m,
-      merge_mem m1 m2 m <-> (project_mem m true = m1) /\ (project_mem m false = m2).
+  Lemma project_merge_inv_mem : forall m1 m2 is_left,
+      project_mem (merge_mem m1 m2) is_left = (if is_left then m1 else m2).
   Proof.
-  Admitted.
-
+    intros.
+    extensionality z; unfold merge_mem; unfold project_mem;
+        destruct (val_decidable (m1 z) (m2 z)); destruct is_left; subst; auto.
+  Qed.
+    
   Lemma project_merge_inv_trace : forall t1 t2 is_left,
       project_trace (merge_trace (t1, t2)) is_left = (if is_left then t1 else t2).
   Proof.

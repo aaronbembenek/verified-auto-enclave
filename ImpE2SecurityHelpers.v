@@ -105,19 +105,21 @@ Section Typing_Helpers.
     exp_type md G d e (Typ (Tlambda Gm p md Gp) q) -> com_type p md Gm d c Gp.
   Proof.
     intros.
-    pose (merge_reg_exists r r) as tmp; destruct tmp as [r2 merger].
-    pose (merge_mem_exists m m) as tmp; destruct tmp as [m2 mergem].
-    pose (project_merge_inv_reg r r r2 merger) as tmp; destruct tmp as [projTr projFr].
-    apply (project_merge_inv_mem m m m2) in mergem. destruct mergem as [projTm projFm].
+    pose (merge_reg r r) as merger.
+    pose (merge_mem m m) as mergem.
+    pose (project_merge_inv_reg r r true) as projTr.
+    pose (project_merge_inv_reg r r false) as projFr.
+    pose (project_merge_inv_mem m m true) as projTm.
+    pose (project_merge_inv_mem m m false) as projFm; simpl in *.
     assert (H0' := H0).
     rewrite <- projTm, <- projTr in H0.
     rewrite <- projFm, <- projFr in H0'.
-    pose (impe2_exp_complete md d e r2 m2 (Vlambda md c) (Vlambda md c) H0) as tmp.
+    pose (impe2_exp_complete md d e merger mergem (Vlambda md c) (Vlambda md c) H0 H0') as tmp.
     destruct tmp; destruct_pairs; auto.
     assert (val_type md G d (Vlambda md c) (Typ (Tlambda Gm p md Gp) q)).
     pose (impe2_value_type_preservation md G d e
                                         (Tlambda Gm p md Gp) q
-                                        r2 m2 x H1 H2).
+                                        merger mergem x H1 H2).
     destruct_pairs. rewrite H3 in *; auto.
     rewrite VlambdaWT_iff_ComWT; eauto. (*GRRRRRR*)
   Qed.
@@ -253,7 +255,7 @@ Section Security.
       sec_level_le pc q.
   Proof.
   Admitted.
-    
+
   Lemma no_assign_pair_reg_context_constant : forall md d c r m r' m' tr x pc G G' v1 v2,
       cstep2 md d (c, r, m) (r', m') tr ->
       com_type pc md G d c G' ->
@@ -436,10 +438,11 @@ Section Security.
   Qed.
   
   Lemma vpair_if_diff : forall m1 m2 v1 v2 l,
-      merge_mem m1 m2 minit ->
+      merge_mem m1 m2 = minit ->
       minit l = VPair v1 v2 -> m1 l <> m2 l.
   Proof.
-    intros. inversion H; subst. apply (H1 l) in H0; destruct_pairs; auto.
+    intros. inversion H; subst. rewrite <- H2 in H0.
+    unfold merge_mem in H0. destruct (val_decidable (m1 l) (m2 l)); auto; discriminate.
   Qed.
 
 End Security.
