@@ -678,7 +678,7 @@ Section Axioms.
 
   Definition meminit_wf (m: mem) d := forall l,
       match m l with
-      | Vlambda md c => exists Gm p md Gp q rt,
+      | Vlambda md c => exists Gm p Gp q rt,
                         Loc_Contxt l = Some (Typ (Tlambda Gm p md Gp) q, rt) ->
                         com_type p md Gm d c Gp
       | Vloc l => False
