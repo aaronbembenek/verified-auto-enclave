@@ -58,8 +58,9 @@ Section Config_Preservation.
     generalize dependent r'.
     generalize dependent m'.
     pose Hcstep as Hcstep'.
+
     induction Hcstep'; unfold cterm2_ok; intros; subst; simpl in *; unfold_cfgs;
-      unfold cconfig2_ok in Hcfgok; destruct_pairs; unfold_cfgs; subst;
+      pose Hcfgok as Hcfgok'; unfold cconfig2_ok in Hcfgok'; destruct_pairs; unfold_cfgs; subst;
         inversion Heqcterm; subst.
     (* CSkip *)
     - inversion H0; try discriminate; subst. split; [intros | split; intros]; simpl in *; auto.
@@ -187,7 +188,7 @@ Section Config_Preservation.
              unfold protected; auto.
          --- pose (no_assign_pair_reg_context_constant
                      md d (Ccall e) r m (merge_reg r1 r2) (merge_mem m1 m2)
-                     (merge_trace (t1, t2)) x pc G G' v1 v2 Hcstep H3).
+                     (merge_trace (t1, t2)) x pc G G' v1 v2 Hcfgok Hcstep H3).
              assert (~assign_in x t1 /\ ~assign_in x t2) as noassign by auto.
              repeat rewrite project_merge_inv_trace in a.
              apply a in noassign; destruct_pairs; auto.
@@ -211,7 +212,7 @@ Section Config_Preservation.
              unfold protected; auto.
          --- pose (no_update_mem_constant
                      md d (Ccall e) r m (merge_reg r1 r2) (merge_mem m1 m2)
-                     (merge_trace (t1, t2)) l pc G G' Hcstep H3).
+                     (merge_trace (t1, t2)) l pc G G' Hcfgok Hcstep H3).
              assert (~update_in l t1 /\ ~update_in l t2) as noupdate by auto.
              repeat rewrite project_merge_inv_trace in e0.
              apply e0 in noupdate; destruct_pairs.
@@ -305,12 +306,12 @@ Section Config_Preservation.
       1-4: 
         pose (no_assign_pair_reg_context_constant
                 md d (Cif e c1 c2) r m (merge_reg r1 r2) (merge_mem m1 m2)
-                (merge_trace (t1, t2)) x pc G G' v1 v2 Hcstep H4);
+                (merge_trace (t1, t2)) x pc G G' v1 v2 Hcfgok Hcstep H4);
         assert (~assign_in x t1 /\ ~assign_in x t2) as noassign by auto;
         pose (no_assign_pair_reg_context_constant
                 md d (Cif e c1 c2) r m (merge_reg r1 r2) (merge_mem m1 m2)
                 (merge_trace (t1, t2)) x pc G G' v1 v2
-                Hcstep H4);
+                Hcfgok Hcstep H4);
         repeat rewrite project_merge_inv_trace in a;
         apply a in noassign; destruct_pairs; auto;
           apply (H5 x v1 v2 bt p0); split; try rewrite H11; try rewrite H14; auto.
@@ -360,7 +361,7 @@ Section Config_Preservation.
       1-4: 
         pose (no_update_mem_constant
                 md d (Cif e c1 c2) r m (merge_reg r1 r2) (merge_mem m1 m2)
-                (merge_trace (t1, t2)) l pc G G' Hcstep H4);
+                (merge_trace (t1, t2)) l pc G G' Hcfgok Hcstep H4);
         assert (~update_in l t1 /\ ~update_in l t2) as noupdate by auto;
         repeat rewrite project_merge_inv_trace in e0;
         apply e0 in noupdate; destruct_pairs;
@@ -387,7 +388,7 @@ Section Config_Preservation.
     - inversion H4; try discriminate; subst.
       assert (protected p).
       remember (VPair (Vnat n1) (Vnat n2)) as v.
-      eapply econfig2_pair_protected; eauto. 
+      eapply econfig2_pair_protected. apply Heqv. apply H11. apply H0.
       assert (cterm2_ok G' d r m) as Hcterm2_ok.
       unfold cterm2_ok in *; auto.
       apply Hcterm2_ok.
@@ -395,7 +396,7 @@ Section Config_Preservation.
       assert (protected (sec_level_join pc p)) by now apply (join_protected_r pc p).
       inversion H10; subst. rewrite H14 in H17.
       destruct pc'; unfold sec_level_le in H17. omega.
-      split; intros; destruct_pairs; auto. unfold cleft in *; unfold cright in *.
+      split; intros; destruct_pairs. unfold cleft in *; unfold cright in *.
       destruct n1; destruct n2; destruct (assign_in_dec x t1), (assign_in_dec x t2).
       1-3,5-6,9,11:
         inversion H2; try discriminate; subst; inversion H3; try discriminate; subst;
@@ -404,9 +405,9 @@ Section Config_Preservation.
           simpl in *; try omega.
       1,3,5,9: pose (no_assign_pair_reg_context_constant
                        md d (Cwhile e c) r m (merge_reg r1 r2) (merge_mem m1 m2)
-                       (merge_trace (t1, t2)) x pc G' G' v1 v2 Hcstep H4);
+                       (merge_trace (t1, t2)) x pc G' G' v1 v2 Hcfgok Hcstep H4);
         assert (~assign_in x t1 /\ ~assign_in x t2) as noassign by auto;
-        repeat rewrite project_merge_inv_trace in a; 
+        repeat rewrite project_merge_inv_trace in a;
         apply a in noassign; destruct_pairs; auto;
           apply (H5 x v1 v2 bt p0); split; try rewrite H16; try rewrite H18; auto.
       1,5: inversion H3; try discriminate; unfold_cfgs; subst; unfold_cfgs;
@@ -442,7 +443,7 @@ Section Config_Preservation.
           simpl in *; try omega.
       1,3,5,9: pose (no_update_mem_constant
                        md d (Cwhile e c) r m (merge_reg r1 r2) (merge_mem m1 m2)
-                       (merge_trace (t1, t2)) l pc G' G' Hcstep H4);
+                       (merge_trace (t1, t2)) l pc G' G' Hcfgok Hcstep H4);
         assert (~update_in l t1 /\ ~update_in l t2) as noupdate by auto;
         repeat rewrite project_merge_inv_trace in e0;
         apply e0 in noupdate; destruct_pairs;

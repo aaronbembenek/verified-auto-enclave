@@ -256,16 +256,6 @@ Axiom No_Pointers2 : forall (m: mem2) l,
             (r2, m2) t2 ->
       merge_reg r1 r2 = rmerge ->
       merge_mem m1 m2 = mmerge ->
-      cstep2 md d (c1, (merge_reg (project_reg (ccfg_reg2 ccfg) true)
-                                  (project_reg (ccfg_reg2 ccfg) true)),
-                   (merge_mem (project_mem (ccfg_mem2 ccfg) true)
-                              (project_mem (ccfg_mem2 ccfg) true)))
-             ((merge_reg r1 r1), (merge_reg m1 m1)) (merge_trace (t1, t1)) ->
-             cstep2 md d (c2, (merge_reg (project_reg (ccfg_reg2 ccfg) false)
-                                         (project_reg (ccfg_reg2 ccfg) false)),
-                          (merge_mem (project_mem (ccfg_mem2 ccfg) false)
-                                     (project_mem (ccfg_mem2 ccfg) false)))
-             ((merge_reg r2 r2), (merge_reg m2 m2)) (merge_trace (t2, t2)) ->
       cstep2 md d ccfg (rmerge, mmerge) (merge_trace (t1, t2))
   | Cstep2_enclave : forall md d ccfg enc c r' m' tr,
     md = Normal ->
@@ -308,16 +298,6 @@ Axiom No_Pointers2 : forall (m: mem2) l,
                   (r2, m2) t2 ->
       merge_reg r1 r2 = rmerge ->
       merge_mem m1 m2 = mmerge ->
-      cstep2 md d (cleft, (merge_reg (project_reg (ccfg_reg2 ccfg) true)
-                                  (project_reg (ccfg_reg2 ccfg) true)),
-                   (merge_mem (project_mem (ccfg_mem2 ccfg) true)
-                              (project_mem (ccfg_mem2 ccfg) true)))
-             ((merge_reg r1 r1), (merge_reg m1 m1)) (merge_trace (t1, t1)) ->
-      cstep2 md d (cright, (merge_reg (project_reg (ccfg_reg2 ccfg) false)
-                                  (project_reg (ccfg_reg2 ccfg) false)),
-                   (merge_mem (project_mem (ccfg_mem2 ccfg) false)
-                              (project_mem (ccfg_mem2 ccfg) false)))
-             ((merge_reg r2 r2), (merge_reg m2 m2)) (merge_trace (t2, t2)) ->
       cstep2 md d ccfg (rmerge, mmerge) (merge_trace (t1, t2))
   | Cstep2_while_t : forall md d ccfg e c r m tr r' m' tr',
       ccfg_com2 ccfg = Cwhile e c ->
@@ -347,16 +327,6 @@ Axiom No_Pointers2 : forall (m: mem2) l,
             (r2, m2) t2 ->
       merge_reg r1 r2 = rmerge ->
       merge_mem m1 m2 = mmerge ->
-      cstep2 md d (cleft, (merge_reg (project_reg (ccfg_reg2 ccfg) true)
-                                  (project_reg (ccfg_reg2 ccfg) true)),
-                   (merge_mem (project_mem (ccfg_mem2 ccfg) true)
-                              (project_mem (ccfg_mem2 ccfg) true)))
-             ((merge_reg r1 r1), (merge_reg m1 m1)) (merge_trace (t1, t1)) ->
-      cstep2 md d (cright, (merge_reg (project_reg (ccfg_reg2 ccfg) false)
-                                  (project_reg (ccfg_reg2 ccfg) false)),
-                   (merge_mem (project_mem (ccfg_mem2 ccfg) false)
-                              (project_mem (ccfg_mem2 ccfg) false)))
-             ((merge_reg r2 r2), (merge_reg m2 m2)) (merge_trace (t2, t2)) ->
       cstep2 md d ccfg (rmerge, mmerge) (merge_trace (t1, t2))
   .
   Hint Constructors cstep2.
