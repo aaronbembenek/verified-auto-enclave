@@ -633,6 +633,35 @@ Section TransProof.
           rewrite H9. replace (length mds1 - 1 + 1) with (length (G1 :: Gs1)).
           symmetry. rewrite app_comm_cons. now rewrite nth_app_helper.
           rewrite H10. simpl in H10. omega.
+        * rewrite Nat.neq_0_r in n. destruct n as [ m n ].
+          replace (S m) with (m + 1) in n by omega.
+          rewrite n. repeat rewrite <- nth_eq_nth_S_cons.
+          assert (m < length coms').
+          {
+            rewrite n in H18. simpl in H18. omega.
+          }
+          apply H17 in H19.
+          repeat rewrite <- nth_eq_nth_S_cons in H19. auto.
+      + intros.
+        assert (forall k,
+                   nth k mds2 E.Normal = nth (length mds1 + k) mds E.Normal).
+        {
+          intros. rewrite H4. symmetry.
+          remember (length mds1 + k) as n.
+          replace k with (n - length mds1) by omega.
+          eapply app_nth2; omega.
+        }
+        rewrite (H16 i) in H15.
+        rewrite (H16 (i + 1)) in H15.
+        rewrite plus_assoc in H15.
+        apply Hmds in H15.
+        rewrite H9 in H15.
+        replace (length mds1 + i + 1) with (length (G1 :: Gs1) + i + 1) in H15.
+        rewrite app_comm_cons in H15.
+        rewrite app_nth2 in H15.
+        replace (length (G1 :: Gs1) + i + 1 - length (G1 :: Gs1))
+        with (i + 1) in H15 by omega. auto.
+        1-2: omega.
   Admitted.
   
   Lemma process_seq_output_wt (pc: policy) (md0: E.mode) (mds: list E.mode)
