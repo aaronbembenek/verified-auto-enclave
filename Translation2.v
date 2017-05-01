@@ -78,7 +78,8 @@ Section TransDef.
   | PSO0 :
       Forall (fun md => md = md0) mds ->
       Forall (fun K => K = []) Ks'' ->
-      process_seq_output coms md0 mds Gs Ks Ks' Ks'' coms Gs Ks. (*
+      process_seq_output coms md0 mds Gs Ks Ks' Ks'' coms Gs
+                         (nth 0 Ks [] :: Ks'). (*
   | PSO1 : forall mds' coms' coms'' c G1 G2 Gs' K1 K2 Ks' Gs'' Ks'',
       md0 = E.Normal ->
       mds = E.Normal :: mds' ->
@@ -515,7 +516,7 @@ Section TransProof.
   Lemma process_seq_output_wt' (pc: policy) (md0: E.mode) (mds: list E.mode)
         (Gs: list E.context) (Ks: list (set E.enclave))
         (d: E.loc_mode) (U: set condition) (coms: list E.com) :
-    forall comsout Gsout Ksout Ks' Ks'',
+    forall comsout Gsout Ksout (Ks' Ks'': list (set E.enclave)),
       (forall i,
           i < length Ks - 1 ->
           nth (i + 1) Ks [] =
@@ -554,8 +555,13 @@ Section TransProof.
                      (nth (i + 1) Gsout E.mt) (nth (i + 1) Ksout [])).
   Proof.
     intros comsout Gsout Ksout Ks' Ks'' Hunion Hinter HKs''empty Hcontext
-           Hpso HGslen HKslen Hmdslen Hwt HU.
-    induction Hpso. (*
+           Hpso HGslen HKslen HKs'len HKs''len Hmdslen Hwt HU.
+    induction Hpso.
+    - repeat split; auto.
+      rewrite <- HKs'len. simpl. omega.
+      intros. destruct (Nat.eq_dec i 0). rewrite e.
+      simpl.
+  (*
     - repeat split; auto. intros. pose H1 as H1'. apply Hwt in H1'.
       replace (nth i mds E.Normal) with md0 in H1'; auto.
       rewrite Forall_forall in H. symmetry. apply H. rewrite <- Hmdslen in H1.
