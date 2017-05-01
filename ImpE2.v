@@ -60,16 +60,13 @@ Section Semantics.
   Definition val_to_val2 (v: val) : val2 := VSingle v.
   Definition mem_to_mem2 (m: mem) : mem2 := fun x => val_to_val2 (m x).
   Definition reg_to_reg2 (r: reg) : reg2 := fun x => val_to_val2 (r x).
-  Inductive merge_reg (r1 r2: reg) : reg2 -> Prop :=
-  | rmerge : forall r,
-      (forall x, r1 x <> r2 x -> r x = VPair (r1 x) (r2 x))
-      -> (forall y, r1 y = r2 y -> r y = val_to_val2 (r1 y))
-      -> merge_reg r1 r2 r.
-  Inductive merge_mem (m1 m2: mem) : mem2 -> Prop :=
-  | mmerge : forall m,
-      (forall x v1 v2, m x = VPair v1 v2 <-> m1 x <> m2 x /\ (m1 x = v1) /\ (m2 x = v2))
-      -> (forall y, m1 y = m2 y <-> m y = VSingle (m1 y))
-      -> merge_mem m1 m2 m.
+  Function merge_reg (r1 r2 : reg) : reg2 :=
+    fun x =>
+      if (val_decidable (r1 x) (r2 x)) then VSingle (r1 x) else VPair (r1 x) (r2 x).
+  Function merge_mem (m1 m2 : mem) : mem2 :=
+    fun l =>
+      if (val_decidable (m1 l) (m2 l)) then VSingle (m1 l) else VPair (m1 l) (m2 l).
+
   Definition event_to_event2 (e: event) : event2 :=
     match e with
       | Mem m => Mem2 (mem_to_mem2 m)
@@ -253,8 +250,8 @@ Section Semantics.
       cstep md d (c2, project_reg (ccfg_reg2 ccfg) false,
                   project_mem (ccfg_mem2 ccfg) false)                  
             (r2, m2) t2 ->
-      merge_reg r1 r2 rmerge ->
-      merge_mem m1 m2 mmerge ->
+      merge_reg r1 r2 = rmerge ->
+      merge_mem m1 m2 = mmerge ->
       cstep2 md d ccfg (rmerge, mmerge) (merge_trace (t1, t2))
   | Cstep2_enclave : forall md d ccfg enc c r' m' tr,
     md = Normal ->
@@ -295,8 +292,8 @@ Section Semantics.
       cstep md d (cright, project_reg (ccfg_reg2 ccfg) false,
                   project_mem (ccfg_mem2 ccfg) false)
                   (r2, m2) t2 ->
-      merge_reg r1 r2 rmerge ->
-      merge_mem m1 m2 mmerge ->
+      merge_reg r1 r2 = rmerge ->
+      merge_mem m1 m2 = mmerge ->
       cstep2 md d ccfg (rmerge, mmerge) (merge_trace (t1, t2))
   | Cstep2_while_t : forall md d ccfg e c r m tr r' m' tr',
       ccfg_com2 ccfg = Cwhile e c ->
@@ -324,8 +321,8 @@ Section Semantics.
       cstep md d (cright, project_reg (ccfg_reg2 ccfg) false,
                   project_mem (ccfg_mem2 ccfg) false)
                   (r2, m2) t2 ->
-      merge_reg r1 r2 rmerge ->
-      merge_mem m1 m2 mmerge ->
+      merge_reg r1 r2 = rmerge ->
+      merge_mem m1 m2 = mmerge ->
       cstep2 md d ccfg (rmerge, mmerge) (merge_trace (t1, t2))
   .
   Hint Constructors cstep2.
@@ -421,7 +418,7 @@ Section Security_Defn.
   
   Definition secure_prog (sl: sec_level) (d: loc_mode) (c: com) (G: context) : Prop :=
     forall m0 mknown r' m' t tobs,
-      merge_mem m0 mknown minit ->
+      merge_mem m0 mknown = minit ->
       cstep2 Normal d (c, reg_init2, minit) (r', m') t ->
       tobs = project_trace t true ->
       mem_sl_ind sl ->

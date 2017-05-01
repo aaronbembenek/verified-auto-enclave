@@ -92,8 +92,7 @@ Section Soundness.
       eapply Cstep_call; unfold ccfg_to_ecfg; simpl; eauto.
       eapply IHcstep2; unfold_cfgs; eauto.
     - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
-        apply project_merge_inv_reg in H3; apply project_merge_inv_mem in H4.
-      destruct_conjs; subst.
+        rewrite project_merge_inv_reg; rewrite project_merge_inv_mem.
       destruct is_left;
         [apply Cstep_call with (e:=e) (c:=c1) | apply Cstep_call with (e:=e) (c:=c2)]; auto;
       unfold ccfg_update_com; simpl; rewrite project_merge_inv_trace; auto.
@@ -110,10 +109,10 @@ Section Soundness.
     - eapply impe2_exp_sound in H0.
       eapply Cstep_else; unfold_cfgs; simpl; eauto.
     - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *.
-      destruct H1; apply l2_zero_or_one in H1; apply l2_zero_or_one in H6.
-        apply project_merge_inv_reg in H4; apply project_merge_inv_mem in H5;
-          destruct_conjs; unfold cleft in *; unfold cright in *; subst.
-        destruct is_left; [destruct H1 | destruct H6]; rewrite H in *.
+      destruct H1; apply l2_zero_or_one in H1; apply l2_zero_or_one in H4.
+        rewrite project_merge_inv_reg; rewrite project_merge_inv_mem;
+          unfold cleft in *; unfold cright in *; subst.
+        destruct is_left; [destruct H1 | destruct H4]; rewrite H in *.
         1,3: apply Cstep_else with (e := e) (c1 := c1) (c2 := c2).
         7,8: apply Cstep_if with (e := e) (c1 := c1) (c2 := c2).
         all: auto; unfold_cfgs; simpl in *; try rewrite project_merge_inv_trace; auto.
@@ -123,18 +122,16 @@ Section Soundness.
     - eapply Cstep_while_f; unfold_cfgs; simpl; eauto.      
       eapply impe2_exp_sound in H0; eauto.
     - apply impe2_exp_sound with (is_left := is_left) in H0; simpl in *;
-        apply project_merge_inv_reg in H4; apply project_merge_inv_mem in H5;
-          destruct_conjs; apply l2_zero_or_one in H1; apply l2_zero_or_one in H8;
+        rewrite project_merge_inv_reg; rewrite project_merge_inv_mem; destruct_conjs;
+          apply l2_zero_or_one in H1; apply l2_zero_or_one in H4;
             unfold cleft in *; unfold cright in *.
-      destruct is_left; [destruct H1; rewrite H1 in * | destruct H8; rewrite H8 in *];
+      destruct is_left; [destruct H1; rewrite H1 in * | destruct H4; rewrite H4 in *];
         rewrite project_merge_inv_trace; subst; unfold_cfgs; simpl in *.
       1,2: inversion H2; subst; try discriminate.
       3,4: inversion H3; subst; try discriminate.
       1,3: eapply Cstep_while_f; unfold_cfgs; simpl; eauto.
-      1: inversion H4.
-      2: inversion H5.
-      all: simpl in *; subst; eapply Cstep_while_t; simpl; eauto;
-        now apply -> cstep_seq_singleton.
+      all: inversion H5; subst; simpl in *; subst; eapply Cstep_while_t; simpl; eauto;
+        apply -> cstep_seq_singleton; auto.
   Qed.
 
 End Soundness.
@@ -200,8 +197,8 @@ Section Completeness.
     Local Ltac destruct_merge_inv :=
       repeat
         match goal with
-        | [ H : merge_mem _ _ _ |- _ ] => apply project_merge_inv_mem in H; destruct_conjs; auto
-        | [ H : merge_reg _ _ _ |- _ ] => apply project_merge_inv_reg in H; destruct_conjs; auto
+        | [ |- project_mem (merge_mem _ _) _ = _ ] => rewrite project_merge_inv_mem; auto
+        | [ |- project_reg (merge_reg _ _) _ = _ ] => rewrite project_merge_inv_reg; auto
         | [ |- project_trace (merge_trace _) _ = _ ] => rewrite project_merge_inv_trace; auto
         | _ => idtac
         end.
@@ -274,9 +271,7 @@ Section Completeness.
         apply Cstep2_call with (e := e0) (c := c1); auto.
         unfold ccfg_to_ecfg2; simpl in *; subst; auto.
         all: congruence.
-      + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
-        pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
-        exists mr; exists mm; exists (merge_trace (tr, t'2)); repeat split.
+      + exists (merge_reg r'1 r'2); exists (merge_mem m'1 m'2); exists (merge_trace (tr, t'2)); repeat split.
         eapply Cstep2_call_div; unfold_cfgs; simpl in *; subst; eauto.
         1,2: inversion Heqcterm1; subst; auto.
         all: destruct_merge_inv.
@@ -310,9 +305,7 @@ Section Completeness.
         exists x; exists x0; exists x1; repeat split; auto.
         apply Cstep2_if with (e := e0) (c1 := c0) (c2 := c3); auto.
         all: inversion Heqcterm1; subst; auto.
-      + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
-        pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
-        exists mr; exists mm; exists (merge_trace (tr, t'2)); repeat split.
+      + exists (merge_reg r'1 r'2); exists (merge_mem m'1 m'2); exists (merge_trace (tr, t'2)); repeat split.
         apply Cstep2_if_div with (e := e0) (c1 := c0) (c2 := c3) (n1 := 1) (n2 := 1)
                                            (r1 := r') (m1 := m') (r2 := r'2) (m2 := m'2); auto.
         unfold_cfgs; simpl in *; now subst.
@@ -322,9 +315,7 @@ Section Completeness.
       destruct_exp_complete H0.
       destruct x; subst.
       + simpl in *; subst; discriminate.
-      + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
-        pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
-        exists mr; exists mm; exists (merge_trace (tr, t'2)); repeat split.
+      + exists (merge_reg r'1 r'2); exists (merge_mem m'1 m'2); exists (merge_trace (tr, t'2)); repeat split.
         apply Cstep2_if_div with (e := e0) (c1 := c0) (c2 := c3) (n1 := 1) (n2 := 0)
                                            (r1 := r') (m1 := m') (r2 := r'2) (m2 := m'2); auto.
         unfold_cfgs; simpl in *; now subst.
@@ -334,9 +325,7 @@ Section Completeness.
       destruct_exp_complete H0.
       destruct x; subst.
       + simpl in *; subst; discriminate.
-      + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
-        pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
-        exists mr; exists mm; exists (merge_trace (tr, t'2)); repeat split.
+      + exists (merge_reg r'1 r'2); exists (merge_mem m'1 m'2); exists (merge_trace (tr, t'2)); repeat split.
         apply Cstep2_if_div with (e := e0) (c1 := c0) (c2 := c3) (n1 := 0) (n2 := 1)
                                            (r1 := r') (m1 := m') (r2 := r'2) (m2 := m'2); auto.
         unfold_cfgs; simpl in *; now subst.
@@ -351,9 +340,7 @@ Section Completeness.
         exists x; exists x0; exists x1; repeat split; auto.
         apply Cstep2_else with (e := e0) (c1 := c0) (c2 := c3); auto.
         all: inversion Heqcterm1; subst; auto.
-      + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
-        pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
-        exists mr; exists mm; exists (merge_trace (tr, t'2)); repeat split.
+      + exists (merge_reg r'1 r'2); exists (merge_mem m'1 m'2); exists (merge_trace (tr, t'2)); repeat split.
         apply Cstep2_if_div with (e := e0) (c1 := c0) (c2 := c3) (n1 := 0) (n2 := 0)
                                            (r1 := r') (m1 := m') (r2 := r'2) (m2 := m'2); auto.
         unfold_cfgs; simpl in *; now subst.
@@ -370,9 +357,8 @@ Section Completeness.
         do 3 eexists; repeat split; eauto.
         eapply Cstep2_while_t; eauto.
         all: now rewrite project_app_trace.
-      + pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
-        pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
-        exists mr; exists mm; exists (merge_trace (tr ++ tr', tr0 ++ tr'0)); repeat split.
+      + exists (merge_reg r'1 r'2); exists (merge_mem m'1 m'2);
+          exists (merge_trace (tr ++ tr', tr0 ++ tr'0)); repeat split.
         eapply Cstep2_while_div; eauto.
         all: unfold_cfgs; simpl in *; inversion Heqcterm1; subst; auto.
         1,2: eapply Cstep_seq_hd; simpl; eauto; apply cstep_seq_singleton; auto.
@@ -382,9 +368,8 @@ Section Completeness.
       destruct_exp_complete H0.
       destruct x; subst.
       + simpl in *; subst; discriminate.
-      + pose (merge_reg_exists r'1 (project_reg r0 false)) as mr; destruct mr as [mr].
-        pose (merge_mem_exists m'1 (project_reg m0 false)) as mm; destruct mm as [mm].
-        exists mr; exists mm; exists (merge_trace (tr ++ tr', [])); repeat split.
+      + exists (merge_reg r'1 (project_reg r0 false)); exists (merge_mem m'1 (project_mem m0 false));
+          exists (merge_trace (tr ++ tr', [])); repeat split.
         simpl in *; subst.
         eapply Cstep2_while_div; eauto.
         all: unfold_cfgs; simpl in *; inversion Heqcterm1; subst; auto.
@@ -397,10 +382,8 @@ Section Completeness.
       destruct x; subst.
       + simpl in *; subst; discriminate.
       + unfold_cfgs; simpl in *; subst.
-        pose (merge_reg_exists r'1 r'2) as mr; destruct mr as [mr].
-        pose (merge_mem_exists m'1 m'2) as mm; destruct mm as [mm].
-        inversion Heqcterm1; subst.
-        exists mr; exists mm; eexists; repeat split; eauto.
+        exists (merge_reg r'1 r'2); exists (merge_mem m'1 m'2);
+          eexists; inversion Heqcterm1; subst; repeat split; eauto.        
         eapply Cstep2_while_div; eauto.
         all: unfold_cfgs; simpl in *; subst; auto.
         econstructor; eauto.
@@ -414,12 +397,10 @@ Section Completeness.
         do 3 eexists; repeat split; eauto.
         eapply Cstep2_while_f; eauto.
         all: now cbn.
-      + pose (merge_reg_exists (project_reg r true) (project_reg r false)) as mr;
-          destruct mr as [mr].
-        pose (merge_mem_exists (project_mem m true) (project_mem m false)) as mm;
-          destruct mm as [mm].
-        inversion Heqcterm1; subst; unfold_cfgs; simpl in *; subst.
-        exists mr; exists mm; eexists; repeat split; eauto.
+      + exists (merge_reg (project_reg r true) (project_reg r false));
+          exists  (merge_mem (project_mem m true) (project_mem m false));
+          eexists; inversion Heqcterm1; subst; unfold_cfgs; simpl in *; subst;
+          repeat split; eauto.
         eapply Cstep2_while_div; eauto.
         all: unfold_cfgs; simpl in *; subst; auto.
         1,2: econstructor; auto.
