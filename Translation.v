@@ -85,20 +85,19 @@ Section TransDef.
                  Gs2' Ks2' K1 K2 G1 G2,
       md0 = E.Normal ->
       mds = mds1 ++ mds2 ->
-      Forall (fun md => md = E.Encl j) mds ->
+      Forall (fun md => md = E.Encl j) mds1 ->
       nth 0 mds2 E.Normal <> E.Encl j ->
       coms = coms1 ++ coms2 ->
       length coms1 = length mds1 ->
       Gs = G1 :: Gs1 ++ G2 :: Gs2 ->
-      length Gs1 = length mds1 ->
+      length (G1 :: Gs1) = length mds1 ->
       Ks = K1 :: Ks1 ++ K2 :: Ks2 ->
-      length Ks1 = length mds1 ->
+      length (K1 :: Ks1) = length mds1 ->
       c = E.Cenclave j (E.Cseq coms1) ->
       process_seq_output coms2 md0 mds2 (G2 :: Gs2) (K2 :: Ks2)
                          coms' (G2 :: Gs2') (K2 :: Ks2') ->
       process_seq_output coms md0 mds Gs Ks
                          (c :: coms') (G1 :: G2 :: Gs2') (K1 :: K2 :: Ks2').
-  (* XXX need a base case for [] *)
   
   Inductive exp_trans : S.context -> S.exp -> S.type -> S.ederiv ->
                         E.mode -> E.context -> E.loc_mode -> E.exp ->
@@ -450,6 +449,13 @@ Section TransLemmas.
   Proof.
     replace (i + 1) with (S i) by omega. reflexivity.
   Qed.
+
+  Lemma app_cons_helper {A} (x: A) xs y ys :
+    x :: xs ++ y :: ys = (x :: xs ++ [y]) ++ ys.
+  Proof.
+    simpl. replace (y :: ys) with ([y] ++ ys) by reflexivity.
+    now rewrite app_assoc.
+  Qed.
 End TransLemmas.
 
 Section TransProof.
@@ -523,7 +529,58 @@ Section TransProof.
           rewrite H5. simpl. omega.
         }
         apply H3 in H11. subst. simpl in *. eauto.
-    - admit.
+    - pose HUmd0 as HUmd0'. eapply IHprocess_seq_output in HUmd0'; eauto;
+                              destruct_conjs.
+      + repeat split. 1-2: simpl in *; omega.
+        intros. destruct (Nat.eq_dec i 0). rewrite e in *. simpl.
+        rewrite H13. rewrite H. constructor.
+        eapply E.CTseq with (Gs:=G1 :: Gs1 ++ [G2]) (Ks:=K1 :: Ks1 ++ [K2]);
+          eauto.
+        1-2: rewrite app_comm_cons; rewrite app_length.
+        rewrite H10. simpl. omega.
+        rewrite H12. simpl. omega.
+        intros.
+        assert (length coms1 <= length coms).
+        {
+          rewrite H7. rewrite app_length. omega.
+        }
+        assert (i0 < length coms) by omega.
+        apply H3 in H21. subst.
+        assert (nth i0 (mds1 ++ mds2) E.Normal = nth i0 mds1 E.Normal).
+        {
+          apply app_nth1. omega.
+        }
+        assert (nth i0 mds1 E.Normal = E.Encl j).
+        {
+          rewrite Forall_forall in H5.
+          assert (i0 < length mds1) by omega.
+          apply nth_In with (d:=E.Normal) in H4.
+          now apply (H5 _ H4).
+        }
+        rewrite H in H21. rewrite H4 in H21.
+        assert (length (G1 :: Gs1 ++ [G2]) = length (K1 :: Ks1 ++ [K2])).
+        {
+          repeat rewrite app_comm_cons. repeat rewrite app_length.
+          rewrite H10. rewrite H12. reflexivity.
+        }
+        assert (i0 + 1 < length (G1 :: Gs1 ++ [G2])).
+        {
+          rewrite app_comm_cons. rewrite app_length.
+          rewrite H10. simpl. omega.
+        }
+        replace (nth i0 (G1 :: Gs1 ++ G2 :: Gs2) E.mt) with
+        (nth i0 (G1 :: Gs1 ++ [G2]) E.mt) in H21.
+        replace (nth i0 (K1 :: Ks1 ++ K2 :: Ks2) []) with
+        (nth i0 (K1 :: Ks1 ++ [K2]) []) in H21.
+        rewrite app_nth1 in H21; auto.
+        replace (nth (i0 + 1) (G1 :: Gs1 ++ G2 :: Gs2) E.mt) with
+        (nth (i0 + 1) (G1 :: Gs1 ++ [G2]) E.mt) in H21.
+        replace (nth (i0 + 1) (K1 :: Ks1 ++ K2 :: Ks2) []) with
+        (nth (i0 + 1) (K1 :: Ks1 ++ [K2]) []) in H21.
+        replace U with ([]:set condition) in H21. auto.
+        1: destruct U; auto. destruct HUmd0. discriminate. now contradict H11.
+        1-4: rewrite app_comm_cons; rewrite app_cons_helper;
+          rewrite <- app_comm_cons; symmetry; apply app_nth1; omega.
   Admitted.
   
   Lemma process_seq_output_wt (pc: policy) (md0: E.mode) (mds: list E.mode)
