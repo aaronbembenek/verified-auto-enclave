@@ -151,16 +151,18 @@ Axiom No_Pointers2 : forall (m: mem2) l,
    Definition contains_nat (v : val2) :=
      (exists n1, v = VSingle (Vnat n1)) \/
      (exists n1 n2, v = VPair (Vnat n1) (Vnat n2)).
-
+   
    Fixpoint apply_op (op : nat -> nat -> nat) (v1 v2 : val2) :=
      match v1, v2 with
      | VSingle (Vnat n1), VSingle (Vnat n2) => VSingle (Vnat (op n1 n2))
      | VSingle (Vnat n1), VPair (Vnat n2) (Vnat n3) => VPair (Vnat (op n1 n2)) (Vnat (op n1 n3))
      | VPair (Vnat n1) (Vnat n2), VPair (Vnat n3) (Vnat n4) =>
                                   VPair (Vnat (op n1 n3)) (Vnat (op n2 n4))
-     | VPair (Vnat n2) (Vnat n3), VSingle (Vnat n1) => VPair (Vnat (op n1 n2)) (Vnat (op n1 n3))
+     | VPair (Vnat n2) (Vnat n3), VSingle (Vnat n1) => VPair (Vnat (op n2 n1)) (Vnat (op n3 n1))
      | _, _ => v1
      end.
+   
+   Definition val2_add (v1 v2 :val2) := apply_op (fun x y => x + y) v1 v2.
 
    Inductive estep2 : esemantics2 :=
    | Estep2_nat : forall md d ecfg n,
@@ -176,12 +178,12 @@ Axiom No_Pointers2 : forall (m: mem2) l,
        ecfg_exp2 ecfg = Evar x ->
        ecfg_reg2 ecfg x = v ->
        estep2 md d ecfg v
-   | Estep2_binop : forall md d ecfg e1 e2 v1 v2 op,
-       ecfg_exp2 ecfg = Ebinop e1 e2 op ->
+   | Estep2_add : forall md d ecfg e1 e2 v1 v2,
+       ecfg_exp2 ecfg = Eadd e1 e2 ->
        estep2 md d (ecfg_update_exp2 ecfg e1) v1 ->
        estep2 md d (ecfg_update_exp2 ecfg e2) v2 ->
        contains_nat v1 /\ contains_nat v2 ->
-       estep2 md d ecfg (apply_op op v1 v2)
+       estep2 md d ecfg (val2_add v1 v2)
    | Estep2_deref : forall md d ecfg e r m l v,
        ecfg = (Ederef e, r, m) ->
        estep2 md d (e, r, m) (VSingle (Vloc l)) ->

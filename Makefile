@@ -6,7 +6,7 @@ all: $(OBJS)
 ImpE2Security.vo: ImpE2Security.v ImpE2TypeSystem.vo ImpE2Adequacy.vo ImpE2Helpers.vo ImpE2.vo ImpE.vo Common.vo
 	coqc $<
 
-ImpE2TypeSystem.vo: ImpE2TypeSystem.v ImpE2Adequacy.vo ImpE2Helpers.vo ImpE2.vo ImpE.vo Common.vo
+ImpE2TypeSystem.vo: ImpE2TypeSystem.v ImpE2Adequacy.vo ImpE2SecurityHelpers.vo ImpE2Helpers.vo ImpE2.vo ImpE.vo Common.vo
 	coqc $<
 
 ImpE2SecurityHelpers.vo : ImpE2SecurityHelpers.v ImpE2Adequacy.vo ImpE2Helpers.vo ImpE2.vo ImpE.vo Common.vo
