@@ -451,20 +451,23 @@ Proof.
 
       assert (project_reg r true x = project_reg (merge_reg r1 r2) true x /\ G x = G' x)
         as c1_noassign.
-      eapply (no_assign_cstep_protected_reg_context_constant md d c1 r m (merge_reg r1 r2)
-                                                             (merge_mem m1 m2) t1);
-        eauto.
+      eapply (no_assign_cstep_protected_reg_context_constant
+                md d c1 r m (merge_reg r1 r2) (merge_mem m1 m2) t1); eauto.
       rewrite project_merge_inv_reg. rewrite project_merge_inv_mem; auto.
       
       assert (project_reg r false x = project_reg (merge_reg r1 r2) false x /\ G x = G' x)
         as c2_noassign.
-      eapply (no_assign_cstep_protected_reg_context_constant md d c2 r m (merge_reg r1 r2)
-                                                             (merge_mem m1 m2) t2);
-        eauto.
+      eapply (no_assign_cstep_protected_reg_context_constant
+                md d c2 r m (merge_reg r1 r2)
+                (merge_mem m1 m2) t2); eauto.
       rewrite project_merge_inv_reg. rewrite project_merge_inv_mem; auto.
 
       destruct_pairs.
-       
+      assert (r x = (merge_reg (project_reg r true) (project_reg r false)) x).
+      rewrite <- (merge_project_inv_reg r); auto.
+      rewrite project_merge_inv_reg in H10, H. 
+      unfold merge_reg in *. rewrite H10, H in H12.
+      split; auto.
   Admitted.
 
   Lemma assign_in_app : forall tr tr' x,

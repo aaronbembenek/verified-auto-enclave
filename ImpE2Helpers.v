@@ -135,6 +135,36 @@ Section Project_Merge.
     extensionality z; unfold merge_mem; unfold project_mem;
         destruct (val_decidable (m1 z) (m2 z)); destruct is_left; subst; auto.
   Qed.
+
+  Lemma reg_pair_distinct : forall (r : reg2) x v1 v2,
+      r x = VPair v1 v2 <-> v1 <> v2.
+  Proof.
+  Admitted.
+  
+  Lemma merge_project_inv_reg : forall r,
+      r = merge_reg (project_reg r true) (project_reg r false).
+  Proof.
+    intros. extensionality z; unfold merge_reg; unfold project_reg.
+    remember (r z) as rz. destruct rz; rewrite Heqrz. assert (v = v). auto.
+    destruct val_decidable; try contradiction; auto.
+    symmetry in Heqrz. apply (reg_pair_distinct r) in Heqrz. 
+    destruct val_decidable; try contradiction; auto.
+  Qed.
+    
+  Lemma mem_pair_distinct : forall (m : mem2) x v1 v2,
+      m x = VPair v1 v2 <-> v1 <> v2.
+  Proof.
+  Admitted.
+  
+  Lemma merge_project_inv_mem : forall r,
+      r = merge_mem (project_mem r true) (project_mem r false).
+  Proof.
+    intros. extensionality z; unfold merge_mem; unfold project_mem.
+    remember (r z) as rz. destruct rz; rewrite Heqrz. assert (v = v). auto.
+    destruct val_decidable; try contradiction; auto.
+    symmetry in Heqrz. apply (mem_pair_distinct r) in Heqrz. 
+    destruct val_decidable; try contradiction; auto.
+  Qed.
     
   Lemma project_merge_inv_trace : forall t1 t2 is_left,
       project_trace (merge_trace (t1, t2)) is_left = (if is_left then t1 else t2).
