@@ -467,11 +467,19 @@ Section TransLemmas.
     rewrite <- Heql in H. contradict H. reflexivity. auto.
   Qed.
 
-  Lemma nth_app_helper {A} (x: A) xs ys d :
+  Lemma nth_app_helper_x {A} (x: A) xs ys d :
     nth (length xs) (xs ++ x :: ys) d = x.
   Proof.
     rewrite app_nth2; auto.
     replace (length xs - length xs) with 0 by omega. reflexivity.
+  Qed.
+
+  Lemma nth_app_helper_xs {A} (xs ys: list A) i d :
+    nth i ys d = nth (length xs + i) (xs ++ ys) d.
+  Proof.
+    rewrite app_nth2.
+    now replace (length xs + i - length xs) with i by omega.
+    omega.
   Qed.
     
 End TransLemmas.
@@ -631,7 +639,7 @@ Section TransProof.
           replace (nth (length mds1 - 1 + 1) Gs E.mt) with G2 in i0.
           apply i0; intuition.
           rewrite H9. replace (length mds1 - 1 + 1) with (length (G1 :: Gs1)).
-          symmetry. rewrite app_comm_cons. now rewrite nth_app_helper.
+          symmetry. rewrite app_comm_cons. now rewrite nth_app_helper_x.
           rewrite H10. simpl in H10. omega.
         * rewrite Nat.neq_0_r in n. destruct n as [ m n ].
           replace (S m) with (m + 1) in n by omega.
@@ -662,7 +670,27 @@ Section TransProof.
         replace (length (G1 :: Gs1) + i + 1 - length (G1 :: Gs1))
         with (i + 1) in H15 by omega. auto.
         1-2: omega.
-  Admitted.
+      + rewrite H9 in H0. rewrite H7 in H0.
+        rewrite app_comm_cons in H0.
+        repeat rewrite app_length in H0. omega.
+      + rewrite H11 in H1. rewrite H7 in H1.
+        rewrite app_comm_cons in H1.
+        repeat rewrite app_length in H1. omega.
+      + rewrite H4 in H2. rewrite H7 in H2.
+        repeat rewrite app_length in H2. omega.
+      + intros.
+        rewrite (nth_app_helper_xs mds1 mds2 _ _).
+        repeat rewrite (nth_app_helper_xs (G1 :: Gs1) (G2 :: Gs2) _ _).
+        repeat rewrite (nth_app_helper_xs (K1 :: Ks1) (K2 :: Ks2) _ _).
+        rewrite (nth_app_helper_xs coms1 coms2 _ _).
+        rewrite H10. rewrite H12. rewrite H8.
+        repeat rewrite <- app_comm_cons. subst.
+        assert (length mds1 + i < length (coms1 ++ coms2)).
+        {
+          rewrite app_length. omega.
+        }
+        repeat rewrite plus_assoc. now apply H3.
+  Qed.
   
   Lemma process_seq_output_wt (pc: policy) (md0: E.mode) (mds: list E.mode)
         (Gs: list E.context) (Ks: list (set E.enclave))
