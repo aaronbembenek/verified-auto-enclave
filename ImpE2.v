@@ -43,7 +43,7 @@ Section Semantics.
   Definition reg2 : Type := register val2.
   Definition reg_init2 : reg2 := fun x => VSingle (Vnat 0).
   Definition mem2 : Type := memory val2.
-  Parameter minit : mem2.
+  Parameter minit2 : mem2.
 
   Inductive event2 : Type :=
   | Emp2 : event2
@@ -408,20 +408,20 @@ Section Security_Defn.
 
   Definition mem_sl_ind (sl: sec_level) :=
     forall l : location,
-      sec_level_le (g0 l) sl <-> (project_mem minit true) l = (project_mem minit false) l.
+      sec_level_le (g0 l) sl <-> (project_mem minit2 true) l = (project_mem minit2 false) l.
 
   (* capture the notion that the memory does not change at the locations by saying *)
-  (* that any memory---implicitly derived from minit---has the same value at the *)
+  (* that any memory---implicitly derived from minit2---has the same value at the *)
   (* locations of e *)
   Definition mem_esc_hatch_ind :=
     forall e, is_escape_hatch e -> (forall (m: mem2) (l: location),
                                        loc_in_exp e l ->
-                                       exists v, minit l = VSingle v /\ minit l = m l).
+                                       exists v, minit2 l = VSingle v /\ minit2 l = m l).
   
   Definition secure_prog (sl: sec_level) (d: loc_mode) (c: com) (G: context) : Prop :=
     forall m0 mknown r' m' t tobs,
-      merge_mem m0 mknown = minit ->
-      cstep2 Normal d (c, reg_init2, minit) (r', m') t ->
+      merge_mem m0 mknown = minit2 ->
+      cstep2 Normal d (c, reg_init2, minit2) (r', m') t ->
       tobs = project_trace t true ->
       mem_sl_ind sl ->
       mem_esc_hatch_ind ->
@@ -460,10 +460,10 @@ Section Axioms.
                                Loc_Contxt l = Some (Typ (Tlambda Gm p md Gp) q, rt) ->
                                com_type p md Gm d c Gp
     | VPair (Vlambda md1 c1) (Vlambda md2 c2) =>
-      (exists Gm p Gp q rt,
+      (forall Gm p Gp q rt,
           Loc_Contxt l = Some (Typ (Tlambda Gm p md1 Gp) q, rt) ->
           com_type p md1 Gm d c1 Gp) /\
-      (exists Gm p Gp q rt,
+      (forall Gm p Gp q rt,
           Loc_Contxt l = Some (Typ (Tlambda Gm p md2 Gp) q, rt) ->
           com_type p md2 Gm d c2 Gp)
     | VSingle (Vnat n) => True
@@ -471,10 +471,10 @@ Section Axioms.
     | _ => False
     end.
 
-   Axiom wf_minit : forall d: loc_mode, meminit2_wf minit d.
+   Axiom wf_minit2 : forall d: loc_mode, meminit2_wf minit2 d.
    
    Axiom Initial_State2: forall d r' m',
-      meminit2_wf minit d -> exists c md tr, cstep2 md d (c, reg_init2 ,minit) (r', m') tr.
+       exists c md tr, cstep2 md d (c, reg_init2 ,minit2) (r', m') tr.
    
    Axiom No_Loc_Mem : forall (m: mem2) l,
        (forall l', m l <> VSingle (Vloc l')) /\

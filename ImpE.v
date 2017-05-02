@@ -309,7 +309,6 @@ Section Semantics.
   Definition mem : Type := memory val.
   Definition loc_mode : Type := location -> mode.
 
-  Axiom No_Pointers : forall (m: mem) l l', m l <> Vloc l'.
 
   Inductive event : Type :=
   | Decl : exp -> mem -> event
@@ -566,15 +565,15 @@ Section Typing.
                        end).
       
   Inductive val_type : mode -> context -> loc_mode -> val -> type -> Prop :=
-  | VTnat: forall md g d n,
-      val_type md g d (Vnat n) (Typ Tnat L) 
-  | VTloc: forall md g d l md' t rt,
+  | VTnat: forall md g d n q,
+      val_type md g d (Vnat n) (Typ Tnat q) 
+  | VTloc: forall md g d l md' t rt q,
       d l = md' ->
       Loc_Contxt l = Some (t, rt) ->
-      val_type md g d (Vloc l) (Typ (Tref t md' rt) L)
-  | VTlambda : forall md g d c p g' g'',
+      val_type md g d (Vloc l) (Typ (Tref t md' rt) q)
+  | VTlambda : forall md g d c p g' g'' q md0,
       com_type p md g' d c g'' ->
-      val_type md g d (Vlambda md c) (Typ (Tlambda g' p md g'') L)
+      val_type md0 g d (Vlambda md c) (Typ (Tlambda g' p md g'') q)
   | VTvar : forall md g d x r bt p v,
       g x = Some (Typ bt p) ->
       r x = v ->
@@ -673,25 +672,39 @@ Section Typing.
 End Typing.
 
 Section Axioms.
-  Definition meminit_wf (m: mem) d := forall l,
-      match m l with
-      | Vlambda md c => exists Gm p Gp q rt,
+  Parameter minit : mem.
+  
+  Axiom No_Pointers : forall (m: mem) l l', m l <> Vloc l'.
+
+  Definition meminit_wf d := forall l,
+      match minit l with
+      | Vlambda md c => forall Gm p Gp q rt,
                         Loc_Contxt l = Some (Typ (Tlambda Gm p md Gp) q, rt) ->
                         com_type p md Gm d c Gp
       | Vloc l => False
       | Vnat n => True
       end.
-  
-  Axiom Initial_State: forall minit d r' m',
-      meminit_wf minit d -> exists c md tr, cstep md d (c,reg_init,minit) (r',m') tr.
-    
-  Axiom VlambdaWT_iff_ComWT : forall p md' Gm d Gp md G c q,
-    com_type p md' Gm d c Gp <->
-    val_type md G d (Vlambda md' c) (Typ (Tlambda Gm p md Gp) q).
 
-  Axiom VlocWT_iff_LocContxt : forall md G d l s p md' rt q,
-      val_type md G d (Vloc l) (Typ (Tref (Typ s p) md' rt) q) <->
-      Loc_Contxt l = Some (Typ s p, rt).
+  Axiom wf_minit : forall d, meminit_wf d.
+
+  Axiom Initial_State: forall d r' m',
+      exists c md tr, cstep md d (c,reg_init,minit) (r',m') tr.
+
+  Axiom Reg_Exp_Lambda : forall (r : reg) d x md c G Gm Gp p q,
+      r x = Vlambda md c /\ G x = Some (Typ (Tlambda Gm p md Gp) q)
+      <-> exists md', exp_type md' G d (Elambda md c)
+                                 (Typ (Tlambda Gm p md Gp) L).
+
+  Axiom Reg_Exp_Loc : forall (r : reg) d x l G s p md' rt q,
+      r x = Vloc l /\ G x = Some (Typ (Tref (Typ s p) md' rt) q) <->
+      exists md,
+        exp_type md G d (Eloc l) (Typ (Tref (Typ s p) md' rt) L) /\ d l = md'.
+
+  Axiom Mem_Exp_Lambda : forall (m : mem) d l md c G Gm Gp p q rt,
+      m l = Vlambda md c /\ Loc_Contxt l = Some (Typ (Tlambda Gm p md Gp) q, rt) <->
+      minit l = Vlambda md c \/
+      (exists md',
+          exp_type md' G d (Elambda md c) (Typ (Tlambda Gm p md Gp) L)).
 
   Axiom subsumption : forall pc1 pc2 md d G1 G1' G2 G2' c,
       com_type pc1 md G1 d c G1' ->

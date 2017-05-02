@@ -97,8 +97,50 @@ Section Value_Preservation.
 End Value_Preservation.
   
 Section Typing_Helpers.
-  (* XXX I feel like this should be provable from something... but our typing *)
-  (* system seems to be lacking something *)
+  
+  Lemma LocContxt_if_VlocWT : forall md G d l s p rt q md',
+      val_type md G d (Vloc l) (Typ (Tref (Typ s p) md' rt) q) ->
+         Loc_Contxt l = Some (Typ s p, rt).
+  Proof.
+    intros. 
+    inversion H; try discriminate; auto; subst.
+    assert (exists md,
+               exp_type md G d (Eloc l) (Typ (Tref (Typ s p) md' rt) L) /\ d l = md')
+      as exp_typ.
+    eapply Reg_Exp_Loc; split; eauto.
+    destruct exp_typ as [md'' exp_typ]; destruct exp_typ as [exp_typ blah]. 
+    inversion exp_typ; auto.
+    pose (No_Pointers m l0 l). contradiction.
+  Qed.
+    
+  Lemma VlambdaWT_iff_ComWT : forall p md' Gm d Gp md G c q,
+    com_type p md' Gm d c Gp <->
+    val_type md G d (Vlambda md' c) (Typ (Tlambda Gm p md' Gp) q).
+  Proof.
+    intros; split; intros.
+    apply VTlambda; auto.
+    inversion H; try discriminate; subst; auto.
+    assert (exists md, exp_type md G d (Elambda md' c)
+                                (Typ (Tlambda Gm p md' Gp) L)).
+    eapply Reg_Exp_Lambda; eauto.
+    destruct H0 as [md'' Hetyp].
+    inversion Hetyp; subst; auto.
+
+    apply LocContxt_if_VlocWT in H7.
+    assert (minit l = Vlambda md' c \/
+            (exists md'',
+                exp_type md'' G d (Elambda md' c) (Typ (Tlambda Gm p md' Gp) L)))
+      as Hm.
+    eapply Mem_Exp_Lambda; eauto.
+    destruct Hm.
+    pose (wf_minit d); unfold meminit_wf in *.
+    pose (m0 l) as minitl.
+    rewrite H0 in minitl.
+    eapply minitl; eauto.
+
+    inversion H0. inversion H1; try discriminate; subst; auto.
+  Qed.    
+
   Lemma call_fxn_typ : forall pc md G d e r m Gm p Gp q c Gout,
     com_type pc md G d (Ccall e) Gout ->
     estep md d (e,r,m) (Vlambda md c) ->
@@ -145,7 +187,8 @@ Section Typing_Helpers.
     pose (impe2_value_type_preservation
             md G d e (Tref (Typ s p) md' Mut) q (merge_reg r r) (merge_mem m m) (VSingle (Vloc l))
             H0 Hestep2); destruct_pairs; unfold project_value in *; auto.
-    rewrite VlocWT_iff_LocContxt in H2. rewrite H2 in H1. inversion H1; subst; auto.
+    pose (LocContxt_if_VlocWT md G d l s p Mut q md') as lc.
+    rewrite lc in H1. inversion H1; subst; auto. auto.
   Qed.
 End Typing_Helpers.
 
@@ -743,14 +786,14 @@ Section Security.
                                            H13 Hestep2)
          as vtp.
        unfold project_value in *; destruct_pairs; auto.
-       apply VlocWT_iff_LocContxt in valtyp.
+       apply LocContxt_if_VlocWT in valtyp.
        assert (protected p0). eapply H0; eauto.
        now apply join_protected_l.
   Qed.
   
   Lemma diff_loc_protected : forall l,
       mem_sl_ind L ->
-      (project_mem minit true) l <> (project_mem minit false) l ->
+      (project_mem minit2 true) l <> (project_mem minit2 false) l ->
       protected (g0 l).
   Proof.
     intros. remember (g0 l) as p.
@@ -761,8 +804,8 @@ Section Security.
   Qed.
   
   Lemma vpair_if_diff : forall m1 m2 v1 v2 l,
-      merge_mem m1 m2 = minit ->
-      minit l = VPair v1 v2 -> m1 l <> m2 l.
+      merge_mem m1 m2 = minit2 ->
+      minit2 l = VPair v1 v2 -> m1 l <> m2 l.
   Proof.
     intros. inversion H; subst. rewrite <- H2 in H0.
     unfold merge_mem in H0. destruct (val_decidable (m1 l) (m2 l)); auto; discriminate.
