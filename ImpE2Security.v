@@ -352,7 +352,7 @@ Section Secure_Passive.
            m0 mknown r' m' t tobs Hmmerge
            Hcstep2 Htobs Hind Hesc.
     rewrite Htobs.
-    apply (config2_ok_implies_obs_equal minit c t (L) Normal G d
+    apply (config2_ok_implies_obs_equal minit2 c t (L) Normal G d
                      reg_init2 G' r' m'); auto.
     unfold cconfig2_ok; split; unfold_cfgs; auto.
     split; intros; destruct_pairs.
