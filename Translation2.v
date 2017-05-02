@@ -339,7 +339,7 @@ Section TransDef.
       (forall i,
           i < length Ks - 1 ->
           nth (i + 1) Ks [] =
-          set_union Nat.eq_dec (nth i Ks'' []) (nth i Ks' [])) ->
+          set_union Nat.eq_dec (nth i Ks' []) (nth i Ks'' [])) ->
       (forall i,
           i < length Ks' ->
           set_inter Nat.eq_dec (nth i Ks'' []) (nth i Ks' []) = []) ->
@@ -520,7 +520,7 @@ Section TransProof.
       (forall i,
           i < length Ks - 1 ->
           nth (i + 1) Ks [] =
-          set_union Nat.eq_dec (nth i Ks'' []) (nth i Ks' [])) ->
+          set_union Nat.eq_dec (nth i Ks' []) (nth i Ks'' [])) ->
       (forall i,
           i < length Ks' ->
           set_inter Nat.eq_dec (nth i Ks'' []) (nth i Ks' []) = []) ->
@@ -559,13 +559,26 @@ Section TransProof.
     induction Hpso.
     - repeat split; auto.
       rewrite <- HKs'len. simpl. omega.
-      intros. destruct (Nat.eq_dec i 0). rewrite e.
-      simpl.
-  (*
-    - repeat split; auto. intros. pose H1 as H1'. apply Hwt in H1'.
-      replace (nth i mds E.Normal) with md0 in H1'; auto.
-      rewrite Forall_forall in H. symmetry. apply H. rewrite <- Hmdslen in H1.
-      now apply nth_In. *)
+      intros. assert (nth i mds E.Normal = md0) as Hmd0.
+      {
+        rewrite Forall_forall in H. apply H. apply nth_In. omega.
+      }
+      destruct (Nat.eq_dec i 0).
+      + rewrite e. simpl. apply Hwt in H1. now subst.
+      + rewrite Nat.neq_0_r in n. destruct n as [ m n ].
+        assert (nth i (nth 0 Ks [] :: Ks') = nth m Ks') by
+            (rewrite n; reflexivity).
+        rewrite H2. assert (m < length Ks - 1) by omega.
+        assert (m < length Ks'') by omega.
+        apply Hwt in H1. rewrite Hmd0 in H1.
+        assert (nth i Ks [] = nth m Ks' []).
+        {
+          apply Hunion in H3.
+          replace (nth m Ks'' []) with ([]:set E.enclave) in H3.
+          simpl in H3. replace (m + 1) with i in H3; auto. omega.
+          rewrite Forall_forall in H0. symmetry. apply H0. now apply nth_In.
+        }
+        rewrite <- H5. now rewrite <- nth_eq_nth_S_cons.
     Admitted.
 
   (*
@@ -765,7 +778,7 @@ Section TransProof.
       (forall i,
           i < length Ks - 1 ->
           nth (i + 1) Ks [] =
-          set_union Nat.eq_dec (nth i Ks'' []) (nth i Ks' [])) ->
+          set_union Nat.eq_dec (nth i Ks' []) (nth i Ks'' [])) ->
       (forall i,
           i < length Ks' ->
           set_inter Nat.eq_dec (nth i Ks'' []) (nth i Ks' []) = []) ->
