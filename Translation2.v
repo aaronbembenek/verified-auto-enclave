@@ -64,6 +64,7 @@ Section TypeTrans.
 End TypeTrans.
 
 Section TransDef.
+  (*
   Fixpoint member (x: E.enclave) xs : bool :=
     match xs with
     | [] => false
@@ -89,14 +90,42 @@ Section TransDef.
   
   Definition union (xs ys: list E.enclave) := xs ++ ys.
   
-  Definition inter (xs: list E.enclave) := filter (fun x => member x xs).
+  Definition inter (xs: list E.enclave) := filter (fun x => member x xs).*)
   
-  Inductive process_kill (Kinit: list E.enclave) (Ktokill: list E.enclave)
-            (G: E.context) :
-    list E.com -> list E.context -> list (list E.enclave) -> Prop :=
-  | PK_nil : process_kill Kinit Ktokill G [] [G] [Kinit].
-  (*| PK_cons : forall K Ks,
-      process_kill (set_add Nat.eq_dec K Kinit) *)
+  Inductive process_kill : list E.enclave -> list E.enclave -> E.context ->
+                           list E.com -> list E.context ->
+                           list (list E.enclave) -> Prop :=
+  | PK_nil : forall Kinit G,
+      process_kill Kinit [] G [] [G] [Kinit]
+  | PK_cons : forall Kinit G K Ks kcoms Ksout Gsout,
+      process_kill (K :: Kinit) Ks G kcoms Gsout ((K :: Kinit) :: Ksout) ->
+      process_kill Kinit (K :: Ks) G (E.Ckill K :: kcoms)
+                   (G :: Gsout) (Kinit :: (K :: Kinit) :: Ksout).
+
+  Lemma process_kill_Forall_G : forall G Gs Ks Kstokill Kinit kcoms,
+      process_kill Kinit Kstokill G kcoms Gs Ks ->
+      Forall (fun x => x = G) Gs.
+  Proof.
+    intros. induction H; apply Forall_cons; auto.
+  Qed.
+
+  Lemma process_kill_wt' : forall Kstokill Kinit kcoms Ksout Gsout G U i d,
+      process_kill Kinit Kstokill G kcoms Gsout Ksout ->
+      Forall (fun e => ~In e Kinit) Kstokill ->
+      NoDup Kstokill ->
+      i < length kcoms ->
+      E.com_type low E.Normal (nth i Gsout E.mt) (nth i Ksout []) U d
+                 (nth i kcoms E.Cskip) (nth (i + 1) Gsout E.mt)
+                 (nth (i + 1) Ksout []).
+  Proof.
+    induction Kstokill; intros; inversion H; subst.
+    simpl in H2. inversion H2.
+    destruct (Nat.eq_dec i 0).
+    - rewrite e. simpl. apply process_kill_Forall_G in H10.
+      rewrite Forall_forall in H10.
+      (* eapply E.CTkill. *)
+  Admitted.
+    
 
       (*
     - repeat split; auto. intros. pose H1 as H1'. apply Hwt in H1'.
@@ -381,11 +410,9 @@ Section TransDef.
                             (nth i Ks'' []) = []) ->
       (forall i,
           i < length Ks - 1 ->
-          nth (i + 1) Ks [] =
-          union (nth i Ks' []) (nth i Ks'' [])) ->
+          nth (i + 1) Ks [] = (nth i Ks' [] ++ nth i Ks'' [])) ->
       (forall i,
-          i < length Ks' ->
-          inter (nth i Ks'' []) (nth i Ks' []) = []) ->
+          Forall (fun e => ~In e (nth i Ks' [])) (nth i Ks'' [])) ->
       (forall i,
           i < length mds' - 1 ->
           nth i mds' E.Normal <> E.Normal /\
@@ -562,11 +589,9 @@ Section TransProof.
     forall comsout Gsout Ksout (Ks' Ks'': list (list E.enclave)),
       (forall i,
           i < length Ks - 1 ->
-          nth (i + 1) Ks [] =
-          union (nth i Ks' []) (nth i Ks'' [])) ->
+          nth (i + 1) Ks [] = (nth i Ks' [] ++ nth i Ks'' [])) ->
       (forall i,
-          i < length Ks' ->
-          inter (nth i Ks'' []) (nth i Ks' []) = []) ->
+          Forall (fun e => ~In e (nth i Ks' [])) (nth i Ks'' [])) ->
       (forall i,
           i < length mds - 1 ->
           nth i mds E.Normal <> E.Normal /\
@@ -821,11 +846,9 @@ Section TransProof.
            E.is_var_low_context (nth (i + 1) Gs E.mt))) ->
       (forall i,
           i < length Ks - 1 ->
-          nth (i + 1) Ks [] =
-          union (nth i Ks' []) (nth i Ks'' [])) ->
+          nth (i + 1) Ks [] = (nth i Ks' [] ++ nth i Ks'' [])) ->
       (forall i,
-          i < length Ks' ->
-          inter (nth i Ks'' []) (nth i Ks' []) = []) ->
+          Forall (fun e => ~In e (nth i Ks' [])) (nth i Ks'' [])) ->
       (forall i,
           i < length mds - 1 ->
           nth i mds E.Normal <> E.Normal /\
@@ -877,8 +900,8 @@ Section TransProof.
     - eapply E.CTifelse; eauto; intuition.
     - eapply E.CTwhile; eauto; intuition.
     (* Programs. *)
-    - eapply process_seq_output_wt; eauto; rewrite e3 in *;
-        rewrite e5 in *; auto; simpl in e1; omega.
+    - eapply process_seq_output_wt; eauto; rewrite e5 in *; auto;
+        simpl in e1; omega.
   Qed.
   
 End TransProof.
