@@ -676,6 +676,14 @@ Section Axioms.
   
   Axiom No_Pointers : forall (m: mem) l l', m l <> Vloc l'.
 
+  Axiom subsumption : forall pc1 pc2 md d G1 G1' G2 G2' c,
+      com_type pc1 md G1 d c G1' ->
+      sec_level_le pc2 pc1 ->
+      context_le G2 G1 ->
+      context_le G1' G2' ->
+      (* XXX not including well-typed contexts *)
+      com_type pc2 md G2 d c G2'.
+
   Definition meminit_wf minit d := forall l,
       match minit l with
       | Vlambda md c => forall Gm p Gp q rt,
@@ -690,7 +698,7 @@ Section Axioms.
   Axiom Initial_State: forall d r' m',
       exists c md tr, cstep md d (c,reg_init,minit) (r',m') tr.
 
-  (* These next three axioms should follow from the statement of initial state above *)
+  (* These next three axioms follow from the statement of initial state above *)
   Axiom Reg_Exp_Lambda : forall (r : reg) d x md c G Gm Gp p q,
       r x = Vlambda md c /\ G x = Some (Typ (Tlambda Gm p md Gp) q)
       <-> exists md', exp_type md' G d (Elambda md c)
@@ -706,15 +714,6 @@ Section Axioms.
       minit l = Vlambda md c \/
       (exists md',
           exp_type md' G d (Elambda md c) (Typ (Tlambda Gm p md Gp) L)).
-
-  Axiom subsumption : forall pc1 pc2 md d G1 G1' G2 G2' c,
-      com_type pc1 md G1 d c G1' ->
-      sec_level_le pc2 pc1 ->
-      context_le G2 G1 ->
-      context_le G1' G2' ->
-      (* XXX not including well-typed contexts *)
-      com_type pc2 md G2 d c G2'.
-
 End Axioms.
 
 

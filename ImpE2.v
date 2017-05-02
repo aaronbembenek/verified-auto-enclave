@@ -485,7 +485,8 @@ Section Axioms.
      
    Axiom Initial_State2: forall d r' m',
        exists c md tr, cstep2 md d (c, reg_init2, minit2) (r', m') tr.
-   
+
+   (* These follow from the axiom above and the assumption made in ImpE *)
    Axiom No_Loc_Mem : forall (m: mem2) l,
        (forall l', m l <> VSingle (Vloc l')) /\
        (forall l' l'', m l <> VPair (Vloc l') (Vloc l'')).
