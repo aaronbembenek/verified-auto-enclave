@@ -43,7 +43,6 @@ Section Semantics.
   Definition reg2 : Type := register val2.
   Definition reg_init2 : reg2 := fun x => VSingle (Vnat 0).
   Definition mem2 : Type := memory val2.
-  Parameter minit2 : mem2.
 
   Inductive event2 : Type :=
   | Emp2 : event2
@@ -391,6 +390,12 @@ End Semantics.
 *******************************************************************************)
 
 Section Security_Defn.
+  Parameter minit2_left : mem.
+  Parameter minit2_right : mem.
+  Axiom wf_minit2_left : forall d, meminit_wf minit2_left d.
+  Axiom wf_minit2_right : forall d, meminit_wf minit2_left d.
+  Definition minit2 := merge_mem minit2_left minit2_right.
+  
   Definition esc_hatch : Type := exp.
   Definition is_escape_hatch e : Prop := exp_novars e /\ exp_locs_immutable e.
 
@@ -471,10 +476,15 @@ Section Axioms.
     | _ => False
     end.
 
-   Axiom wf_minit2 : forall d: loc_mode, meminit2_wf minit2 d.
-   
+   Lemma wf_minit2 : forall d: loc_mode, meminit2_wf minit2 d.
+   Proof.
+     intros.
+     unfold minit2.
+     unfold meminit2_wf.
+   Admitted.
+     
    Axiom Initial_State2: forall d r' m',
-       exists c md tr, cstep2 md d (c, reg_init2 ,minit2) (r', m') tr.
+       exists c md tr, cstep2 md d (c, reg_init2, minit2) (r', m') tr.
    
    Axiom No_Loc_Mem : forall (m: mem2) l,
        (forall l', m l <> VSingle (Vloc l')) /\
