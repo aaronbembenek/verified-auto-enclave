@@ -565,8 +565,6 @@ Section Typing.
                        | _ => True
                        end).
       
-  
-  (* FIXME: don't have subsumption rule *)
   Inductive val_type : mode -> context -> loc_mode -> val -> type -> Prop :=
   | VTnat: forall md g d n,
       val_type md g d (Vnat n) (Typ Tnat L) 

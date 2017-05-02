@@ -124,30 +124,28 @@ Section Typing_Helpers.
     rewrite VlambdaWT_iff_ComWT; eauto. (*GRRRRRR*)
   Qed.
 
-  Lemma ref_type : forall pc md md' d e1 e2 r m G bt s p0 p p' q l rt,
-    com_type pc md G d (Cupdate e1 e2) G ->
-    estep md d (e1, r, m) (Vloc l) ->
-    exp_type md G d e1 (Typ (Tref (Typ s p) md' Mut) q) ->
-    exp_type md G d e2 (Typ s p') ->
+  Lemma ref_type : forall md md' d e r m G bt s p p0 q l rt,
+    estep md d (e, r, m) (Vloc l) ->
+    exp_type md G d e (Typ (Tref (Typ s p) md' Mut) q) ->
     Loc_Contxt l = Some (Typ bt p0, rt) ->
     s = bt /\ p = p0.
   Proof.
     intros.
     assert (val_type md G d (Vloc l) (Typ (Tref (Typ s p) md' Mut) q)).
-    assert (estep2 md d (e1, merge_reg r r, merge_mem m m) (VSingle (Vloc l))) as Hestep2.
-    pose (impe2_exp_complete md d e1 (merge_reg r r) (merge_mem m m) (Vloc l) (Vloc l)).
+    assert (estep2 md d (e, merge_reg r r, merge_mem m m) (VSingle (Vloc l))) as Hestep2.
+    pose (impe2_exp_complete md d e (merge_reg r r) (merge_mem m m) (Vloc l) (Vloc l)).
     rewrite project_merge_inv_reg in *. rewrite project_merge_inv_mem in *.
     rewrite project_merge_inv_reg in *. rewrite project_merge_inv_mem in *.
-    pose (e H0 H0); destruct e0; destruct_pairs.
+    pose (e0 H H); destruct e1; destruct_pairs.
     assert (x = VSingle (Vloc l)).
     destruct x; unfold project_value in *; subst; auto.
     remember (VPair (Vloc l) (Vloc l)) as v.
     rewrite pair_distinct in Heqv. assert ((Vloc l) = (Vloc l)) by auto. contradiction.
     subst; auto.
     pose (impe2_value_type_preservation
-            md G d e1 (Tref (Typ s p) md' Mut) q (merge_reg r r) (merge_mem m m) (VSingle (Vloc l))
-            H1 Hestep2); destruct_pairs; unfold project_value in *; auto.
-    rewrite VlocWT_iff_LocContxt in H4. rewrite H4 in H3. inversion H3; subst; auto.
+            md G d e (Tref (Typ s p) md' Mut) q (merge_reg r r) (merge_mem m m) (VSingle (Vloc l))
+            H0 Hestep2); destruct_pairs; unfold project_value in *; auto.
+    rewrite VlocWT_iff_LocContxt in H2. rewrite H2 in H1. inversion H1; subst; auto.
   Qed.
 End Typing_Helpers.
 
@@ -225,85 +223,6 @@ Section Security.
     - subst. exists (Vlambda md c0); auto.
   Qed.
 
-
-  Lemma tobs_sec_level_app (sl: sec_level) (l l': trace) :
-    tobs_sec_level sl l ++ tobs_sec_level sl l' = tobs_sec_level sl (l ++ l').
-  Proof.
-    unfold tobs_sec_level. now rewrite (filter_app _ l l').
-  Qed.
-
-  (* If there has been an update to l from minit to m0, we can assume the updated values were *)
-  (* protected because the update values must have derived from the initial memory locations *)
-  (* which were different and thus protected *)
-  (* Else there has not been an update, and the initial memory location l was protected in minit *)
-  Lemma sl_ind_iff_mem_pairs_protected : forall (m: mem2) l md d r e G v1 v2 bt p,
-      mem_sl_ind L ->
-      estep2 md d (e,r,m) (VSingle (Vloc l)) ->
-      exp_type md G d (Ederef e) (Typ bt p) ->
-      m l = VPair v1 v2 <-> protected p.
-  Admitted.
-
-  Lemma econfig2_pair_protected : forall md G d e p r m v v1 v2 bt,
-      v = VPair v1 v2 ->
-      exp_type md G d e (Typ bt p) ->
-      estep2 md d (e,r,m) v ->
-      cterm2_ok G d r m ->
-      protected p.
-  Proof.
-    intros.
-    remember (e,r,m) as ecfg.
-    generalize dependent e.
-    generalize dependent v1.
-    generalize dependent v2.
-    generalize dependent p.
-    pose H1 as Hestep2.
-    induction Hestep2; intros; subst; try discriminate; unfold_cfgs;
-      unfold cterm2_ok in *; destruct_pairs; subst.
-     - inversion H4; subst.
-       apply (H0 x v1 v2 bt p); split; auto.
-     - rewrite H3 in *.
-       assert (exists v' v'', v1 = VPair v' v'' \/ v2 = VPair v' v'').
-       pose (apply_op_pair (fun x y => x + y) v1 v2) as Hop_pair.
-       destruct Hop_pair as [Hop1 Hop2].
-       assert (contains_nat v1 /\ contains_nat v2 /\
-               (exists v3 v4 : val, apply_op (fun x y => x + y) v1 v2 = VPair v3 v4)).
-       split; auto. split; auto. exists v3. exists v0.  auto.
-       apply Hop1 in H. destruct H. destruct H. destruct_pairs.
-       exists x. exists x0. auto.
-       inversion H4; subst; try discriminate.
-       destruct H. destruct H; destruct H.
-       -- assert (protected p0).
-          eapply (IHHestep2_1 Hestep2_1). unfold cterm2_ok; auto.
-          apply H. apply H15. auto.
-          now apply (join_protected_l p0 q).
-       -- assert (protected q ).
-          eapply (IHHestep2_2 Hestep2_2). unfold cterm2_ok; auto.
-          apply H. apply H17. auto.
-          now apply (join_protected_r p0 q).
-     - inversion Heqecfg; subst.
-       inversion H5; subst.
-       eapply sl_ind_iff_mem_pairs_protected; eauto.
-  Qed.
-  
-  Lemma diff_loc_protected : forall l,
-      mem_sl_ind L ->
-      (project_mem minit true) l <> (project_mem minit false) l ->
-      protected (g0 l).
-  Proof.
-    intros. remember (g0 l) as p.
-    unfold mem_sl_ind in *.
-    rewrite <- (H l) in H0. unfold sec_level_le in H0. 
-    destruct p; rewrite <- Heqp in H0. intuition.
-    now unfold protected.
-  Qed.
-  
-  Lemma vpair_if_diff : forall m1 m2 v1 v2 l,
-      merge_mem m1 m2 = minit ->
-      minit l = VPair v1 v2 -> m1 l <> m2 l.
-  Proof.
-    intros. inversion H; subst. rewrite <- H2 in H0.
-    unfold merge_mem in H0. destruct (val_decidable (m1 l) (m2 l)); auto; discriminate.
-  Qed.
 
   Definition assign_in (x: var) tr: Prop :=
     exists v r, List.In (Assign r x v) tr.
@@ -653,7 +572,6 @@ Section Security.
       destruct (eq_nat_dec l x); subst.
       unfold update_in in *; unfold project_trace in *; simpl in *; unfold not in *.
       destruct Hupdate; try omega.
-      Search (Tref).
       assert (s = bt /\ p = q).
       eapply ref_type; eauto. destruct_pairs; subst.
       apply sec_level_join_le_r in H9. unfold sec_level_join in *; destruct q; auto.
@@ -713,11 +631,10 @@ Section Security.
   Lemma no_update_cstep_protected_mem_constant : forall md d c r m r' m' tr x pc G G',
       cstep md d (c,r,m) (r', m') tr ->
       com_type pc md G d c G' ->
-      protected pc ->
       ~update_in x tr ->
       m x = m' x.
   Proof.
-    intros md d c r m r' m' tr x pc G G' Hcstep Hctyp Hprot Hnoupdate.   
+    intros md d c r m r' m' tr x pc G G' Hcstep Hctyp Hnoupdate.   
     remember (c,r,m) as ccfg;
       remember (r',m') as cterm;
     generalize dependent x; generalize dependent r; generalize dependent m;
@@ -749,36 +666,106 @@ Section Security.
       apply not_or_and in Hnoupdate; destruct_pairs.
       assert (m0 x = m x) as hdtmp.
       assert ((r,m) = (r,m)) as Hr by auto.
-      eapply (IHHcstep'1 Hcstep'1 m r Hr g' G pc Hprot hd H5 m0 r0); eauto.
+      eapply (IHHcstep'1 Hcstep'1 m r Hr g' G pc hd H5 m0 r0); eauto.
       assert (m x = m'0 x) as tltmp.
       assert ((r'0,m'0) = (r'0,m'0)) as Hr by auto.
-      eapply (IHHcstep'2 Hcstep'2 m'0 r'0 Hr G' g' pc Hprot (Cseq tl) H7 m r); eauto.
+      eapply (IHHcstep'2 Hcstep'2 m'0 r'0 Hr G' g' pc (Cseq tl) H7 m r); eauto.
       destruct_pairs.
       rewrite hdtmp, <- tltmp; auto.
-    - unfold_cfgs. assert (protected pc') as P.
-      apply sec_level_join_le_l in H11. inversion Hprot; subst. 
-      unfold sec_level_le in H11; destruct pc'; try omega; auto.
+    - unfold_cfgs.
       assert ((r'0, m'0) = (r'0, m'0)) as Hr by auto.
-      apply (IHHcstep' Hcstep' m'0 r'0 Hr G' G pc' P c1 H3 m r); eauto.
-    - unfold_cfgs. assert (protected pc') as P.
-      apply sec_level_join_le_l in H11. inversion Hprot; subst. 
-      unfold sec_level_le in H11; destruct pc'; try omega; auto.
+      apply (IHHcstep' Hcstep' m'0 r'0 Hr G' G pc' c1 H3 m r); eauto.
+    - unfold_cfgs. 
       assert ((r'0, m'0) = (r'0, m'0)) as Hr by auto.
-      eapply (IHHcstep' Hcstep' m'0 r'0 Hr G' G pc' P c2); eauto.
+      eapply (IHHcstep' Hcstep' m'0 r'0 Hr G' G pc' c2); eauto.
     - unfold_cfgs. 
       rewrite update_in_app in Hnoupdate.
       apply not_or_and in Hnoupdate; destruct_pairs.
-      assert (protected pc') as P.
-      apply sec_level_join_le_l in H8. inversion Hprot; subst. 
-      unfold sec_level_le in H8; destruct pc'; try omega; auto.
       assert (m0 x = m x) as hdtmp.
       assert ((r,m) = (r,m)) as Hr by auto.
-      eapply (IHHcstep'1 Hcstep'1 m r Hr G' G' pc' P c H3 m0 r0); eauto.
+      eapply (IHHcstep'1 Hcstep'1 m r Hr G' G' pc' c H3 m0 r0); eauto.
       assert (m x = m'0 x) as tltmp.
       assert ((r'0,m'0) = (r'0,m'0)) as Hr' by auto.
-      eapply (IHHcstep'2 Hcstep'2 m'0 r'0 Hr' G' G' pc Hprot (Cwhile e c)); eauto.
+      eapply (IHHcstep'2 Hcstep'2 m'0 r'0 Hr' G' G' pc (Cwhile e c)); eauto.
       destruct_pairs.
       rewrite <- tltmp; auto.
   Qed.
+
   
+  Lemma tobs_sec_level_app (sl: sec_level) (l l': trace) :
+    tobs_sec_level sl l ++ tobs_sec_level sl l' = tobs_sec_level sl (l ++ l').
+  Proof.
+    unfold tobs_sec_level. now rewrite (filter_app _ l l').
+  Qed.
+
+  Lemma econfig2_pair_protected : forall md G d e p r m v v1 v2 bt,
+      v = VPair v1 v2 ->
+      exp_type md G d e (Typ bt p) ->
+      estep2 md d (e,r,m) v ->
+      cterm2_ok G d r m ->
+      protected p.
+  Proof.
+    intros.
+    remember (e,r,m) as ecfg.
+    generalize dependent e.
+    generalize dependent v1.
+    generalize dependent v2.
+    generalize dependent p.
+    pose H1 as Hestep2.
+    induction Hestep2; intros; subst; try discriminate; unfold_cfgs;
+      unfold cterm2_ok in *; destruct_pairs; subst.
+     - inversion H4; subst.
+       apply (H0 x v1 v2 bt p); split; auto.
+     - rewrite H3 in *.
+       assert (exists v' v'', v1 = VPair v' v'' \/ v2 = VPair v' v'').
+       pose (apply_op_pair (fun x y => x + y) v1 v2) as Hop_pair.
+       destruct Hop_pair as [Hop1 Hop2].
+       assert (contains_nat v1 /\ contains_nat v2 /\
+               (exists v3 v4 : val, apply_op (fun x y => x + y) v1 v2 = VPair v3 v4)).
+       split; auto. split; auto. exists v3. exists v0.  auto.
+       apply Hop1 in H. destruct H. destruct H. destruct_pairs.
+       exists x. exists x0. auto.
+       inversion H4; subst; try discriminate.
+       destruct H. destruct H; destruct H.
+       -- assert (protected p0).
+          eapply (IHHestep2_1 Hestep2_1). unfold cterm2_ok; auto.
+          apply H. apply H15. auto.
+          now apply (join_protected_l p0 q).
+       -- assert (protected q ).
+          eapply (IHHestep2_2 Hestep2_2). unfold cterm2_ok; auto.
+          apply H. apply H17. auto.
+          now apply (join_protected_r p0 q).
+     - inversion Heqecfg; subst.
+       inversion H5; subst.
+       assert (val_type md G d (Vloc l) (Typ (Tref (Typ bt p0) md' rt) q)) as valtyp.
+       pose (impe2_value_type_preservation md G d e
+                                           (Tref (Typ bt p0) md' rt) q r m (VSingle (Vloc l))
+                                           H13 Hestep2)
+         as vtp.
+       unfold project_value in *; destruct_pairs; auto.
+       apply VlocWT_iff_LocContxt in valtyp.
+       assert (protected p0). eapply H0; eauto.
+       now apply join_protected_l.
+  Qed.
+  
+  Lemma diff_loc_protected : forall l,
+      mem_sl_ind L ->
+      (project_mem minit true) l <> (project_mem minit false) l ->
+      protected (g0 l).
+  Proof.
+    intros. remember (g0 l) as p.
+    unfold mem_sl_ind in *.
+    rewrite <- (H l) in H0. unfold sec_level_le in H0. 
+    destruct p; rewrite <- Heqp in H0. intuition.
+    now unfold protected.
+  Qed.
+  
+  Lemma vpair_if_diff : forall m1 m2 v1 v2 l,
+      merge_mem m1 m2 = minit ->
+      minit l = VPair v1 v2 -> m1 l <> m2 l.
+  Proof.
+    intros. inversion H; subst. rewrite <- H2 in H0.
+    unfold merge_mem in H0. destruct (val_decidable (m1 l) (m2 l)); auto; discriminate.
+  Qed.
+
 End Security.

@@ -454,7 +454,6 @@ Section Security_Defn.
 End Security_Defn.
 
 Section Axioms.
-
    Definition meminit2_wf (m: mem2) d := forall l,
     match m l with
     | VSingle (Vlambda md c) => exists Gm p Gp q rt,
@@ -471,22 +470,24 @@ Section Axioms.
     | VPair (Vnat n1) (Vnat n2) => True
     | _ => False
     end.
+
+   Axiom wf_minit : forall d: loc_mode, meminit2_wf minit d.
    
-  Axiom Initial_State2: forall minit d r' m',
+   Axiom Initial_State2: forall d r' m',
       meminit2_wf minit d -> exists c md tr, cstep2 md d (c, reg_init2 ,minit) (r', m') tr.
-  
-  Axiom No_Loc_Mem : forall (m: mem2) l,
-    (forall l', m l <> VSingle (Vloc l')) /\
-    (forall l' l'', m l <> VPair (Vloc l') (Vloc l'')).
-  
-  Axiom No_Pair_Loc_Reg : forall (r: reg2) l,
-      (forall l' l'', r l <> VPair (Vloc l') (Vloc l'')).
-
-  Axiom pair_distinct : forall v v1 v2,
-    v = VPair v1 v2 <-> v1 <> v2.
-
-  Axiom pair_wf : forall v v1 v2,
-      v = VPair v1 v2 <->
-      (exists n1 n2, v1 = Vnat n1 /\ v2 = Vnat n2) \/
-      (exists md1 md2 c1 c2, v1 = Vlambda md1 c1 /\ v2 = Vlambda md2 c2).
+   
+   Axiom No_Loc_Mem : forall (m: mem2) l,
+       (forall l', m l <> VSingle (Vloc l')) /\
+       (forall l' l'', m l <> VPair (Vloc l') (Vloc l'')).
+   
+   Axiom No_Pair_Loc_Reg : forall (r: reg2) l,
+       (forall l' l'', r l <> VPair (Vloc l') (Vloc l'')).
+   
+   Axiom pair_distinct : forall v v1 v2,
+       v = VPair v1 v2 <-> v1 <> v2.
+   
+   Axiom pair_wf : forall v v1 v2,
+       v = VPair v1 v2 <->
+       (exists n1 n2, v1 = Vnat n1 /\ v2 = Vnat n2) \/
+       (exists md1 md2 c1 c2, v1 = Vlambda md1 c1 /\ v2 = Vlambda md2 c2).
 End Axioms.

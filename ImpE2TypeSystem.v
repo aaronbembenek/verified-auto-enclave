@@ -92,7 +92,6 @@ Section Config_Preservation.
              unfold mem_esc_hatch_ind in H6.
              assert (is_escape_hatch e) as Heh by now unfold is_escape_hatch.
              pose (H6 e Heh m') as Helocs.
-             Search (loc_in_exp).
              assert (forall l, loc_in_exp e l -> exists v, m' l = VSingle v) as Hmsing.
              intros. pose (Helocs l H10) as tmp; destruct tmp; destruct_pairs; subst.
              rewrite <- H12; exists x1; auto.
@@ -113,14 +112,13 @@ Section Config_Preservation.
                                            H H9 H1) as Hprotected.
              assert (cterm2_ok G' d r' m) as cterm2ok by now unfold cterm2_ok in *.
              apply Hprotected in cterm2ok.
-             assert (p = p0) as peq. eapply ref_type. apply H2.
+             assert (p = p0) as peq. eapply ref_type.
              assert (estep md d (e1, (project_reg r' true), (project_mem m true)) (Vloc l))
                as Hestep.
              pose (impe2_exp_sound md d e1 r' m (VSingle (Vloc l)) true H0).
              unfold project_value in e0. auto.
              apply Hestep.
-             apply H8. apply H9.
-             rewrite e in H7; apply H7.
+             apply H8. rewrite e in H7; apply H7.
              rewrite <- peq.
              apply sec_level_join_le_l in H14. apply sec_level_join_le_l in H14.
              inversion cterm2ok; subst. unfold sec_level_le in *.
