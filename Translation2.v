@@ -64,17 +64,60 @@ Section TypeTrans.
 End TypeTrans.
 
 Section TransDef.
+  Fixpoint member (x: E.enclave) xs : bool :=
+    match xs with
+    | [] => false
+    | hd :: tl => if x =? hd then true else member x tl
+    end.
+  
+  Lemma member_iff_In (x: E.enclave) xs :
+    member x xs = true <-> In x xs.
+  Proof.
+    split; intros; induction xs.
+    - simpl in H. discriminate.
+    - simpl in H. destruct (Nat.eq_dec x a).
+      rewrite e. apply in_eq. rewrite <- Nat.eqb_eq in n.
+      apply in_cons.
+      apply not_true_is_false in n. rewrite n in H. auto.
+    - inversion H.
+    - destruct (Nat.eq_dec x a). rewrite e.
+      simpl. now rewrite <- beq_nat_refl.
+      apply in_inv in H. destruct H. contradict n. now rewrite H.
+      rewrite <- Nat.eqb_eq in n. apply not_true_is_false in n.
+      simpl. rewrite n. auto.
+  Qed.
+  
+  Definition union (xs ys: list E.enclave) := xs ++ ys.
+  
+  Definition inter (xs: list E.enclave) := filter (fun x => member x xs).
+  
+  Inductive process_kill (Kinit: list E.enclave) (Ktokill: list E.enclave)
+            (G: E.context) :
+    list E.com -> list E.context -> list (list E.enclave) -> Prop :=
+  | PK_nil : process_kill Kinit Ktokill G [] [G] [Kinit].
+  (*| PK_cons : forall K Ks,
+      process_kill (set_add Nat.eq_dec K Kinit) *)
 
+      (*
+    - repeat split; auto. intros. pose H1 as H1'. apply Hwt in H1'.
+      replace (nth i mds E.Normal) with md0 in H1'; auto.
+      rewrite Forall_forall in H. symmetry. apply H. rewrite <- Hmdslen in H1.
+      now apply nth_In. *) (*
+    - repeat split; auto. intros. pose H1 as H1'. apply Hwt in H1'.
+      replace (nth i mds E.Normal) with md0 in H1'; auto.
+      rewrite Forall_forall in H. symmetry. apply H. rewrite <- Hmdslen in H1.
+      now apply nth_In. *)
+                   (*       .
   Function process_kill (K: set E.enclave) : list E.com :=
     match K with
     | [] => []
     | k :: K' => E.Ckill k :: process_kill K'
     end.
-  
+  *)
   Inductive process_seq_output (coms: list E.com) (md0: E.mode)
             (mds: list E.mode) (Gs: list E.context)
-            (Ks Ks' Ks'': list (set E.enclave)) :
-    list E.com -> list E.context -> list (set E.enclave) -> Prop :=
+            (Ks Ks' Ks'': list (list E.enclave)) :
+    list E.com -> list E.context -> list (list E.enclave) -> Prop :=
   | PSO0 :
       Forall (fun md => md = md0) mds ->
       Forall (fun K => K = []) Ks'' ->
@@ -169,8 +212,8 @@ Section TransDef.
 
   with com_trans : policy -> S.context -> set condition -> S.com ->
                    S.context -> S.cderiv ->
-                   E.mode -> E.context -> set E.enclave ->
-                   E.loc_mode -> E.com -> E.context -> set E.enclave ->
+                   E.mode -> E.context -> list E.enclave ->
+                   E.loc_mode -> E.com -> E.context -> list E.enclave ->
                    Prop :=
   | TRskip : forall pc sG eG U md K d drv,  
       context_trans sG d eG ->
@@ -303,8 +346,8 @@ Section TransDef.
       
   with prog_trans : policy -> S.context -> set condition -> S.prog ->
                     S.context -> S.pderiv ->
-                    E.mode -> E.context -> set E.enclave ->
-                    E.loc_mode -> E.com -> E.context -> set E.enclave ->
+                    E.mode -> E.context -> list E.enclave ->
+                    E.loc_mode -> E.com -> E.context -> list E.enclave ->
                     Prop :=
   | TRprog : forall d sGs eGs drvs mds Ks (*K's*) coms coms' coms'' md0
                     U pc eGs' mds' Ks' Ks'' Ksout,
@@ -339,10 +382,10 @@ Section TransDef.
       (forall i,
           i < length Ks - 1 ->
           nth (i + 1) Ks [] =
-          set_union Nat.eq_dec (nth i Ks' []) (nth i Ks'' [])) ->
+          union (nth i Ks' []) (nth i Ks'' [])) ->
       (forall i,
           i < length Ks' ->
-          set_inter Nat.eq_dec (nth i Ks'' []) (nth i Ks' []) = []) ->
+          inter (nth i Ks'' []) (nth i Ks' []) = []) ->
       (forall i,
           i < length mds' - 1 ->
           nth i mds' E.Normal <> E.Normal /\
@@ -514,16 +557,16 @@ Section TransProof.
   Hint Constructors E.exp_type E.com_type.
 
   Lemma process_seq_output_wt' (pc: policy) (md0: E.mode) (mds: list E.mode)
-        (Gs: list E.context) (Ks: list (set E.enclave))
+        (Gs: list E.context) (Ks: list (list E.enclave))
         (d: E.loc_mode) (U: set condition) (coms: list E.com) :
-    forall comsout Gsout Ksout (Ks' Ks'': list (set E.enclave)),
+    forall comsout Gsout Ksout (Ks' Ks'': list (list E.enclave)),
       (forall i,
           i < length Ks - 1 ->
           nth (i + 1) Ks [] =
-          set_union Nat.eq_dec (nth i Ks' []) (nth i Ks'' [])) ->
+          union (nth i Ks' []) (nth i Ks'' [])) ->
       (forall i,
           i < length Ks' ->
-          set_inter Nat.eq_dec (nth i Ks'' []) (nth i Ks' []) = []) ->
+          inter (nth i Ks'' []) (nth i Ks' []) = []) ->
       (forall i,
           i < length mds - 1 ->
           nth i mds E.Normal <> E.Normal /\
@@ -574,8 +617,9 @@ Section TransProof.
         assert (nth i Ks [] = nth m Ks' []).
         {
           apply Hunion in H3.
-          replace (nth m Ks'' []) with ([]:set E.enclave) in H3.
-          simpl in H3. replace (m + 1) with i in H3; auto. omega.
+          replace (nth m Ks'' []) with ([]:list E.enclave) in H3.
+          simpl in H3. replace (m + 1) with i in H3; auto.
+          unfold union in H3. now rewrite app_nil_r in H3. omega.
           rewrite Forall_forall in H0. symmetry. apply H0. now apply nth_In.
         }
         rewrite <- H5. now rewrite <- nth_eq_nth_S_cons.
@@ -767,7 +811,7 @@ Section TransProof.
 *)
   
   Lemma process_seq_output_wt (pc: policy) (md0: E.mode) (mds: list E.mode)
-        (Gs: list E.context) (Ks Ks' Ks'': list (set E.enclave))
+        (Gs: list E.context) (Ks Ks' Ks'': list (list E.enclave))
         (d: E.loc_mode) (U: set condition) (coms: list E.com) :
     forall comsout Gsout Ksout,
       (forall (i: nat),
@@ -778,10 +822,10 @@ Section TransProof.
       (forall i,
           i < length Ks - 1 ->
           nth (i + 1) Ks [] =
-          set_union Nat.eq_dec (nth i Ks' []) (nth i Ks'' [])) ->
+          union (nth i Ks' []) (nth i Ks'' [])) ->
       (forall i,
           i < length Ks' ->
-          set_inter Nat.eq_dec (nth i Ks'' []) (nth i Ks' []) = []) ->
+          inter (nth i Ks'' []) (nth i Ks' []) = []) ->
       (forall i,
           i < length mds - 1 ->
           nth i mds E.Normal <> E.Normal /\

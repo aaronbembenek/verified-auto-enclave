@@ -238,19 +238,20 @@ Section Semantics.
   | Emp: event.
   Definition trace : Type := list event.
   
-  Definition mode_alive (md : mode) (k : set enclave) :=
+  Definition mode_alive (md : mode) (k : list enclave) :=
     match md with
     | Normal => True
-    | Encl i => ~set_In i k
+    | Encl i => ~In i k
     end.
-  Definition mode_access_ok (md : mode) (d : loc_mode) (l : location) (k : set enclave) :=
+  Definition mode_access_ok (md : mode) (d : loc_mode) (l : location)
+             (k : list enclave) :=
     let lmd := d l in
     match lmd with
     | Normal => True
     | Encl _ => md = lmd /\ mode_alive lmd k
     end.
 
-  Definition econfig : Type := exp * reg * mem * set enclave.
+  Definition econfig : Type := exp * reg * mem * list enclave.
   Definition ecfg_exp (ecfg: econfig) : exp :=
     match ecfg with (e, _, _, _) => e end.
   Definition ecfg_reg (ecfg: econfig) : reg :=
@@ -293,7 +294,7 @@ Section Semantics.
   Hint Constructors estep.
 
   (* Semantics for commands. *)
-  Definition cconfig : Type := com * reg * mem * set enclave.
+  Definition cconfig : Type := com * reg * mem * list enclave.
   Definition cterm : Type := reg * mem * set enclave.
   Definition ccfg_com (ccfg: cconfig) : com :=
     match ccfg with (c, _, _, _) => c end.
@@ -301,7 +302,7 @@ Section Semantics.
     match ccfg with (_, r, _, _) => r end.
   Definition ccfg_mem (ccfg: cconfig) : mem :=
     match ccfg with (_, _, m, _) => m end.
-  Definition ccfg_kill (ccfg: cconfig) : set enclave :=
+  Definition ccfg_kill (ccfg: cconfig) : list enclave :=
     match ccfg with (_, _, _, k) => k end.
   Definition ccfg_update_mem (ccfg: cconfig) (l: location) (v: val) : mem := 
     fun loc => if locations_eq loc l then v
@@ -399,7 +400,7 @@ Section Semantics.
       md = Normal ->
       ccfg_com ccfg = Ckill enc ->
       mode_alive (Encl enc) (ccfg_kill ccfg) ->
-      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, set_add Nat.eq_dec enc (ccfg_kill ccfg)) [].
+      cstep md d ccfg (ccfg_reg ccfg, ccfg_mem ccfg, enc :: (ccfg_kill ccfg)) [].
   Hint Constructors cstep.
 
   Inductive cstep_n_chaos : csemantics :=
@@ -434,8 +435,8 @@ Section Typing.
   | Tnat : base_type
   | Tcond : mode -> base_type
   | Tref : type -> mode -> ref_type -> base_type
-  | Tlambda (G: context) (k:set enclave) (u:set condition) (p: policy)
-            (md: mode) (G': context) (k':set enclave) : base_type
+  | Tlambda (G: context) (k:list enclave) (u:set condition) (p: policy)
+            (md: mode) (G': context) (k':list enclave) : base_type
                            
   with type : Type :=
   | Typ : base_type -> policy -> type
@@ -573,15 +574,15 @@ Section Typing.
       exp_type md g d e2 (Typ Tnat q) ->
       exp_type md g d (Ebinop e1 e2 op) (Typ Tnat (JoinP p q))
 
-  with com_type : policy -> mode -> context -> set enclave ->
+  with com_type : policy -> mode -> context -> list enclave ->
                   set condition -> loc_mode -> com ->
-                  context -> set enclave -> Prop :=
+                  context -> list enclave -> Prop :=
   | CTskip : forall pc md g d k u,
       mode_alive md k ->
       com_type pc md g k u d Cskip g k
   | CTkill : forall i g d k u k',
       mode_alive (Encl i) k ->
-      k' = set_add Nat.eq_dec i k ->
+      k' = i :: k ->
       com_type low Normal g k u d (Ckill i) g k'
   | CTassign : forall pc md g k u d x e s p vc lc vc' g',
       exp_type md g d e (Typ s p) ->
