@@ -113,7 +113,13 @@ Section Config_Preservation.
                                            H H9 H1) as Hprotected.
              assert (cterm2_ok G' d r' m) as cterm2ok by now unfold cterm2_ok in *.
              apply Hprotected in cterm2ok.
-             assert (p = p0) as peq. eapply ref_type. apply H2. apply H0. apply H8. apply H9.
+             assert (p = p0) as peq. eapply ref_type. apply H2.
+             assert (estep md d (e1, (project_reg r' true), (project_mem m true)) (Vloc l))
+               as Hestep.
+             pose (impe2_exp_sound md d e1 r' m (VSingle (Vloc l)) true H0).
+             unfold project_value in e0. auto.
+             apply Hestep.
+             apply H8. apply H9.
              rewrite e in H7; apply H7.
              rewrite <- peq.
              apply sec_level_join_le_l in H14. apply sec_level_join_le_l in H14.
@@ -171,17 +177,17 @@ Section Config_Preservation.
       split; intros; destruct_pairs; subst.
       (* see if there was an assignment in either c1 or c2 to change the registers *)
       -- destruct (assign_in_dec x t1), (assign_in_dec x t2).
-         --- pose (assignment_more_secure Common.H md d c1 G G' x bt p
+         --- pose (assignment_more_secure md d c1 G G' x bt p
              (project_reg r true) (project_mem m true)
                                   r1 m1 t1 lifted_c1typ H1 a H12). 
              destruct p. unfold sec_level_le in *. omega.
              unfold protected; auto.
-         --- pose (assignment_more_secure Common.H md d c1 G G' x bt p
+         --- pose (assignment_more_secure md d c1 G G' x bt p
                                           (project_reg r true) (project_mem m true)
                                           r1 m1 t1 lifted_c1typ H1 a H12). 
              destruct p. unfold sec_level_le in *. omega.
              unfold protected; auto.
-         --- pose (assignment_more_secure Common.H md d c2 G G' x bt p
+         --- pose (assignment_more_secure md d c2 G G' x bt p
                                           (project_reg r false) (project_mem m false)
                                           r2 m2 t2 lifted_c2typ H2 a H12). 
              destruct p. unfold sec_level_le in *. omega.
@@ -204,17 +210,17 @@ Section Config_Preservation.
              rewrite <- H; auto. rewrite H17; auto.
       -- split; auto. intros; destruct_pairs.
          destruct (update_in_dec l t1), (update_in_dec l t2).
-         --- pose (update_more_secure Common.H md d c1 G G' l bt p rt
+         --- pose (update_more_secure md d c1 G G' l bt p rt
              (project_reg r true) (project_mem m true)
                                   r1 m1 t1 lifted_c1typ H1 u H12). 
              destruct p. unfold sec_level_le in *. omega.
              unfold protected; auto.
-         --- pose (update_more_secure Common.H md d c1 G G' l bt p rt
+         --- pose (update_more_secure md d c1 G G' l bt p rt
                                           (project_reg r true) (project_mem m true)
                                           r1 m1 t1 lifted_c1typ H1 u H12). 
              destruct p. unfold sec_level_le in *. omega.
              unfold protected; auto.
-         --- pose (update_more_secure Common.H md d c2 G G' l bt p rt
+         --- pose (update_more_secure md d c2 G G' l bt p rt
                                           (project_reg r false) (project_mem m false)
                                           r2 m2 t2 lifted_c2typ H2 u H12). 
              destruct p. unfold sec_level_le in *. omega.
@@ -281,40 +287,40 @@ Section Config_Preservation.
       split; intros; destruct_pairs. unfold cleft in *. unfold cright in *.
       destruct n1; destruct n2; destruct (assign_in_dec x t1), (assign_in_dec x t2);
       (* see if there was an assignment in either c1 or c2 to change the registers *)
-      [pose (assignment_more_secure Common.H md d c2 G G' x bt p0
+      [pose (assignment_more_secure md d c2 G G' x bt p0
                                     (project_reg r true) (project_mem m true)
                                     r1 m1 t1 H13 H2 a H10)
-      | pose (assignment_more_secure Common.H md d c2 G G' x bt p0
+      | pose (assignment_more_secure md d c2 G G' x bt p0
                                      (project_reg r true) (project_mem m true)
                                      r1 m1 t1 H13 H2 a H10)
-      | pose (assignment_more_secure Common.H md d c2 G G' x bt p0
+      | pose (assignment_more_secure md d c2 G G' x bt p0
                                      (project_reg r false) (project_mem m false)
                                      r2 m2 t2 H13 H3 a H10) |
-      | pose (assignment_more_secure Common.H md d c2 G G' x bt p0
+      | pose (assignment_more_secure md d c2 G G' x bt p0
                                     (project_reg r true) (project_mem m true)
                                     r1 m1 t1 H13 H2 a H10)
-      | pose (assignment_more_secure Common.H md d c2 G G' x bt p0
+      | pose (assignment_more_secure md d c2 G G' x bt p0
                                      (project_reg r true) (project_mem m true)
                                      r1 m1 t1 H13 H2 a H10)
-      | pose (assignment_more_secure Common.H md d c1 G G' x bt p0
+      | pose (assignment_more_secure md d c1 G G' x bt p0
                                      (project_reg r false) (project_mem m false)
                                      r2 m2 t2 H12 H3 a H10) |
-      | pose (assignment_more_secure Common.H md d c1 G G' x bt p0
+      | pose (assignment_more_secure md d c1 G G' x bt p0
                                      (project_reg r true) (project_mem m true)
                                      r1 m1 t1 H12 H2 a H10)
-      | pose (assignment_more_secure Common.H md d c1 G G' x bt p0
+      | pose (assignment_more_secure md d c1 G G' x bt p0
                                      (project_reg r true) (project_mem m true)
                                      r1 m1 t1 H12 H2 a H10) 
-      | pose (assignment_more_secure Common.H md d c2 G G' x bt p0
+      | pose (assignment_more_secure md d c2 G G' x bt p0
                                     (project_reg r false) (project_mem m false)
                                     r2 m2 t2 H13 H3 a H10) |
-      | pose (assignment_more_secure Common.H md d c1 G G' x bt p0
+      | pose (assignment_more_secure md d c1 G G' x bt p0
                                      (project_reg r true) (project_mem m true)
                                      r1 m1 t1 H12 H2 a H10)
-      | pose (assignment_more_secure Common.H md d c1 G G' x bt p0
+      | pose (assignment_more_secure md d c1 G G' x bt p0
                                      (project_reg r true) (project_mem m true)
                                      r1 m1 t1 H12 H2 a H10) 
-      | pose (assignment_more_secure Common.H md d c1 G G' x bt p0
+      | pose (assignment_more_secure md d c1 G G' x bt p0
                                     (project_reg r false) (project_mem m false)
                                     r2 m2 t2 H12 H3 a H10) |
       ].
@@ -356,40 +362,40 @@ Section Config_Preservation.
       split; auto; intros; destruct_pairs.
       destruct n1; destruct n2; destruct (update_in_dec l t1), (update_in_dec l t2);
       (* see if there was an update in either c1 or c2 to change the registers *)
-      [pose (update_more_secure Common.H md d c2 G G' l bt p0 rt
+      [pose (update_more_secure md d c2 G G' l bt p0 rt
                                     (project_reg r true) (project_mem m true)
                                     r1 m1 t1 H13 H2 u H10)
-      | pose (update_more_secure Common.H md d c2 G G' l bt p0 rt
+      | pose (update_more_secure md d c2 G G' l bt p0 rt
                                      (project_reg r true) (project_mem m true)
                                      r1 m1 t1 H13 H2 u H10)
-      | pose (update_more_secure Common.H md d c2 G G' l bt p0 rt
+      | pose (update_more_secure md d c2 G G' l bt p0 rt
                                      (project_reg r false) (project_mem m false)
                                      r2 m2 t2 H13 H3 u H10) |
-      | pose (update_more_secure Common.H md d c2 G G' l bt p0 rt
+      | pose (update_more_secure md d c2 G G' l bt p0 rt
                                     (project_reg r true) (project_mem m true)
                                     r1 m1 t1 H13 H2 u H10)
-      | pose (update_more_secure Common.H md d c2 G G' l bt p0 rt
+      | pose (update_more_secure md d c2 G G' l bt p0 rt
                                      (project_reg r true) (project_mem m true)
                                      r1 m1 t1 H13 H2 u H10)
-      | pose (update_more_secure Common.H md d c1 G G' l bt p0 rt
+      | pose (update_more_secure md d c1 G G' l bt p0 rt
                                      (project_reg r false) (project_mem m false)
                                      r2 m2 t2 H12 H3 u H10) |
-      | pose (update_more_secure Common.H md d c1 G G' l bt p0 rt
+      | pose (update_more_secure md d c1 G G' l bt p0 rt
                                      (project_reg r true) (project_mem m true)
                                      r1 m1 t1 H12 H2 u H10)
-      | pose (update_more_secure Common.H md d c1 G G' l bt p0 rt
+      | pose (update_more_secure md d c1 G G' l bt p0 rt
                                      (project_reg r true) (project_mem m true)
                                      r1 m1 t1 H12 H2 u H10) 
-      | pose (update_more_secure Common.H md d c2 G G' l bt p0 rt
+      | pose (update_more_secure md d c2 G G' l bt p0 rt
                                     (project_reg r false) (project_mem m false)
                                     r2 m2 t2 H13 H3 u H10) |
-      | pose (update_more_secure Common.H md d c1 G G' l bt p0 rt
+      | pose (update_more_secure md d c1 G G' l bt p0 rt
                                      (project_reg r true) (project_mem m true)
                                      r1 m1 t1 H12 H2 u H10)
-      | pose (update_more_secure Common.H md d c1 G G' l bt p0 rt
+      | pose (update_more_secure md d c1 G G' l bt p0 rt
                                      (project_reg r true) (project_mem m true)
                                      r1 m1 t1 H12 H2 u H10) 
-      | pose (update_more_secure Common.H md d c1 G G' l bt p0 rt
+      | pose (update_more_secure md d c1 G G' l bt p0 rt
                                     (project_reg r false) (project_mem m false)
                                     r2 m2 t2 H12 H3 u H10) |
       ].
@@ -584,10 +590,10 @@ Section Config_Preservation.
           assert (com_type Common.H md G' d (Cwhile e hd) G') as cwhiletyp
             by now eapply Twhile; eauto.
       1,2: apply assign_in_app in a; try destruct a as [a1 | a2];
-           [pose (assignment_more_secure Common.H md d hd G' G' x bt p0
+           [pose (assignment_more_secure md d hd G' G' x bt p0
                                          (project_reg r false) (project_mem m false)
                                          r0 m0 tr H12 H21 a1 H15) |
-            pose (assignment_more_secure Common.H md d (Cwhile e hd) G' G' x bt p0
+            pose (assignment_more_secure md d (Cwhile e hd) G' G' x bt p0
                                          r0 m0 r2 m2 tr' cwhiletyp H25 a2 H15)].
       1-4: destruct p0; unfold sec_level_le in *; [omega | unfold protected in *; auto].
       1-3: inversion H2; try discriminate; unfold_cfgs; subst; unfold_cfgs;
@@ -595,10 +601,10 @@ Section Config_Preservation.
              assert (com_type Common.H md G' d (Cwhile e hd) G') as cwhiletyp
                by now eapply Twhile; eauto.
       1-3: apply assign_in_app in a; destruct a as [a1 | a2];
-           [pose (assignment_more_secure Common.H md d hd G' G' x bt p0
+           [pose (assignment_more_secure md d hd G' G' x bt p0
                                          (project_reg r true) (project_mem m true)
                                       r0 m0 tr H12 H21 a1 H15) |
-         pose (assignment_more_secure Common.H md d (Cwhile e hd) G' G' x bt p0
+         pose (assignment_more_secure md d (Cwhile e hd) G' G' x bt p0
                                       r0 m0 r1 m1 tr' cwhiletyp H25 a2 H15)].
       1-6: destruct p0; unfold sec_level_le in *; [omega | unfold protected in *; auto].
 
@@ -733,10 +739,10 @@ Section Config_Preservation.
           assert (com_type Common.H md G' d (Cwhile e hd) G') as cwhiletyp
             by now eapply Twhile; eauto.
       1,2: apply update_in_app in u; try destruct u as [a1 | a2];
-           [pose (update_more_secure Common.H md d hd G' G' l bt p0 rt
+           [pose (update_more_secure md d hd G' G' l bt p0 rt
                                          (project_reg r false) (project_mem m false)
                                          r0 m0 tr H12 H21 a1 H15) |
-            pose (update_more_secure Common.H md d (Cwhile e hd) G' G' l bt p0 rt
+            pose (update_more_secure md d (Cwhile e hd) G' G' l bt p0 rt
                                          r0 m0 r2 m2 tr' cwhiletyp H25 a2 H15)].
       1-4: destruct p0; unfold sec_level_le in *; [omega | unfold protected in *; auto].
       1-3: inversion H2; try discriminate; unfold_cfgs; subst; unfold_cfgs;
@@ -744,10 +750,10 @@ Section Config_Preservation.
              assert (com_type Common.H md G' d (Cwhile e hd) G') as cwhiletyp
                by now eapply Twhile; eauto.
       1-3: apply update_in_app in u; destruct u as [a1 | a2];
-           [pose (update_more_secure Common.H md d hd G' G' l bt p0 rt
+           [pose (update_more_secure md d hd G' G' l bt p0 rt
                                          (project_reg r true) (project_mem m true)
                                       r0 m0 tr H12 H21 a1 H15) |
-         pose (update_more_secure Common.H md d (Cwhile e hd) G' G' l bt p0 rt
+         pose (update_more_secure md d (Cwhile e hd) G' G' l bt p0 rt
                                       r0 m0 r1 m1 tr' cwhiletyp H25 a2 H15)].
       1-6: destruct p0; unfold sec_level_le in *; [omega | unfold protected in *; auto].
   Qed.  
