@@ -204,8 +204,22 @@ Section Project_Merge.
         -- destruct H; discriminate.
         -- destruct H; destruct H.
            destruct is_left; [exists x | exists x0]; simpl; congruence.
-    - 
-  Admitted.
+    - destruct H; destruct v; unfold contains_nat; simpl in *; subst.
+      + left; exists x; auto.
+      + pose (VPair v v0).
+        pose (pair_wf v1 v v0).
+        destruct i; destruct H0; auto.
+        -- destruct is_left; subst; simpl in *;
+             destruct_conjs.
+           destruct H1. left; exists x; exists H; split; auto.
+           right; exists H0; exists H. rewrite H2, H3; auto.
+           destruct H1. left; exists H0; exists x; split; auto.
+           right; exists H0; exists x; rewrite H2, H3; auto.
+        -- destruct H0; destruct_conjs.
+           destruct is_left.
+           rewrite H in H4; discriminate.
+           rewrite H in H5; discriminate.
+  Qed.
   
   Lemma project_value_apply_op : forall op v1 v2 n1 n2 is_left,
       contains_nat v1 ->
