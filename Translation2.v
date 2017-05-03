@@ -119,16 +119,34 @@ Section TransDef.
     | [] => []
     | k :: K' => E.Ckill k :: process_kill K'
     end.
-  *)
+                    *)
+  Check process_kill.
   Inductive process_seq_output (coms: list E.com) (md0: E.mode)
             (mds: list E.mode) (Gs: list E.context)
-            (Ks Ks' Ks'': list (list E.enclave)) :
+            (Ks K's K''s: list (list E.enclave)) :
     list E.com -> list E.context -> list (list E.enclave) -> Prop :=
   | PSO0 :
       Forall (fun md => md = md0) mds ->
-      Forall (fun K => K = []) Ks'' ->
-      process_seq_output coms md0 mds Gs Ks Ks' Ks'' coms Gs
-                         (nth 0 Ks [] :: Ks'). (*
+      Forall (fun K => K = []) K''s ->
+      process_seq_output coms md0 mds Gs Ks K's K''s coms Gs
+                         (nth 0 Ks [] :: K's)
+  | PSO1: forall c coms' K'' K''s2 K' K's2 K1 K2 Ks2 G1 G2 Gs2
+                 kcoms pk_Gs pk_Ks Gs3 Ksout coms'' mds',
+      md0 = E.Normal ->
+      mds = E.Normal :: mds' ->
+      coms = c :: coms' ->
+      K''s = K'' :: K''s2 ->
+      K's = K' :: K's2 ->
+      Ks = K1 :: K2 :: Ks2 ->
+      Gs = G1 :: G2 :: Gs2 ->
+      process_kill K' K'' G2 kcoms pk_Gs pk_Ks ->
+      process_seq_output coms' md0 mds' (G2 :: Gs2) (K2 :: Ks2) K's2 K''s2
+                         coms'' (G2 :: Gs3) (K2 :: Ksout) ->
+      process_seq_output coms md0 mds Gs Ks K's K''s
+                         (c :: kcoms ++ coms'')
+                         (G1 :: pk_Gs ++ Gs3)
+                         (K1 :: pk_Ks ++ Ksout).
+  (*
   | PSO1 : forall mds' coms' coms'' c G1 G2 Gs' K1 K2 Ks' Gs'' Ks'',
       md0 = E.Normal ->
       mds = E.Normal :: mds' ->
@@ -356,13 +374,13 @@ Section TransDef.
                     E.loc_mode -> E.com -> E.context -> list E.enclave ->
                     Prop :=
   | TRprog : forall d sGs eGs drvs mds Ks (*K's*) coms coms' coms'' md0
-                    U pc eGs' mds' Ks' Ks'' Ksout,
+                    U pc eGs' mds' K's K''s Ksout,
       length eGs = length coms + 1 ->
       length sGs = length coms + 1 ->
       length mds = length coms + 1 ->
       length Ks = length coms ->
-      length Ks' = length coms ->
-      length Ks'' = length coms ->
+      length K's = length coms ->
+      length K''s = length coms ->
       length coms' = length coms ->
       (forall (i: nat),
           i < length eGs ->
@@ -374,27 +392,27 @@ Section TransDef.
                     (nth i mds' E.Normal) (nth i eGs E.mt)
                     (nth i Ks []) d (nth i coms' E.Cskip)
                     (nth (i + 1) eGs E.mt)
-                    (nth i Ks' [])) ->
+                    (nth i K's [])) ->
       (forall (i: nat),
           (nth i mds' E.Normal <> E.Normal /\
            (nth i mds' E.Normal <> nth (i + 1) mds' E.Normal \/
-            nth i Ks'' [] = []) ->
+            nth i K''s [] = []) ->
            E.is_var_low_context (nth (i + 1) eGs E.mt))) ->
       mds = md0 :: mds' ->
       md0 = E.Normal \/ (forall i,
                             i < length mds ->
                             (nth i mds E.Normal) = md0 /\
-                            (nth i Ks'' []) = []) ->
+                            (nth i K''s []) = []) ->
       (forall i,
           i < length Ks - 1 ->
-          nth (i + 1) Ks [] = union (nth i Ks' []) (nth i Ks'' [])) ->
+          nth (i + 1) Ks [] = union (nth i K's []) (nth i K''s [])) ->
       (forall i,
-          Forall (fun e => ~In e (nth i Ks' [])) (nth i Ks'' [])) ->
+          Forall (fun e => ~In e (nth i K's [])) (nth i K''s [])) ->
       (forall i,
           i < length mds' - 1 ->
           nth i mds' E.Normal <> E.Normal /\
           nth i mds' E.Normal = nth (i + 1) mds' E.Normal ->
-          nth i Ks'' [] = []) ->
+          nth i K''s [] = []) ->
       U = [] \/ md0 <> E.Normal ->
       (*sG0 = nth 0 sGs S.mt ->
       sGn = last sGs S.mt ->
@@ -403,7 +421,7 @@ Section TransDef.
       eGn = last eGs' E.mt ->
       Kn = last Ks [] -> *)
       (*process_seq_output coms' md0 (skipn 1 mds) eGs coms'' eGs' -> *)
-      process_seq_output coms' md0 mds' eGs Ks Ks' Ks'' coms'' eGs' Ksout ->
+      process_seq_output coms' md0 mds' eGs Ks K's K''s coms'' eGs' Ksout ->
       prog_trans pc (nth 0 sGs S.mt) U (S.Prog coms) (last sGs S.mt)
                  (S.Pderiv sGs drvs)
                  md0 (nth 0 eGs' E.mt) (nth 0 Ksout []) d (E.Cseq coms'')
@@ -616,33 +634,33 @@ Section TransProof.
   Lemma process_seq_output_wt' (pc: policy) (md0: E.mode) (mds: list E.mode)
         (Gs: list E.context) (Ks: list (list E.enclave))
         (d: E.loc_mode) (U: set condition) (coms: list E.com) :
-    forall comsout Gsout Ksout (Ks' Ks'': list (list E.enclave)),
+    forall comsout Gsout Ksout (K's K''s: list (list E.enclave)),
       (forall i,
           i < length Ks - 1 ->
-          nth (i + 1) Ks [] = union (nth i Ks' []) (nth i Ks'' [])) ->
+          nth (i + 1) Ks [] = union (nth i K's []) (nth i K''s [])) ->
       (forall i,
-          Forall (fun e => ~In e (nth i Ks' [])) (nth i Ks'' [])) ->
+          Forall (fun e => ~In e (nth i K's [])) (nth i K''s [])) ->
       (forall i,
           i < length mds - 1 ->
           nth i mds E.Normal <> E.Normal /\
           nth i mds E.Normal = nth (i + 1) mds E.Normal ->
-          nth i Ks'' [] = []) ->
+          nth i K''s [] = []) ->
       (forall (i: nat),
           (nth i mds E.Normal <> E.Normal /\
            (nth i mds E.Normal <> nth (i + 1) mds E.Normal \/
-            nth i Ks'' [] = []) ->
+            nth i K''s [] = []) ->
            E.is_var_low_context (nth (i + 1) Gs E.mt))) ->
-      process_seq_output coms md0 mds Gs Ks Ks' Ks'' comsout Gsout Ksout ->
+      process_seq_output coms md0 mds Gs Ks K's K''s comsout Gsout Ksout ->
       length Gs = length coms + 1 ->
       length Ks = length coms ->
-      length Ks' = length coms ->
-      length Ks'' = length coms ->
+      length K's = length coms ->
+      length K''s = length coms ->
       length mds = length coms ->
       (forall i,
           i < length coms ->
           E.com_type pc (nth i mds E.Normal) (nth i Gs E.mt)
                      (nth i Ks []) U d (nth i coms E.Cskip)
-                     (nth (i + 1) Gs E.mt) (nth i Ks' [])) ->
+                     (nth (i + 1) Gs E.mt) (nth i K's [])) ->
       U = [] \/ md0 <> E.Normal ->
       length Gsout = length comsout + 1 /\
       length Ksout = length comsout + 1 /\
@@ -652,11 +670,11 @@ Section TransProof.
                      (nth i comsout E.Cskip)
                      (nth (i + 1) Gsout E.mt) (nth (i + 1) Ksout [])).
   Proof.
-    intros comsout Gsout Ksout Ks' Ks'' Hunion Hinter HKs''empty Hcontext
-           Hpso HGslen HKslen HKs'len HKs''len Hmdslen Hwt HU.
+    intros comsout Gsout Ksout K's K''s Hunion Hinter HK''sempty Hcontext
+           Hpso HGslen HKslen HK'slen HK''slen Hmdslen Hwt HU.
     induction Hpso.
     - repeat split; auto.
-      rewrite <- HKs'len. simpl. omega.
+      rewrite <- HK'slen. simpl. omega.
       intros. assert (nth i mds E.Normal = md0) as Hmd0.
       {
         rewrite Forall_forall in H. apply H. apply nth_In. omega.
@@ -664,15 +682,15 @@ Section TransProof.
       destruct (Nat.eq_dec i 0).
       + rewrite e. simpl. apply Hwt in H1. now subst.
       + rewrite Nat.neq_0_r in n. destruct n as [ m n ].
-        assert (nth i (nth 0 Ks [] :: Ks') = nth m Ks') by
+        assert (nth i (nth 0 Ks [] :: K's) = nth m K's) by
             (rewrite n; reflexivity).
         rewrite H2. assert (m < length Ks - 1) by omega.
-        assert (m < length Ks'') by omega.
+        assert (m < length K''s) by omega.
         apply Hwt in H1. rewrite Hmd0 in H1.
-        assert (nth i Ks [] = nth m Ks' []).
+        assert (nth i Ks [] = nth m K's []).
         {
           apply Hunion in H3.
-          replace (nth m Ks'' []) with ([]:list E.enclave) in H3.
+          replace (nth m K''s []) with ([]:list E.enclave) in H3.
           simpl in H3. replace (m + 1) with i in H3; auto. omega.
           rewrite Forall_forall in H0. symmetry. apply H0. now apply nth_In.
         }
@@ -865,36 +883,36 @@ Section TransProof.
 *)
   
   Lemma process_seq_output_wt (pc: policy) (md0: E.mode) (mds: list E.mode)
-        (Gs: list E.context) (Ks Ks' Ks'': list (list E.enclave))
+        (Gs: list E.context) (Ks K's K''s: list (list E.enclave))
         (d: E.loc_mode) (U: set condition) (coms: list E.com) :
     forall comsout Gsout Ksout,
       (forall (i: nat),
           (nth i mds E.Normal <> E.Normal /\
            (nth i mds E.Normal <> nth (i + 1) mds E.Normal \/
-            nth i Ks'' [] = []) ->
+            nth i K''s [] = []) ->
            E.is_var_low_context (nth (i + 1) Gs E.mt))) ->
       (forall i,
           i < length Ks - 1 ->
-          nth (i + 1) Ks [] = union (nth i Ks' []) (nth i Ks'' [])) ->
+          nth (i + 1) Ks [] = union (nth i K's []) (nth i K''s [])) ->
       (forall i,
-          Forall (fun e => ~In e (nth i Ks' [])) (nth i Ks'' [])) ->
+          Forall (fun e => ~In e (nth i K's [])) (nth i K''s [])) ->
       (forall i,
           i < length mds - 1 ->
           nth i mds E.Normal <> E.Normal /\
           nth i mds E.Normal = nth (i + 1) mds E.Normal ->
-          nth i Ks'' [] = []) ->
+          nth i K''s [] = []) ->
       U = [] \/ md0 <> E.Normal ->
       length Gs = length coms + 1 ->
       length Ks = length coms ->
-      length Ks' = length coms ->
-      length Ks'' = length coms ->
+      length K's = length coms ->
+      length K''s = length coms ->
       length mds = length coms ->
       (forall i,
           i < length coms ->
           E.com_type pc (nth i mds E.Normal) (nth i Gs E.mt)
                      (nth i Ks []) U d (nth i coms E.Cskip)
-                     (nth (i + 1) Gs E.mt) (nth i Ks' [])) ->
-      process_seq_output coms md0 mds Gs Ks Ks' Ks'' comsout Gsout Ksout ->
+                     (nth (i + 1) Gs E.mt) (nth i K's [])) ->
+      process_seq_output coms md0 mds Gs Ks K's K''s comsout Gsout Ksout ->
       E.com_type pc md0 (nth 0 Gsout E.mt) (nth 0 Ksout []) U d
                  (E.Cseq comsout) (last Gsout E.mt) (last Ksout []).
   Proof.
