@@ -159,10 +159,15 @@ Section Project_Merge.
   Lemma project_merge_inv_trace : forall t1 t2 is_left,
       project_trace (merge_trace (t1, t2)) is_left = (if is_left then t1 else t2).
   Proof.
-    intros. destruct is_left.
-    remember t1.
-    remember t2.
-    functional induction (merge_trace (t1, t2)); auto.    
+    intros.
+    assert (t1 = fst (t1, t2)) by auto.
+    assert (t2 = snd (t1, t2)) by auto.
+    remember (t1, t2).
+    rewrite H, H0.
+    generalize dependent t1; generalize dependent t2.
+    functional induction (merge_trace p); intros; rewrite Heqp in *; simpl in *; subst.
+    destruct a1, a2, is_left; simpl.
+    (* XXX: won't let me apply IHt without getting rid of the list heads? *)
   Admitted.
 
   Lemma project_app_trace : forall t1 t2 is_left,
