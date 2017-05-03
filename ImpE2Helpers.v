@@ -159,6 +159,10 @@ Section Project_Merge.
   Lemma project_merge_inv_trace : forall t1 t2 is_left,
       project_trace (merge_trace (t1, t2)) is_left = (if is_left then t1 else t2).
   Proof.
+    intros. destruct is_left.
+    remember t1.
+    remember t2.
+    functional induction (merge_trace (t1, t2)); auto.    
   Admitted.
 
   Lemma project_app_trace : forall t1 t2 is_left,
