@@ -167,7 +167,15 @@ Section Project_Merge.
     generalize dependent t1; generalize dependent t2.
     functional induction (merge_trace p); intros; rewrite Heqp in *; simpl in *; subst.
     destruct a1, a2, is_left; simpl.
-    (* XXX: won't let me apply IHt without getting rid of the list heads? *)
+    assert (project_mem (mem_to_mem2 m) true = m).
+    apply functional_extensionality.
+    unfold project_mem; unfold mem_to_mem2.
+    unfold val_to_val2. auto.
+    assert (tl2 = tl2) as tmp by auto.
+    assert (tl1 = tl1) as ergh by auto.
+    assert ((tl1, tl2) = (tl1, tl2)) as tmp' by auto.
+    rewrite (IHt tl2 tmp tl1 tmp' ergh).
+    rewrite H1. auto.
   Admitted.
 
   Lemma project_app_trace : forall t1 t2 is_left,
