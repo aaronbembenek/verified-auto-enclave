@@ -432,13 +432,13 @@ Section Security_Defn.
       mem_esc_hatch_ind ->
       tobs_sec_level sl tobs = tobs_sec_level sl (project_trace t false).
 
-    Definition cterm2_ok (G: context) (d: loc_mode) (r: reg2) (m: mem2)
+    Definition cterm2_ok (md: mode) (G: context) (d: loc_mode) (r: reg2) (m: mem2)
       : Prop :=
       (forall x v1 v2 bt p,
-          (r x = VPair v1 v2 /\ G x = Some (Typ bt p)) -> protected p) 
+          (r x = VPair v1 v2 /\ G x = Some (Typ bt p)) -> protected p /\ md <> Normal) 
       /\ (forall l v1 v2 bt p rt,
           (m l = VPair v1 v2 /\ Loc_Contxt l = Some (Typ bt p, rt))
-          -> protected p)
+          -> protected p /\ d l <> Normal)
       /\ mem_sl_ind L
       /\ mem_esc_hatch_ind.
 
@@ -449,10 +449,10 @@ Section Security_Defn.
     /\ (forall x v1 v2 bt p,
            (r x = VPair v1 v2
             /\ G x = Some (Typ bt p))
-           -> protected p)
+           -> protected p /\ md <> Normal)
     /\ (forall l v1 v2 bt p rt,
            ((m l) = VPair v1 v2 /\ Loc_Contxt (l) = Some (Typ bt p, rt))    
-           -> protected p)
+           -> protected p /\ d l <> Normal)
     /\ mem_sl_ind L
     /\ mem_esc_hatch_ind.
   

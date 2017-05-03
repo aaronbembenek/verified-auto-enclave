@@ -150,7 +150,7 @@ Section Secure_Passive.
       inversion Hccfg2ok; destruct_pairs; unfold_cfgs; subst; auto; try discriminate.
       inversion H; unfold_cfgs; try discriminate; subst; auto.
       remember (VPair v v0) as vpair.
-      assert (cterm2_ok G' d r m) as Hctermok; unfold cterm2_ok; auto.
+      assert (cterm2_ok md G' d r m) as Hctermok; unfold cterm2_ok; auto.
       assert (protected p) by apply (econfig2_pair_protected
                                        md G' d e p r m vpair v v0 s
                                        Heqvpair H11 H0 Hctermok).
@@ -172,8 +172,9 @@ Section Secure_Passive.
       inversion Hccfg2ok; destruct_pairs; unfold_cfgs; subst; auto; try discriminate.
       inversion H; unfold_cfgs; try discriminate; subst; auto.
       assert (protected q) as Hqprotected.
-      eapply econfig2_pair_protected in H8; auto. apply H0.
-      assert (cterm2_ok G d r m) by now unfold cterm2_ok. apply H7.
+      eapply econfig2_pair_protected in H8; auto; destruct_pairs; auto.
+      apply H0.
+      assert (cterm2_ok md G d r m) by now unfold cterm2_ok. apply H7.
       assert (protected (sec_level_join pc q)) as Hpcqprotected
           by apply (join_protected_r pc q Hqprotected).
       inversion Hpcqprotected; rewrite Hpcqprotected in H9.
@@ -259,8 +260,8 @@ Section Secure_Passive.
       inversion Hccfg2ok; destruct_pairs; unfold_cfgs; subst; auto; try discriminate.
       inversion H; unfold_cfgs; try discriminate; subst; auto.
       assert (protected p) as Hqprotected.
-      eapply econfig2_pair_protected in H18; auto. apply H0.
-      assert (cterm2_ok G d r m) by now unfold cterm2_ok. apply H9.
+      eapply econfig2_pair_protected in H18; destruct_pairs; auto. apply H0.
+      assert (cterm2_ok md G d r m) by now unfold cterm2_ok. apply H9.
       assert (protected (sec_level_join pc p)) by now apply (join_protected_r pc p).
       inversion H9; rewrite H9 in H20.
       assert (protected pc') as Hpc'protected.
@@ -305,8 +306,8 @@ Section Secure_Passive.
       inversion Hccfg2ok; destruct_pairs; unfold_cfgs; subst; auto; try discriminate.
       inversion H; unfold_cfgs; try discriminate; subst; auto.
       assert (protected p) as Hqprotected.
-      eapply econfig2_pair_protected in H11; auto. apply H0.
-      assert (cterm2_ok G' d r m) by now unfold cterm2_ok. apply H9.
+      eapply econfig2_pair_protected in H11; destruct_pairs; auto. apply H0.
+      assert (cterm2_ok md G' d r m) by now unfold cterm2_ok. apply H9.
       assert (protected (sec_level_join pc p)) by now apply (join_protected_r pc p).
       inversion H9; rewrite H9 in H17.
       assert (protected pc') as Hpc'protected.
@@ -363,9 +364,11 @@ Section Secure_Passive.
          pose (Hg0wf l) as Hgwf; destruct Hgwf; destruct_pairs.
          pose H3 as Hg0. apply (H1 l x bt rt) in Hg0.
          rewrite H0 in Hg0. inversion Hg0; subst.
+         assert (protected (g0 l)) as Pgl.
          apply (diff_loc_protected l); auto.
          apply (vpair_if_diff m0 mknown v1 v2 l) in H; auto.
          rewrite <- Hmmerge; repeat rewrite project_merge_inv_mem; auto.
+         split; auto. eapply Loc_Contxt_not_Normal; eauto.
       -- split; intros; auto.
   Qed.
 End Secure_Passive.

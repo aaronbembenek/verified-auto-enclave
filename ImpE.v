@@ -506,7 +506,7 @@ Section Typing.
 
   Definition forall_dom (G: context) (P: var -> type -> Prop) : Prop :=
        forall x t, G x = Some t -> P x t.
-
+  
   Inductive type_le : type -> type -> Prop :=
   | Type_le : forall s1 s2 p1 p2,
       base_type_le s1 s2 ->
@@ -541,10 +541,6 @@ Section Typing.
     apply Type_le. apply Base_type_le_refl. apply sec_level_le_refl.
   Qed.
   
-  Definition context_wt (G: context) (d: loc_mode) : Prop :=
-    forall_loc (fun l t _ =>
-                  let (_, p) := t in
-                  (p = H -> exists i, d l = Encl i)).
   
   Definition is_var_low_context (G: context) : Prop :=
     forall_dom G (fun _ t => let (_, p) := t in p = L).
@@ -675,7 +671,7 @@ Section Axioms.
   Parameter minit : mem.
   
   Axiom No_Pointers : forall (m: mem) l l', m l <> Vloc l'.
-
+  
   Axiom subsumption : forall pc1 pc2 md d G1 G1' G2 G2' c,
       com_type pc1 md G1 d c G1' ->
       sec_level_le pc2 pc1 ->
@@ -684,6 +680,21 @@ Section Axioms.
       (* XXX not including well-typed contexts *)
       com_type pc2 md G2 d c G2'.
 
+  Axiom Loc_Contxt_wt : forall d, 
+    forall_loc (fun l t _ =>
+                  let (_, p) := t in
+                  (p = H -> d l <> Normal)).
+
+  Lemma Loc_Contxt_not_Normal : forall d l bt p rt,
+      Loc_Contxt l = Some (Typ bt p, rt) ->
+      protected p ->
+      d l <> Normal.
+  Proof.
+    intros.
+    pose (Loc_Contxt_wt d). unfold forall_loc in *.
+    apply (f l (Typ bt p) rt H). auto.
+  Qed.
+  
   Definition meminit_wf minit d := forall l,
       match minit l with
       | Vlambda md c => forall Gm p Gp q rt,

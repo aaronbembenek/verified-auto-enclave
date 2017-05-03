@@ -100,7 +100,7 @@ Section Typing_Helpers.
   
   Lemma LocContxt_if_VlocWT : forall md G d l s p rt q md',
       val_type md G d (Vloc l) (Typ (Tref (Typ s p) md' rt) q) ->
-         Loc_Contxt l = Some (Typ s p, rt).
+         Loc_Contxt l = Some (Typ s p, rt) /\ d l = md'.
   Proof.
     intros. 
     inversion H; try discriminate; auto; subst.
@@ -108,7 +108,8 @@ Section Typing_Helpers.
                exp_type md G d (Eloc l) (Typ (Tref (Typ s p) md' rt) L) /\ d l = md')
       as exp_typ.
     eapply Reg_Exp_Loc; split; eauto.
-    destruct exp_typ as [md'' exp_typ]; destruct exp_typ as [exp_typ blah]. 
+    destruct exp_typ as [md'' exp_typ]; destruct exp_typ as [exp_typ blah].
+    split; auto.
     inversion exp_typ; auto.
     pose (No_Pointers m l0 l). contradiction.
   Qed.
@@ -126,7 +127,7 @@ Section Typing_Helpers.
     destruct H0 as [md'' Hetyp].
     inversion Hetyp; subst; auto.
 
-    apply LocContxt_if_VlocWT in H7.
+    apply LocContxt_if_VlocWT in H7; destruct_pairs.
     assert (minit l = Vlambda md' c \/
             (exists md'',
                 exp_type md'' G d (Elambda md' c) (Typ (Tlambda Gm p md' Gp) L)))
@@ -136,9 +137,10 @@ Section Typing_Helpers.
     pose (wf_minit d); unfold meminit_wf in *.
     pose (m0 l) as minitl.
     rewrite H0 in minitl.
+    rewrite H2 in minitl.
     eapply minitl; eauto.
 
-    inversion H0. inversion H1; try discriminate; subst; auto.
+    inversion H2. inversion H3; try discriminate; subst; auto.
   Qed.    
 
   Lemma call_fxn_typ : forall pc md G d e r m Gm p Gp q c Gout,
@@ -170,7 +172,7 @@ Section Typing_Helpers.
     estep md d (e, r, m) (Vloc l) ->
     exp_type md G d e (Typ (Tref (Typ s p) md' Mut) q) ->
     Loc_Contxt l = Some (Typ bt p0, rt) ->
-    s = bt /\ p = p0.
+    s = bt /\ p = p0 /\ d l = md'.
   Proof.
     intros.
     assert (val_type md G d (Vloc l) (Typ (Tref (Typ s p) md' Mut) q)).
@@ -187,8 +189,9 @@ Section Typing_Helpers.
     pose (impe2_value_type_preservation
             md G d e (Tref (Typ s p) md' Mut) q (merge_reg r r) (merge_mem m m) (VSingle (Vloc l))
             H0 Hestep2); destruct_pairs; unfold project_value in *; auto.
-    pose (LocContxt_if_VlocWT md G d l s p Mut q md') as lc.
-    rewrite lc in H1. inversion H1; subst; auto. auto.
+    pose (LocContxt_if_VlocWT md G d l s p Mut q md' H2) as lc.
+    destruct lc as [lc blah].
+    rewrite lc in H1. inversion H1; subst; auto. 
   Qed.
 End Typing_Helpers.
 
@@ -615,7 +618,7 @@ Section Security.
       destruct (eq_nat_dec l x); subst.
       unfold update_in in *; unfold project_trace in *; simpl in *; unfold not in *.
       destruct Hupdate; try omega.
-      assert (s = bt /\ p = q).
+      assert (s = bt /\ p = q /\ d x = md').
       eapply ref_type; eauto. destruct_pairs; subst.
       apply sec_level_join_le_r in H9. unfold sec_level_join in *; destruct q; auto.
       inversion Hupdate. inversion H. omega. inversion H.
@@ -745,8 +748,8 @@ Section Security.
       v = VPair v1 v2 ->
       exp_type md G d e (Typ bt p) ->
       estep2 md d (e,r,m) v ->
-      cterm2_ok G d r m ->
-      protected p.
+      cterm2_ok md G d r m ->
+      protected p /\ md <> Normal.
   Proof.
     intros.
     remember (e,r,m) as ecfg.
@@ -770,14 +773,14 @@ Section Security.
        exists x. exists x0. auto.
        inversion H4; subst; try discriminate.
        destruct H. destruct H; destruct H.
-       -- assert (protected p0).
+       -- assert (protected p0 /\ md <> Normal).
           eapply (IHHestep2_1 Hestep2_1). unfold cterm2_ok; auto.
-          apply H. apply H15. auto.
-          now apply (join_protected_l p0 q).
-       -- assert (protected q ).
+          apply H. apply H15. auto. destruct_pairs.
+          split; auto. now apply (join_protected_l p0 q).
+       -- assert (protected q /\ md <> Normal).
           eapply (IHHestep2_2 Hestep2_2). unfold cterm2_ok; auto.
-          apply H. apply H17. auto.
-          now apply (join_protected_r p0 q).
+          apply H. apply H17. auto. destruct_pairs.
+          split; auto. now apply (join_protected_r p0 q).
      - inversion Heqecfg; subst.
        inversion H5; subst.
        assert (val_type md G d (Vloc l) (Typ (Tref (Typ bt p0) md' rt) q)) as valtyp.
@@ -787,8 +790,11 @@ Section Security.
          as vtp.
        unfold project_value in *; destruct_pairs; auto.
        apply LocContxt_if_VlocWT in valtyp.
-       assert (protected p0). eapply H0; eauto.
-       now apply join_protected_l.
+       destruct_pairs.
+       assert (protected p0 /\ d l <> Normal). eapply H0; eauto.
+       split; auto. now apply join_protected_l.
+       unfold mode_access_ok in H3. destruct (d l). destruct_pairs. contradiction.
+       rewrite H3. destruct_pairs. auto.
   Qed.
   
   Lemma diff_loc_protected : forall l,
