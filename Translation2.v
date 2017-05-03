@@ -91,6 +91,8 @@ Section TransDef.
   Definition union (xs ys: list E.enclave) := xs ++ ys.
   
   Definition inter (xs: list E.enclave) := filter (fun x => member x xs).*)
+
+  Definition union {A} (xs ys: list A) := (rev ys) ++ xs.
   
   Inductive process_kill : list E.enclave -> list E.enclave -> E.context ->
                            list E.com -> list E.context ->
@@ -101,31 +103,6 @@ Section TransDef.
       process_kill (K :: Kinit) Ks G kcoms Gsout ((K :: Kinit) :: Ksout) ->
       process_kill Kinit (K :: Ks) G (E.Ckill K :: kcoms)
                    (G :: Gsout) (Kinit :: (K :: Kinit) :: Ksout).
-
-  Lemma process_kill_Forall_G : forall G Gs Ks Kstokill Kinit kcoms,
-      process_kill Kinit Kstokill G kcoms Gs Ks ->
-      Forall (fun x => x = G) Gs.
-  Proof.
-    intros. induction H; apply Forall_cons; auto.
-  Qed.
-
-  Lemma process_kill_wt' : forall Kstokill Kinit kcoms Ksout Gsout G U i d,
-      process_kill Kinit Kstokill G kcoms Gsout Ksout ->
-      Forall (fun e => ~In e Kinit) Kstokill ->
-      NoDup Kstokill ->
-      i < length kcoms ->
-      E.com_type low E.Normal (nth i Gsout E.mt) (nth i Ksout []) U d
-                 (nth i kcoms E.Cskip) (nth (i + 1) Gsout E.mt)
-                 (nth (i + 1) Ksout []).
-  Proof.
-    induction Kstokill; intros; inversion H; subst.
-    simpl in H2. inversion H2.
-    destruct (Nat.eq_dec i 0).
-    - rewrite e. simpl. apply process_kill_Forall_G in H10.
-      rewrite Forall_forall in H10.
-      (* eapply E.CTkill. *)
-  Admitted.
-    
 
       (*
     - repeat split; auto. intros. pose H1 as H1'. apply Hwt in H1'.
@@ -410,7 +387,7 @@ Section TransDef.
                             (nth i Ks'' []) = []) ->
       (forall i,
           i < length Ks - 1 ->
-          nth (i + 1) Ks [] = (nth i Ks' [] ++ nth i Ks'' [])) ->
+          nth (i + 1) Ks [] = union (nth i Ks' []) (nth i Ks'' [])) ->
       (forall i,
           Forall (fun e => ~In e (nth i Ks' [])) (nth i Ks'' [])) ->
       (forall i,
@@ -583,13 +560,66 @@ End TransLemmas.
 Section TransProof.
   Hint Constructors E.exp_type E.com_type.
 
+  Lemma pk_Forall_Gs_eq_G : forall G Gs Ks Kstokill Kinit kcoms,
+      process_kill Kinit Kstokill G kcoms Gs Ks ->
+      Forall (fun x => x = G) Gs.
+  Proof.
+    intros. induction H; apply Forall_cons; auto.
+  Qed.
+
+  Lemma pk_length_Gs : forall {G} {Gs} {Ks} {Kstokill} {Kinit} {kcoms},
+      process_kill Kinit Kstokill G kcoms Gs Ks ->
+      length Gs = length kcoms + 1.
+  Proof.
+    intros. induction H; simpl; auto.
+  Qed.
+
+  Lemma pk_last_Ksout : forall {G} {Gs} {Ks} {Kstokill} {Kinit} {kcoms},
+      process_kill Kinit Kstokill G kcoms Gs Ks ->
+      last Ks [] = union Kinit Kstokill.
+  Proof.
+    intros. induction H. reflexivity.
+    unfold union in *. simpl in *. rewrite <- app_assoc. now simpl.
+  Qed.
+
+  Lemma process_kill_wt' : forall Kstokill Kinit kcoms Ksout Gsout G U i d,
+      process_kill Kinit Kstokill G kcoms Gsout Ksout ->
+      Forall (fun e => ~In e Kinit) Kstokill ->
+      NoDup Kstokill ->
+      i < length kcoms ->
+      E.com_type low E.Normal (nth i Gsout E.mt) (nth i Ksout []) U d
+                 (nth i kcoms E.Cskip) (nth (i + 1) Gsout E.mt)
+                 (nth (i + 1) Ksout []).
+  Proof.
+    induction Kstokill; intros; inversion H; subst.
+    simpl in H2. inversion H2.
+    destruct (Nat.eq_dec i 0).
+    - rewrite e. simpl. apply pk_Forall_Gs_eq_G in H10.
+      rewrite Forall_forall in H10.
+      pose (pk_length_Gs H). simpl in e0.
+      assert (0 < length Gsout0) by omega.
+      apply nth_In with (d:=E.mt) in H3. apply H10 in H3. rewrite H3.
+      eapply E.CTkill. unfold E.mode_alive.
+      rewrite Forall_forall in H0. apply H0. now constructor. auto.
+    - rewrite Nat.neq_0_r in n. destruct n as [m n].
+      eapply IHKstokill with (i:=m) in H10.
+      + rewrite n. simpl in *. eauto.
+      + rewrite Forall_forall in *. intros.
+        destruct (Nat.eq_dec x a). subst.
+        rewrite NoDup_cons_iff in H1. tauto.
+        rewrite not_in_cons. split; auto.
+        apply H0. now apply in_cons.
+      + rewrite NoDup_cons_iff in H1. tauto.
+      + simpl in H2. omega.
+  Qed.
+  
   Lemma process_seq_output_wt' (pc: policy) (md0: E.mode) (mds: list E.mode)
         (Gs: list E.context) (Ks: list (list E.enclave))
         (d: E.loc_mode) (U: set condition) (coms: list E.com) :
     forall comsout Gsout Ksout (Ks' Ks'': list (list E.enclave)),
       (forall i,
           i < length Ks - 1 ->
-          nth (i + 1) Ks [] = (nth i Ks' [] ++ nth i Ks'' [])) ->
+          nth (i + 1) Ks [] = union (nth i Ks' []) (nth i Ks'' [])) ->
       (forall i,
           Forall (fun e => ~In e (nth i Ks' [])) (nth i Ks'' [])) ->
       (forall i,
@@ -643,8 +673,7 @@ Section TransProof.
         {
           apply Hunion in H3.
           replace (nth m Ks'' []) with ([]:list E.enclave) in H3.
-          simpl in H3. replace (m + 1) with i in H3; auto.
-          unfold union in H3. now rewrite app_nil_r in H3. omega.
+          simpl in H3. replace (m + 1) with i in H3; auto. omega.
           rewrite Forall_forall in H0. symmetry. apply H0. now apply nth_In.
         }
         rewrite <- H5. now rewrite <- nth_eq_nth_S_cons.
@@ -846,7 +875,7 @@ Section TransProof.
            E.is_var_low_context (nth (i + 1) Gs E.mt))) ->
       (forall i,
           i < length Ks - 1 ->
-          nth (i + 1) Ks [] = (nth i Ks' [] ++ nth i Ks'' [])) ->
+          nth (i + 1) Ks [] = union (nth i Ks' []) (nth i Ks'' [])) ->
       (forall i,
           Forall (fun e => ~In e (nth i Ks' [])) (nth i Ks'' [])) ->
       (forall i,
