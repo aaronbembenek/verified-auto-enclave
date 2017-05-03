@@ -491,7 +491,7 @@ Section Axioms.
         need to allow that in the initial memory or require that minit2_left
         and minit2_right have the same type at each location *)
    Admitted.
-     
+
    Axiom Initial_State2: forall d r' m',
        exists c md tr, cstep2 md d (c, reg_init2, minit2) (r', m') tr.
 

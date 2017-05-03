@@ -725,6 +725,10 @@ Section Axioms.
       minit l = Vlambda md c \/
       (exists md',
           exp_type md' G d (Elambda md c) (Typ (Tlambda Gm p md Gp) L)).
+
+  (* Adding empty to the front of a trace doesn't change it *)
+  Axiom emp_eq : forall t,
+      Emp :: t = t.
 End Axioms.
 
 

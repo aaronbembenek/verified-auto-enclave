@@ -155,7 +155,13 @@ Section Project_Merge.
     symmetry in Heqrz. apply pair_distinct in Heqrz. 
     destruct val_decidable; try contradiction; auto.
   Qed.
-    
+
+  Lemma project_mem_to_mem2 : forall m is_left,
+      project_mem (mem_to_mem2 m) is_left = m.
+  Proof.
+    auto.
+  Qed.
+  
   Lemma project_merge_inv_trace : forall t1 t2 is_left,
       project_trace (merge_trace (t1, t2)) is_left = (if is_left then t1 else t2).
   Proof.
@@ -166,17 +172,14 @@ Section Project_Merge.
     rewrite H, H0.
     generalize dependent t1; generalize dependent t2.
     functional induction (merge_trace p); intros; rewrite Heqp in *; simpl in *; subst.
-    destruct a1, a2, is_left; simpl.
-    assert (project_mem (mem_to_mem2 m) true = m).
-    apply functional_extensionality.
-    unfold project_mem; unfold mem_to_mem2.
-    unfold val_to_val2. auto.
-    assert (tl2 = tl2) as tmp by auto.
-    assert (tl1 = tl1) as ergh by auto.
-    assert ((tl1, tl2) = (tl1, tl2)) as tmp' by auto.
-    rewrite (IHt tl2 tmp tl1 tmp' ergh).
-    rewrite H1. auto.
-  Admitted.
+    - destruct a1, a2, is_left; simpl; try rewrite project_mem_to_mem2;
+      erewrite IHt ; try rewrite emp_eq; auto.
+    - destruct a1, is_left; simpl; try rewrite project_mem_to_mem2;
+      erewrite IHt; try rewrite emp_eq; auto.
+    - destruct a2, is_left; simpl; try rewrite project_mem_to_mem2;
+      erewrite IHt; try rewrite emp_eq; auto.
+    - destruct t1, t2, is_left; subst; auto; try omega.
+  Qed.
 
   Lemma project_app_trace : forall t1 t2 is_left,
       project_trace (t1 ++ t2) is_left =
@@ -202,7 +205,7 @@ Section Project_Merge.
            destruct is_left; [exists x | exists x0]; simpl; congruence.
     - (* XXX: pairs don't necessarily contain the same value type... *) admit.
   Admitted.
-
+  
   Lemma project_value_apply_op : forall op v1 v2 n1 n2 is_left,
       contains_nat v1 ->
       contains_nat v2 ->
