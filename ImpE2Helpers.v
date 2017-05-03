@@ -69,20 +69,21 @@ Section Project_Merge.
     1,3: discriminate. 
     - simpl in H0; inversion H0; now subst.
     - (* XXX need a hypothesis about registers not having pairs? *)
-      admit.
+      destruct v, v; subst; auto; simpl in *; inversion H0;
+        destruct is_left; try discriminate; auto.
+      1-4: rewrite H3 in H1; eapply pair_wf in H1;
+        destruct H1; destruct_conjs; discriminate.
     - destruct_conjs. unfold contains_nat in *.
       do 2 destruct H3; do 2 destruct H4; simpl; subst.
       + discriminate.
       + destruct H4; subst; destruct is_left; simpl in *; discriminate.
       + destruct H3; subst; destruct is_left; simpl in *; discriminate.
       + destruct H3; destruct H4; destruct is_left; subst; simpl in *; discriminate.
-    - pose (No_Loc_Mem m0 l0); destruct a.
-      inversion H0.
+    - inversion H0.
       destruct v; subst; simpl; auto.
       destruct is_left; subst; simpl in *; subst.
-      (* XXX: need something about pairs of different types *)
-      admit.
-  Admitted.
+      all: eapply pair_wf in H2; destruct H2; destruct_conjs; discriminate.
+  Qed.
       
   Lemma project_comm_reg : forall r b x,
       (project_reg r b) x = project_value (r x) b.
@@ -203,7 +204,7 @@ Section Project_Merge.
         -- destruct H; discriminate.
         -- destruct H; destruct H.
            destruct is_left; [exists x | exists x0]; simpl; congruence.
-    - (* XXX: pairs don't necessarily contain the same value type... *) admit.
+    - 
   Admitted.
   
   Lemma project_value_apply_op : forall op v1 v2 n1 n2 is_left,
