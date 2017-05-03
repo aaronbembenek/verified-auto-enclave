@@ -120,18 +120,19 @@ Section TransDef.
     | k :: K' => E.Ckill k :: process_kill K'
     end.
                     *)
-  Check process_kill.
-  Inductive process_seq_output (coms: list E.com) (md0: E.mode)
+
+  Inductive process_seq_output (pc: policy) (coms: list E.com) (md0: E.mode)
             (mds: list E.mode) (Gs: list E.context)
             (Ks K's K''s: list (list E.enclave)) :
     list E.com -> list E.context -> list (list E.enclave) -> Prop :=
   | PSO0 :
       Forall (fun md => md = md0) mds ->
       Forall (fun K => K = []) K''s ->
-      process_seq_output coms md0 mds Gs Ks K's K''s coms Gs
+      process_seq_output pc coms md0 mds Gs Ks K's K''s coms Gs
                          (nth 0 Ks [] :: K's)
   | PSO1: forall c coms' K'' K''s2 K' K's2 K1 K2 Ks2 G1 G2 Gs2
                  kcoms pk_Gs pk_Ks Gs3 Ksout coms'' mds',
+      pc = low ->
       md0 = E.Normal ->
       mds = E.Normal :: mds' ->
       coms = c :: coms' ->
@@ -140,9 +141,9 @@ Section TransDef.
       Ks = K1 :: K2 :: Ks2 ->
       Gs = G1 :: G2 :: Gs2 ->
       process_kill K' K'' G2 kcoms pk_Gs pk_Ks ->
-      process_seq_output coms' md0 mds' (G2 :: Gs2) (K2 :: Ks2) K's2 K''s2
+      process_seq_output pc coms' md0 mds' (G2 :: Gs2) (K2 :: Ks2) K's2 K''s2
                          coms'' (G2 :: Gs3) (K2 :: Ksout) ->
-      process_seq_output coms md0 mds Gs Ks K's K''s
+      process_seq_output pc coms md0 mds Gs Ks K's K''s
                          (c :: kcoms ++ coms'')
                          (G1 :: pk_Gs ++ Gs3)
                          (K1 :: pk_Ks ++ Ksout).
@@ -413,6 +414,7 @@ Section TransDef.
           nth i mds' E.Normal <> E.Normal /\
           nth i mds' E.Normal = nth (i + 1) mds' E.Normal ->
           nth i K''s [] = []) ->
+      Forall (fun K'' => NoDup K'') K''s ->
       U = [] \/ md0 <> E.Normal ->
       (*sG0 = nth 0 sGs S.mt ->
       sGn = last sGs S.mt ->
@@ -421,7 +423,7 @@ Section TransDef.
       eGn = last eGs' E.mt ->
       Kn = last Ks [] -> *)
       (*process_seq_output coms' md0 (skipn 1 mds) eGs coms'' eGs' -> *)
-      process_seq_output coms' md0 mds' eGs Ks K's K''s coms'' eGs' Ksout ->
+      process_seq_output pc coms' md0 mds' eGs Ks K's K''s coms'' eGs' Ksout ->
       prog_trans pc (nth 0 sGs S.mt) U (S.Prog coms) (last sGs S.mt)
                  (S.Pderiv sGs drvs)
                  md0 (nth 0 eGs' E.mt) (nth 0 Ksout []) d (E.Cseq coms'')
@@ -621,29 +623,29 @@ Section TransProof.
     intros. induction H; reflexivity.
   Qed.
 
-  Lemma pso_length_Gsout : forall {coms} {md0} {mds} {Gs}
+  Lemma pso_length_Gsout : forall {pc} {coms} {md0} {mds} {Gs}
                                   {Ks K's K''s} {coms'} {Gsout} {Ksout},
-      process_seq_output coms md0 mds Gs Ks K's K''s coms' Gsout Ksout ->
+      process_seq_output pc coms md0 mds Gs Ks K's K''s coms' Gsout Ksout ->
       length Gs = length coms + 1 ->
       length Gsout = length coms' + 1.
     intros. induction H; auto.
     - assert (length (G2 :: Gs2) = length coms' + 1) by
           (subst; simpl in *; omega).
-      apply IHprocess_seq_output in H9. simpl in *. repeat rewrite app_length.
-      rewrite (pk_length_Gsout H7).
+      apply IHprocess_seq_output in H10. simpl in *. repeat rewrite app_length.
+      rewrite (pk_length_Gsout H8).
       replace (length Gs3) with (length coms'') by omega. omega.
   Qed.
 
-  Lemma pso_length_Ksout : forall {coms} {md0} {mds} {Gs}
+  Lemma pso_length_Ksout : forall {pc} {coms} {md0} {mds} {Gs}
                                   {Ks K's K''s} {coms'} {Gsout} {Ksout},
-      process_seq_output coms md0 mds Gs Ks K's K''s coms' Gsout Ksout ->
+      process_seq_output pc coms md0 mds Gs Ks K's K''s coms' Gsout Ksout ->
       length K's = length coms ->
       length Ksout = length coms' + 1.
   Proof.
     intros. induction H; simpl. omega.
     - assert (length K's2 = length coms') by (subst; simpl in *; omega).
-      apply IHprocess_seq_output in H9. simpl in *. repeat rewrite app_length.
-      rewrite (pk_length_Ksout H7).
+      apply IHprocess_seq_output in H10. simpl in *. repeat rewrite app_length.
+      rewrite (pk_length_Ksout H8).
       replace (length Ksout) with (length coms'') by omega. omega.
   Qed.
   
@@ -693,7 +695,7 @@ Section TransProof.
            (nth i mds E.Normal <> nth (i + 1) mds E.Normal \/
             nth i K''s [] = []) ->
            E.is_var_low_context (nth (i + 1) Gs E.mt))) ->
-      process_seq_output coms md0 mds Gs Ks K's K''s comsout Gsout Ksout ->
+      process_seq_output pc coms md0 mds Gs Ks K's K''s comsout Gsout Ksout ->
       length Gs = length coms + 1 ->
       length Ks = length coms ->
       length K's = length coms ->
@@ -705,6 +707,7 @@ Section TransProof.
                      (nth i Ks []) U d (nth i coms E.Cskip)
                      (nth (i + 1) Gs E.mt) (nth i K's [])) ->
       U = [] \/ md0 <> E.Normal ->
+      Forall (fun K'' => NoDup K'') K''s ->
       (forall i,
           i < length comsout ->
           E.com_type pc md0 (nth i Gsout E.mt) (nth i Ksout []) U d
@@ -712,7 +715,7 @@ Section TransProof.
                      (nth (i + 1) Gsout E.mt) (nth (i + 1) Ksout [])).
   Proof.
     intros comsout Gsout Ksout K's K''s Hunion Hinter HK''sempty Hcontext
-           Hpso HGslen HKslen HK'slen HK''slen Hmdslen Hwt HU.
+           Hpso HGslen HKslen HK'slen HK''slen Hmdslen Hwt HU HNoDup.
     induction Hpso; intros.
     - assert (nth i mds E.Normal = md0) as Hmd0.
       {
@@ -720,7 +723,7 @@ Section TransProof.
       }
       destruct (Nat.eq_dec i 0).
       + rewrite e. simpl. apply Hwt in H1. now subst.
-      + rewrite Nat.neq_0_r in n. destruct n as [ m n ].
+      + rewrite Nat.neq_0_r in n. destruct n as [m n].
         assert (nth i (nth 0 Ks [] :: K's) = nth m K's) by
             (rewrite n; reflexivity).
         rewrite H2. assert (m < length Ks - 1) by omega.
@@ -738,14 +741,34 @@ Section TransProof.
       + rewrite e. simpl.
         replace (nth 0 (pk_Gs ++ Gs3) E.mt) with G2.
         replace (nth 0 (pk_Ks ++ Ksout) []) with K'.
-        assert (0 < length coms) by (rewrite H1; simpl; omega).
-        apply Hwt in H8. subst. now simpl in H8.
+        assert (0 < length coms) by (rewrite H2; simpl; omega).
+        apply Hwt in H9. subst. now simpl in H9.
         * replace (nth 0 (pk_Ks ++ Ksout) []) with (nth 0 pk_Ks []).
-          now rewrite (pk_first_Ksout H6).
-          symmetry. apply app_nth1. pose (pk_length_Ksout H6). omega.
+          now rewrite (pk_first_Ksout H7).
+          symmetry. apply app_nth1. pose (pk_length_Ksout H7). omega.
         * replace (nth 0 (pk_Gs ++Gs3) E.mt) with (nth 0 pk_Gs E.mt).
-          now rewrite (pk_first_Gsout H6).
-          symmetry. apply app_nth1. pose (pk_length_Gsout H6). omega.
+          now rewrite (pk_first_Gsout H7).
+          symmetry. apply app_nth1. pose (pk_length_Gsout H7). omega.
+      + rewrite Nat.neq_0_r in n. destruct n as [m n]. rewrite n. simpl.
+        assert (m < length kcoms \/ m >= length kcoms) by omega. destruct H9.
+        * clear IHHpso.
+          replace (nth m (pk_Gs ++ Gs3) E.mt) with (nth m pk_Gs E.mt).
+          replace (nth m (pk_Ks ++ Ksout) []) with (nth m pk_Ks []).
+          replace (nth m (kcoms ++ coms'') E.Cskip) with
+          (nth m kcoms E.Cskip).
+          replace (nth (m + 1) (pk_Gs ++ Gs3) E.mt) with
+          (nth (m + 1) pk_Gs E.mt).
+          replace (nth (m + 1) (pk_Ks ++ Ksout) []) with
+          (nth (m + 1) pk_Ks []).
+          rewrite H. rewrite H0.
+          eapply process_kill_wt'; eauto.
+          pose (Hinter 0). rewrite H3 in f. rewrite H4 in f. now simpl.
+          rewrite H3 in HNoDup. now apply Forall_inv with (l:=K''s2).
+          1-5: symmetry; apply app_nth1.
+          1,4: rewrite (pk_length_Ksout H7); omega.
+          1,3: rewrite (pk_length_Gsout H7); omega.
+          auto.
+        * admit.
     Admitted.
 
   (*
@@ -958,18 +981,19 @@ Section TransProof.
       length K's = length coms ->
       length K''s = length coms ->
       length mds = length coms ->
+      Forall (fun K'' => NoDup K'') K''s ->
       (forall i,
           i < length coms ->
           E.com_type pc (nth i mds E.Normal) (nth i Gs E.mt)
                      (nth i Ks []) U d (nth i coms E.Cskip)
                      (nth (i + 1) Gs E.mt) (nth i K's [])) ->
-      process_seq_output coms md0 mds Gs Ks K's K''s comsout Gsout Ksout ->
+      process_seq_output pc coms md0 mds Gs Ks K's K''s comsout Gsout Ksout ->
       E.com_type pc md0 (nth 0 Gsout E.mt) (nth 0 Ksout []) U d
                  (E.Cseq comsout) (last Gsout E.mt) (last Ksout []).
   Proof.
     intros. eapply E.CTseq; eauto.
-    now eapply (pso_length_Gsout H10).
-    now eapply (pso_length_Ksout H10).
+    now eapply (pso_length_Gsout H11).
+    now eapply (pso_length_Ksout H11).
     intros. eapply process_seq_output_wt' in H4; eauto.
   Qed.
   
