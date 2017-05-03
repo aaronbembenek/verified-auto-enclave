@@ -393,7 +393,7 @@ Section Security_Defn.
   Parameter minit2_left : mem.
   Parameter minit2_right : mem.
   Axiom wf_minit2_left : forall d, meminit_wf minit2_left d.
-  Axiom wf_minit2_right : forall d, meminit_wf minit2_left d.
+  Axiom wf_minit2_right : forall d, meminit_wf minit2_right d.
   Definition minit2 := merge_mem minit2_left minit2_right.
   
   Definition esc_hatch : Type := exp.
@@ -461,7 +461,7 @@ End Security_Defn.
 Section Axioms.
    Definition meminit2_wf (m: mem2) d := forall l,
     match m l with
-    | VSingle (Vlambda md c) => exists Gm p Gp q rt,
+    | VSingle (Vlambda md c) => forall Gm p Gp q rt,
                                Loc_Contxt l = Some (Typ (Tlambda Gm p md Gp) q, rt) ->
                                com_type p md Gm d c Gp
     | VPair (Vlambda md1 c1) (Vlambda md2 c2) =>
@@ -480,7 +480,16 @@ Section Axioms.
    Proof.
      intros.
      unfold minit2.
-     unfold meminit2_wf.
+     unfold meminit2_wf; intros.
+     remember (minit2_left l) as vl; remember (minit2_right l) as vr.
+     pose (wf_minit2_left d l) as wfl; rewrite <- Heqvl in wfl.
+     pose (wf_minit2_right d l) as wfr; rewrite <- Heqvr in wfr.
+     unfold merge_mem.
+     rewrite <- Heqvl, <- Heqvr.
+     destruct (val_decidable vl vr); destruct vl, vr; auto.
+     (* XXX the cases left are where you have a pair of lambda and nat...
+        need to allow that in the initial memory or require that minit2_left
+        and minit2_right have the same type at each location *)
    Admitted.
      
    Axiom Initial_State2: forall d r' m',
