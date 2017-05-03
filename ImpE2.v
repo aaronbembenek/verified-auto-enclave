@@ -461,15 +461,15 @@ End Security_Defn.
 Section Axioms.
    Definition meminit2_wf (m: mem2) d := forall l,
     match m l with
-    | VSingle (Vlambda md c) => forall Gm p Gp q rt,
-                               Loc_Contxt l = Some (Typ (Tlambda Gm p md Gp) q, rt) ->
+    | VSingle (Vlambda md c) => exists Gm p Gp q rt,
+                               Loc_Contxt l = Some (Typ (Tlambda Gm p md Gp) q, rt) /\
                                com_type p md Gm d c Gp
     | VPair (Vlambda md1 c1) (Vlambda md2 c2) =>
-      (forall Gm p Gp q rt,
-          Loc_Contxt l = Some (Typ (Tlambda Gm p md1 Gp) q, rt) ->
+      (exists Gm p Gp q rt,
+          Loc_Contxt l = Some (Typ (Tlambda Gm p md1 Gp) q, rt) /\
           com_type p md1 Gm d c1 Gp) /\
-      (forall Gm p Gp q rt,
-          Loc_Contxt l = Some (Typ (Tlambda Gm p md2 Gp) q, rt) ->
+      (exists Gm p Gp q rt,
+          Loc_Contxt l = Some (Typ (Tlambda Gm p md2 Gp) q, rt) /\
           com_type p md2 Gm d c2 Gp)
     | VSingle (Vnat n) => True
     | VPair (Vnat n1) (Vnat n2) => True
@@ -486,11 +486,11 @@ Section Axioms.
      pose (wf_minit2_right d l) as wfr; rewrite <- Heqvr in wfr.
      unfold merge_mem.
      rewrite <- Heqvl, <- Heqvr.
-     destruct (val_decidable vl vr); destruct vl, vr; auto.
-     (* XXX the cases left are where you have a pair of lambda and nat...
-        need to allow that in the initial memory or require that minit2_left
-        and minit2_right have the same type at each location *)
-   Admitted.
+     destruct (val_decidable vl vr); destruct vl, vr; auto;
+       destruct_conjs.
+     rewrite H5 in H0; discriminate.
+     rewrite H6 in H3; discriminate.
+   Qed.
 
    Axiom Initial_State2: forall d r' m',
        exists c md tr, cstep2 md d (c, reg_init2, minit2) (r', m') tr.

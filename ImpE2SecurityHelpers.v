@@ -138,8 +138,8 @@ Section Typing_Helpers.
     pose (m0 l) as minitl.
     rewrite H0 in minitl.
     rewrite H2 in minitl.
-    eapply minitl; eauto.
-
+    specialize (m0 l); rewrite H2 in m0; destruct_conjs.
+    rewrite H14 in H0; inversion H0; subst; auto.
     inversion H2. inversion H3; try discriminate; subst; auto.
   Qed.    
 

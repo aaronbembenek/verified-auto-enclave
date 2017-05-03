@@ -697,11 +697,11 @@ Section Axioms.
   
   Definition meminit_wf minit d := forall l,
       match minit l with
-      | Vlambda md c => forall Gm p Gp q rt,
-                        Loc_Contxt l = Some (Typ (Tlambda Gm p md Gp) q, rt) ->
+      | Vlambda md c => exists Gm p Gp q rt,
+                        Loc_Contxt l = Some (Typ (Tlambda Gm p md Gp) q, rt) /\
                         com_type p md Gm d c Gp
       | Vloc l => False
-      | Vnat n => True
+      | Vnat n => exists q rt, Loc_Contxt l = Some (Typ (Tnat) q, rt)
       end.
 
   Axiom wf_minit : forall d, meminit_wf minit d.
