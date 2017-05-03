@@ -768,7 +768,36 @@ Section TransProof.
           1,4: rewrite (pk_length_Ksout H7); omega.
           1,3: rewrite (pk_length_Gsout H7); omega.
           auto.
-        * admit.
+        * remember (m - length kcoms) as x.
+          replace (nth m (pk_Gs ++ Gs3) E.mt) with (nth x (G2 :: Gs3) E.mt).
+          replace (nth m (pk_Ks ++ Ksout) []) with (nth x (K2 :: Ksout) []).
+          replace (nth m (kcoms ++ coms'') E.Cskip) with
+          (nth x coms'' E.Cskip).
+          replace (nth (m + 1) (pk_Gs ++ Gs3) E.mt) with
+          (nth (x + 1) (G2 :: Gs3) E.mt).
+          replace (nth (m + 1) (pk_Ks ++ Ksout) []) with
+          (nth (x + 1) (K2 :: Ksout) []).
+          eapply IHHpso; eauto; subst; clear IHHpso; intros.
+          5-9: simpl in *; omega.
+          -- assert (i + 1 < length (K1 :: K2 :: Ks2) - 1) by
+                 (simpl in *; omega).
+             apply Hunion in H0.
+             repeat rewrite <- nth_eq_nth_S_cons in H0.
+             now rewrite <- nth_eq_nth_S_cons.
+          -- pose (Hinter (i + 1)).
+             now repeat rewrite <- nth_eq_nth_S_cons in f.
+          -- assert (i + 1 < length (E.Normal :: mds') - 1) by (simpl; omega).
+             apply HK''sempty in H1. now rewrite <- nth_eq_nth_S_cons in H1.
+             now repeat rewrite <- nth_eq_nth_S_cons.
+          -- pose (Hcontext (i + 1)).
+             repeat rewrite <- nth_eq_nth_S_cons in i0.
+             rewrite <- nth_eq_nth_S_cons; auto.
+          -- assert (i + 1 < length (c :: coms')) by (simpl; omega).
+             apply Hwt in H0.
+             repeat rewrite <- nth_eq_nth_S_cons in H0.
+             rewrite <- nth_eq_nth_S_cons; auto.
+          -- now inversion HNoDup.
+          -- simpl in H8. rewrite app_length in H8. omega.
     Admitted.
 
   (*
