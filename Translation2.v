@@ -578,32 +578,47 @@ End TransLemmas.
 Section TransProof.
   Hint Constructors E.exp_type E.com_type.
 
-  Lemma pk_Forall_Gs_eq_G : forall {G} {Gs} {Ks} {Kstokill} {Kinit} {kcoms},
-      process_kill Kinit Kstokill G kcoms Gs Ks ->
-      Forall (fun x => x = G) Gs.
+  Lemma pk_Forall_Gsout_eq_G : forall {G} {Gsout} {Ksout}
+                                      {Kstokill} {Kinit} {kcoms},
+      process_kill Kinit Kstokill G kcoms Gsout Ksout ->
+      Forall (fun x => x = G) Gsout.
   Proof.
     intros. induction H; apply Forall_cons; auto.
   Qed.
 
-  Lemma pk_length_Gs : forall {G} {Gs} {Ks} {Kstokill} {Kinit} {kcoms},
-      process_kill Kinit Kstokill G kcoms Gs Ks ->
-      length Gs = length kcoms + 1.
+  Lemma pk_length_Gsout : forall {G} {Gsout} {Ksout} {Kstokill} {Kinit} {kcoms},
+      process_kill Kinit Kstokill G kcoms Gsout Ksout ->
+      length Gsout = length kcoms + 1.
   Proof.
     intros. induction H; simpl; auto.
   Qed.
 
-  Lemma pk_length_Ks : forall {G} {Gs} {Ks} {Kstokill} {Kinit} {kcoms},
-      process_kill Kinit Kstokill G kcoms Gs Ks ->
-      length Ks = length kcoms + 1.
+  Lemma pk_first_Gsout : forall {G} {Gsout} {Ksout} {Kstokill} {Kinit} {kcoms},
+      process_kill Kinit Kstokill G kcoms Gsout Ksout ->
+      nth 0 Gsout E.mt = G.
+  Proof.
+    intros. induction H; reflexivity.
+  Qed. 
+
+  Lemma pk_length_Ksout : forall {G} {Gsout} {Ksout} {Kstokill} {Kinit} {kcoms},
+      process_kill Kinit Kstokill G kcoms Gsout Ksout ->
+      length Ksout = length kcoms + 1.
     intros. induction H; simpl; auto.
   Qed.
 
-  Lemma pk_last_Ksout : forall {G} {Gs} {Ks} {Kstokill} {Kinit} {kcoms},
-      process_kill Kinit Kstokill G kcoms Gs Ks ->
-      last Ks [] = union Kinit Kstokill.
+  Lemma pk_last_Ksout : forall {G} {Gsout} {Ksout} {Kstokill} {Kinit} {kcoms},
+      process_kill Kinit Kstokill G kcoms Gsout Ksout ->
+      last Ksout [] = union Kinit Kstokill.
   Proof.
     intros. induction H. reflexivity.
     unfold union in *. simpl in *. rewrite <- app_assoc. now simpl.
+  Qed.
+
+  Lemma pk_first_Ksout : forall {G} {Gsout} {Ksout} {Kstokill} {Kinit} {kcoms},
+      process_kill Kinit Kstokill G kcoms Gsout Ksout ->
+      nth 0 Ksout [] = Kinit.
+  Proof.
+    intros. induction H; reflexivity.
   Qed.
 
   Lemma pso_length_Gsout : forall {coms} {md0} {mds} {Gs}
@@ -615,7 +630,7 @@ Section TransProof.
     - assert (length (G2 :: Gs2) = length coms' + 1) by
           (subst; simpl in *; omega).
       apply IHprocess_seq_output in H9. simpl in *. repeat rewrite app_length.
-      rewrite (pk_length_Gs H7).
+      rewrite (pk_length_Gsout H7).
       replace (length Gs3) with (length coms'') by omega. omega.
   Qed.
 
@@ -628,7 +643,7 @@ Section TransProof.
     intros. induction H; simpl. omega.
     - assert (length K's2 = length coms') by (subst; simpl in *; omega).
       apply IHprocess_seq_output in H9. simpl in *. repeat rewrite app_length.
-      rewrite (pk_length_Ks H7).
+      rewrite (pk_length_Ksout H7).
       replace (length Ksout) with (length coms'') by omega. omega.
   Qed.
   
@@ -644,13 +659,9 @@ Section TransProof.
     induction Kstokill; intros; inversion H; subst.
     simpl in H2. inversion H2.
     destruct (Nat.eq_dec i 0).
-    - rewrite e. simpl. apply pk_Forall_Gs_eq_G in H10.
-      rewrite Forall_forall in H10.
-      pose (pk_length_Gs H). simpl in e0.
-      assert (0 < length Gsout0) by omega.
-      apply nth_In with (d:=E.mt) in H3. apply H10 in H3. rewrite H3.
-      eapply E.CTkill. unfold E.mode_alive.
-      rewrite Forall_forall in H0. apply H0. now constructor. auto.
+    - rewrite e. simpl. rewrite (pk_first_Gsout H10).
+      eapply E.CTkill; eauto. unfold E.mode_alive.
+      rewrite Forall_forall in H0. apply H0. now constructor.
     - rewrite Nat.neq_0_r in n. destruct n as [m n].
       eapply IHKstokill with (i:=m) in H10.
       + rewrite n. simpl in *. eauto.
@@ -702,8 +713,8 @@ Section TransProof.
   Proof.
     intros comsout Gsout Ksout K's K''s Hunion Hinter HK''sempty Hcontext
            Hpso HGslen HKslen HK'slen HK''slen Hmdslen Hwt HU.
-    induction Hpso.
-    - intros. assert (nth i mds E.Normal = md0) as Hmd0.
+    induction Hpso; intros.
+    - assert (nth i mds E.Normal = md0) as Hmd0.
       {
         rewrite Forall_forall in H. apply H. apply nth_In. omega.
       }
@@ -723,6 +734,18 @@ Section TransProof.
           rewrite Forall_forall in H0. symmetry. apply H0. now apply nth_In.
         }
         rewrite <- H5. now rewrite <- nth_eq_nth_S_cons.
+    - destruct (Nat.eq_dec i 0).
+      + rewrite e. simpl.
+        replace (nth 0 (pk_Gs ++ Gs3) E.mt) with G2.
+        replace (nth 0 (pk_Ks ++ Ksout) []) with K'.
+        assert (0 < length coms) by (rewrite H1; simpl; omega).
+        apply Hwt in H8. subst. now simpl in H8.
+        * replace (nth 0 (pk_Ks ++ Ksout) []) with (nth 0 pk_Ks []).
+          now rewrite (pk_first_Ksout H6).
+          symmetry. apply app_nth1. pose (pk_length_Ksout H6). omega.
+        * replace (nth 0 (pk_Gs ++Gs3) E.mt) with (nth 0 pk_Gs E.mt).
+          now rewrite (pk_first_Gsout H6).
+          symmetry. apply app_nth1. pose (pk_length_Gsout H6). omega.
     Admitted.
 
   (*
