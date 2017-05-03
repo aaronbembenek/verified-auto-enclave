@@ -578,7 +578,7 @@ End TransLemmas.
 Section TransProof.
   Hint Constructors E.exp_type E.com_type.
 
-  Lemma pk_Forall_Gs_eq_G : forall G Gs Ks Kstokill Kinit kcoms,
+  Lemma pk_Forall_Gs_eq_G : forall {G} {Gs} {Ks} {Kstokill} {Kinit} {kcoms},
       process_kill Kinit Kstokill G kcoms Gs Ks ->
       Forall (fun x => x = G) Gs.
   Proof.
@@ -592,6 +592,12 @@ Section TransProof.
     intros. induction H; simpl; auto.
   Qed.
 
+  Lemma pk_length_Ks : forall {G} {Gs} {Ks} {Kstokill} {Kinit} {kcoms},
+      process_kill Kinit Kstokill G kcoms Gs Ks ->
+      length Ks = length kcoms + 1.
+    intros. induction H; simpl; auto.
+  Qed.
+
   Lemma pk_last_Ksout : forall {G} {Gs} {Ks} {Kstokill} {Kinit} {kcoms},
       process_kill Kinit Kstokill G kcoms Gs Ks ->
       last Ks [] = union Kinit Kstokill.
@@ -600,6 +606,32 @@ Section TransProof.
     unfold union in *. simpl in *. rewrite <- app_assoc. now simpl.
   Qed.
 
+  Lemma pso_length_Gsout : forall {coms} {md0} {mds} {Gs}
+                                  {Ks K's K''s} {coms'} {Gsout} {Ksout},
+      process_seq_output coms md0 mds Gs Ks K's K''s coms' Gsout Ksout ->
+      length Gs = length coms + 1 ->
+      length Gsout = length coms' + 1.
+    intros. induction H; auto.
+    - assert (length (G2 :: Gs2) = length coms' + 1) by
+          (subst; simpl in *; omega).
+      apply IHprocess_seq_output in H9. simpl in *. repeat rewrite app_length.
+      rewrite (pk_length_Gs H7).
+      replace (length Gs3) with (length coms'') by omega. omega.
+  Qed.
+
+  Lemma pso_length_Ksout : forall {coms} {md0} {mds} {Gs}
+                                  {Ks K's K''s} {coms'} {Gsout} {Ksout},
+      process_seq_output coms md0 mds Gs Ks K's K''s coms' Gsout Ksout ->
+      length K's = length coms ->
+      length Ksout = length coms' + 1.
+  Proof.
+    intros. induction H; simpl. omega.
+    - assert (length K's2 = length coms') by (subst; simpl in *; omega).
+      apply IHprocess_seq_output in H9. simpl in *. repeat rewrite app_length.
+      rewrite (pk_length_Ks H7).
+      replace (length Ksout) with (length coms'') by omega. omega.
+  Qed.
+  
   Lemma process_kill_wt' : forall Kstokill Kinit kcoms Ksout Gsout G U i d,
       process_kill Kinit Kstokill G kcoms Gsout Ksout ->
       Forall (fun e => ~In e Kinit) Kstokill ->
@@ -662,8 +694,6 @@ Section TransProof.
                      (nth i Ks []) U d (nth i coms E.Cskip)
                      (nth (i + 1) Gs E.mt) (nth i K's [])) ->
       U = [] \/ md0 <> E.Normal ->
-      length Gsout = length comsout + 1 /\
-      length Ksout = length comsout + 1 /\
       (forall i,
           i < length comsout ->
           E.com_type pc md0 (nth i Gsout E.mt) (nth i Ksout []) U d
@@ -673,9 +703,7 @@ Section TransProof.
     intros comsout Gsout Ksout K's K''s Hunion Hinter HK''sempty Hcontext
            Hpso HGslen HKslen HK'slen HK''slen Hmdslen Hwt HU.
     induction Hpso.
-    - repeat split; auto.
-      rewrite <- HK'slen. simpl. omega.
-      intros. assert (nth i mds E.Normal = md0) as Hmd0.
+    - intros. assert (nth i mds E.Normal = md0) as Hmd0.
       {
         rewrite Forall_forall in H. apply H. apply nth_In. omega.
       }
@@ -916,8 +944,10 @@ Section TransProof.
       E.com_type pc md0 (nth 0 Gsout E.mt) (nth 0 Ksout []) U d
                  (E.Cseq comsout) (last Gsout E.mt) (last Ksout []).
   Proof.
+    intros. eapply E.CTseq; eauto.
+    now eapply (pso_length_Gsout H10).
+    now eapply (pso_length_Ksout H10).
     intros. eapply process_seq_output_wt' in H4; eauto.
-    destruct_conjs. subst. eapply E.CTseq; eauto.
   Qed.
   
   Lemma prog_trans_sound : forall pc sG U c sG' md eG K d c' eG' K' drv,
