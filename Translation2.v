@@ -64,34 +64,6 @@ Section TypeTrans.
 End TypeTrans.
 
 Section TransDef.
-  (*
-  Fixpoint member (x: E.enclave) xs : bool :=
-    match xs with
-    | [] => false
-    | hd :: tl => if x =? hd then true else member x tl
-    end.
-  
-  Lemma member_iff_In (x: E.enclave) xs :
-    member x xs = true <-> In x xs.
-  Proof.
-    split; intros; induction xs.
-    - simpl in H. discriminate.
-    - simpl in H. destruct (Nat.eq_dec x a).
-      rewrite e. apply in_eq. rewrite <- Nat.eqb_eq in n.
-      apply in_cons.
-      apply not_true_is_false in n. rewrite n in H. auto.
-    - inversion H.
-    - destruct (Nat.eq_dec x a). rewrite e.
-      simpl. now rewrite <- beq_nat_refl.
-      apply in_inv in H. destruct H. contradict n. now rewrite H.
-      rewrite <- Nat.eqb_eq in n. apply not_true_is_false in n.
-      simpl. rewrite n. auto.
-  Qed.
-  
-  Definition union (xs ys: list E.enclave) := xs ++ ys.
-  
-  Definition inter (xs: list E.enclave) := filter (fun x => member x xs).*)
-
   Definition union {A} (xs ys: list A) := (rev ys) ++ xs.
   
   Inductive process_kill : list E.enclave -> list E.enclave -> E.context ->
@@ -104,23 +76,6 @@ Section TransDef.
       process_kill Kinit (K :: Ks) G (E.Ckill K :: kcoms)
                    (G :: Gsout) (Kinit :: (K :: Kinit) :: Ksout).
 
-      (*
-    - repeat split; auto. intros. pose H1 as H1'. apply Hwt in H1'.
-      replace (nth i mds E.Normal) with md0 in H1'; auto.
-      rewrite Forall_forall in H. symmetry. apply H. rewrite <- Hmdslen in H1.
-      now apply nth_In. *) (*
-    - repeat split; auto. intros. pose H1 as H1'. apply Hwt in H1'.
-      replace (nth i mds E.Normal) with md0 in H1'; auto.
-      rewrite Forall_forall in H. symmetry. apply H. rewrite <- Hmdslen in H1.
-      now apply nth_In. *)
-                   (*       .
-  Function process_kill (K: set E.enclave) : list E.com :=
-    match K with
-    | [] => []
-    | k :: K' => E.Ckill k :: process_kill K'
-    end.
-                    *)
-
   Inductive process_seq_output (pc: policy) (coms: list E.com) (md0: E.mode)
             (mds: list E.mode) (Gs: list E.context)
             (Ks K's K''s: list (list E.enclave)) :
@@ -132,6 +87,7 @@ Section TransDef.
                          (nth 0 Ks [] :: K's)
   | PSO1: forall c coms' K'' K''s2 K' K's2 K1 K2 Ks2 G1 G2 Gs2
                  kcoms pk_Gs pk_Ks Gs3 Ksout coms'' mds',
+      (* XXX This premise might be provable. *)
       pc = low ->
       md0 = E.Normal ->
       mds = E.Normal :: mds' ->
@@ -148,16 +104,6 @@ Section TransDef.
                          (G1 :: pk_Gs ++ Gs3)
                          (K1 :: pk_Ks ++ Ksout).
   (*
-  | PSO1 : forall mds' coms' coms'' c G1 G2 Gs' K1 K2 Ks' Gs'' Ks'',
-      md0 = E.Normal ->
-      mds = E.Normal :: mds' ->
-      coms = c :: coms' ->
-      Gs = G1 :: G2 :: Gs' ->
-      Ks = K1 :: K2 :: Ks' ->
-      process_seq_output coms' md0 mds' (G2 :: Gs') (K2 :: Ks')
-                         coms'' (G2 :: Gs'') (K2 :: Ks'') ->
-      process_seq_output coms md0 mds Gs Ks
-                         (c :: coms'') (G1 :: G2 :: Gs'') (K1 :: K2 :: Ks'')
   | PSO2: forall j mds1 mds2 c coms' coms1 coms2 Gs1 Gs2 Ks1 Ks2
                  Gs2' Ks2' K1 K2 G1 G2,
       md0 = E.Normal ->
@@ -574,12 +520,25 @@ Section TransLemmas.
     now replace (length xs + i - length xs) with i by omega.
     omega.
   Qed.
+
+  Lemma exists_snoc {A}: forall (xs: list A),
+      length xs > 0 ->
+      exists xs' x, xs = xs' ++ [x].
+  Proof.
+    induction xs; intros. simpl in H. omega.
+    destruct xs. exists []. exists a. auto.
+    assert (length (a0 :: xs) > 0) by (simpl; omega).
+    apply IHxs in H0. destruct_conjs.
+    exists (a :: H0). exists H1. rewrite <- app_comm_cons.
+    now rewrite H2.
+  Qed.
     
 End TransLemmas.
 
 Section TransProof.
   Hint Constructors E.exp_type E.com_type.
 
+  (*
   Lemma pk_Forall_Gsout_eq_G : forall {G} {Gsout} {Ksout}
                                       {Kstokill} {Kinit} {kcoms},
       process_kill Kinit Kstokill G kcoms Gsout Ksout ->
@@ -587,6 +546,7 @@ Section TransProof.
   Proof.
     intros. induction H; apply Forall_cons; auto.
   Qed.
+*)
 
   Lemma pk_length_Gsout : forall {G} {Gsout} {Ksout} {Kstokill} {Kinit} {kcoms},
       process_kill Kinit Kstokill G kcoms Gsout Ksout ->
@@ -595,12 +555,20 @@ Section TransProof.
     intros. induction H; simpl; auto.
   Qed.
 
+  Lemma pk_last_Gsout : forall {G} {Gsout} {Ksout} {Kstokill} {Kinit} {kcoms},
+      process_kill Kinit Kstokill G kcoms Gsout Ksout ->
+      last Gsout E.mt = G.
+  Proof.
+    intros. induction H. reflexivity.
+    simpl in *. destruct Gsout. reflexivity. auto.
+  Qed.
+  
   Lemma pk_first_Gsout : forall {G} {Gsout} {Ksout} {Kstokill} {Kinit} {kcoms},
       process_kill Kinit Kstokill G kcoms Gsout Ksout ->
       nth 0 Gsout E.mt = G.
   Proof.
     intros. induction H; reflexivity.
-  Qed. 
+  Qed.
 
   Lemma pk_length_Ksout : forall {G} {Gsout} {Ksout} {Kstokill} {Kinit} {kcoms},
       process_kill Kinit Kstokill G kcoms Gsout Ksout ->
@@ -777,27 +745,70 @@ Section TransProof.
           (nth (x + 1) (G2 :: Gs3) E.mt).
           replace (nth (m + 1) (pk_Ks ++ Ksout) []) with
           (nth (x + 1) (K2 :: Ksout) []).
+          
           eapply IHHpso; eauto; subst; clear IHHpso; intros.
           5-9: simpl in *; omega.
-          -- assert (i + 1 < length (K1 :: K2 :: Ks2) - 1) by
-                 (simpl in *; omega).
-             apply Hunion in H0.
-             repeat rewrite <- nth_eq_nth_S_cons in H0.
-             now rewrite <- nth_eq_nth_S_cons.
-          -- pose (Hinter (i + 1)).
-             now repeat rewrite <- nth_eq_nth_S_cons in f.
-          -- assert (i + 1 < length (E.Normal :: mds') - 1) by (simpl; omega).
-             apply HK''sempty in H1. now rewrite <- nth_eq_nth_S_cons in H1.
-             now repeat rewrite <- nth_eq_nth_S_cons.
-          -- pose (Hcontext (i + 1)).
-             repeat rewrite <- nth_eq_nth_S_cons in i0.
-             rewrite <- nth_eq_nth_S_cons; auto.
-          -- assert (i + 1 < length (c :: coms')) by (simpl; omega).
-             apply Hwt in H0.
-             repeat rewrite <- nth_eq_nth_S_cons in H0.
-             rewrite <- nth_eq_nth_S_cons; auto.
-          -- now inversion HNoDup.
-          -- simpl in H8. rewrite app_length in H8. omega.
+          
+          assert (i + 1 < length (K1 :: K2 :: Ks2) - 1) by (simpl in *; omega).
+          apply Hunion in H0.
+          repeat rewrite <- nth_eq_nth_S_cons in H0.
+          now rewrite <- nth_eq_nth_S_cons.
+
+          pose (Hinter (i + 1)).
+          now repeat rewrite <- nth_eq_nth_S_cons in f.
+
+          assert (i + 1 < length (E.Normal :: mds') - 1) by (simpl; omega).
+          apply HK''sempty in H1. now rewrite <- nth_eq_nth_S_cons in H1.
+          now repeat rewrite <- nth_eq_nth_S_cons.
+
+          pose (Hcontext (i + 1)).
+          repeat rewrite <- nth_eq_nth_S_cons in i0.
+          rewrite <- nth_eq_nth_S_cons; auto.
+          
+          assert (i + 1 < length (c :: coms')) by (simpl; omega).
+          apply Hwt in H0.
+          repeat rewrite <- nth_eq_nth_S_cons in H0.
+          rewrite <- nth_eq_nth_S_cons; auto.
+
+          now inversion HNoDup.
+
+          simpl in H8. rewrite app_length in H8. omega.
+
+          1,4: pose (pk_length_Ksout H7);
+            assert (length pk_Ks > 0) by omega;
+            apply exists_snoc in H10;
+            destruct H10 as [xs [a Hpk_Ks]];
+            assert (length xs = length kcoms) by
+                (rewrite Hpk_Ks in e;
+                 rewrite app_length in e; simpl in e; omega);
+            pose (pk_last_Ksout H7); rewrite Hpk_Ks in e0;
+              rewrite last_app in e0; subst;
+                replace (m - length kcoms + 1) with
+                (m + 1 - length kcoms) by omega;
+                rewrite <- app_assoc;
+                symmetry; rewrite <- H10 in *;
+                  assert (0 < length (K1 :: K2 :: Ks2) - 1) by (simpl; omega);
+                  apply Hunion in H; simpl in H; rewrite <- H;
+                    replace ([K2] ++ Ksout) with (K2 :: Ksout) by (simpl; auto);
+                    apply app_nth2; omega.
+
+          1,3: pose (pk_length_Gsout H7);
+            assert (length pk_Gs > 0) by omega;
+            apply exists_snoc in H10;
+            destruct H10 as [xs [a Hpk_Gs]];
+            assert (length xs = length kcoms) by
+                (rewrite Hpk_Gs in e;
+                 rewrite app_length in e; simpl in e; omega);
+            pose (pk_last_Gsout H7); rewrite Hpk_Gs in e0;
+              rewrite last_app in e0; subst;
+                replace (m - length kcoms + 1) with
+                (m + 1 - length kcoms) by omega;
+                rewrite <- app_assoc;
+                replace ([G2] ++ Gs3) with (G2 :: Gs3) by (simpl; auto);
+                symmetry; rewrite <- H10 in *;
+                  apply app_nth2; omega.
+
+          rewrite Heqx. symmetry. now apply app_nth2.
     Admitted.
 
   (*
