@@ -860,20 +860,6 @@ Section TransProof.
         
         intros. assert (i < length coms1 + length coms2) by omega.
         apply Hwt in H0.
-        (*
-        assert (forall k,
-                   k < length coms1 - 1 ->
-                   nth k Ks1 [] = nth k K's1 []).
-        {
-          intros. assert (i < length (K1 :: Ks1 ++ K2 :: Ks2) -1) by
-              crush_length.
-          apply Hunion in H4.
-          rewrite <- nth_eq_nth_S_cons in H4.
-          rewrite app_nth1 in H4.
-          rewrite app_nth1 in H4.
-          rewrite app_nth1 in H4.
-
-         *)
         assert (nth i (K1 :: Ks1 ++ K2 :: Ks2) [] = nth i (K1 :: K's1) []).
         {
           destruct (Nat.eq_dec i 0). subst. now simpl.
@@ -945,6 +931,31 @@ Section TransProof.
         rewrite Forall_forall in H2. symmetry. apply H2.
         apply nth_In.
         1-2: simpl in H7; omega.
+
+      + rewrite Nat.neq_0_r in n. destruct n as [m n]. rewrite n. simpl.
+        assert (m < length kcoms \/ m >= length kcoms) by omega. destruct H17.
+        * clear IHHpso.
+          replace (nth m (pk_Gs ++ Gs2out) E.mt) with (nth m pk_Gs E.mt).
+          replace (nth m (pk_Ks ++ Ks2out) []) with (nth m pk_Ks []).
+          replace (nth m (kcoms ++ coms') E.Cskip) with
+          (nth m kcoms E.Cskip).
+          replace (nth (m + 1) (pk_Gs ++ Gs2out) E.mt) with
+          (nth (m + 1) pk_Gs E.mt).
+          replace (nth (m + 1) (pk_Ks ++ Ks2out) []) with
+          (nth (m + 1) pk_Ks []).
+          rewrite H. rewrite H0.
+          eapply process_kill_wt'; eauto. subst.
+          pose (Hinter (length K''s1)).
+          rewrite nth_app_helper_x in f.
+          replace (length K''s1) with (length K's1) in f by crush_length.
+          now rewrite nth_app_helper_x in f.
+          subst. rewrite Forall_forall in HNoDup.
+          apply HNoDup. apply in_or_app. right. constructor. auto.
+          all: symmetry; apply app_nth1.
+          1,4: rewrite (pk_length_Ksout H15).
+          3,5: rewrite (pk_length_Gsout H15).
+          all: crush_length.
+        * admit.
     Admitted.
 
   (*
