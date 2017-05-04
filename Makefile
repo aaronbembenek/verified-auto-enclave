@@ -3,28 +3,28 @@ OBJS=$(SRCS:.v=.vo)
 
 all: $(OBJS)
 
-ImpE2Security.vo: ImpE2Security.v ImpE2TypeSystem.vo ImpE2Adequacy.vo ImpE2Helpers.vo ImpE2.vo ImpE.vo Common.vo
+SImpESecurity.vo: SImpESecurity.v SImpE2TypeSystem.vo SImpE2Adequacy.vo SImpE2Helpers.vo SImpE2.vo SImpE.vo SImpECommon.vo
 	coqc $<
 
-ImpE2TypeSystem.vo: ImpE2TypeSystem.v ImpE2Adequacy.vo ImpE2SecurityHelpers.vo ImpE2Helpers.vo ImpE2.vo ImpE.vo Common.vo
+SImpE2TypeSystem.vo: SImpE2TypeSystem.v SImpE2Adequacy.vo SImpE2SecurityHelpers.vo SImpE2Helpers.vo SImpE2.vo SImpE.vo SImpECommon.vo
 	coqc $<
 
-ImpE2SecurityHelpers.vo : ImpE2SecurityHelpers.v ImpE2Adequacy.vo ImpE2Helpers.vo ImpE2.vo ImpE.vo Common.vo
+SImpE2SecurityHelpers.vo : SImpE2SecurityHelpers.v SImpE2Adequacy.vo SImpE2Helpers.vo SImpE2.vo SImpE.vo SImpECommon.vo
 	coqc $<
 
-ImpE2Adequacy.vo: ImpE2Adequacy.v ImpE2Helpers.vo ImpE2.vo ImpE.vo Common.vo
+SImpE2Adequacy.vo: SImpE2Adequacy.v SImpE2Helpers.vo SImpE2.vo SImpE.vo SImpECommon.vo
 	coqc $<
 
-ImpE2Helpers.vo : ImpE2Helpers.v ImpE2.vo ImpE.vo Common.vo
+SImpE2Helpers.vo : SImpE2Helpers.v SImpE2.vo SImpE.vo SImpECommon.vo
 	coqc $<
 
-ImpE2.vo: ImpE2.v ImpE.vo Common.vo
+SImpE2.vo: SImpE2.v SImpE.vo SImpECommon.vo
 	coqc $<
 
-ImpE.vo: ImpE.v Common.vo
+SImpE.vo: SImpE.v SImpECommon.vo
 	coqc $<
 
-Common.vo: Common.v
+SImpECommon.vo: SImpECommon.v
 	coqc $<
 
 clean:
