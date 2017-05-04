@@ -53,12 +53,19 @@ Section Misc.
     - destruct (val_decidable v v1); destruct (val_decidable v0 v2);
         subst; auto; right; congruence.
   Qed.
+
+  Lemma pair_distinct : forall v v1 v2,
+      v = VPair v1 v2 -> v1 <> v2.
+  Proof. intros; apply (pair_wf v v1 v2); auto. Qed.
+
+  Lemma pair_typed : forall v v1 v2,
+      v = VPair v1 v2 ->
+      (exists n1 n2, v1 = Vnat n1 /\ v2 = Vnat n2) \/
+      (exists md1 md2 c1 c2, v1 = Vlambda md1 c1 /\ v2 = Vlambda md2 c2).
+  Proof. intros. apply (pair_wf v v1 v2); auto. Qed.
 End Misc.
 
 Section Project_Merge.
-  (* XXX: these assumptions are gross, but the semantics become a mess if we
-     dont' have them... *)
-
   Lemma no_location_pairs : forall md d e r m v l is_left,
     estep2 md d (e, r, m) v ->
     project_value v is_left = Vloc l ->
@@ -68,10 +75,9 @@ Section Project_Merge.
     induction H.
     1,3: discriminate. 
     - simpl in H0; inversion H0; now subst.
-    - (* XXX need a hypothesis about registers not having pairs? *)
-      destruct v, v; subst; auto; simpl in *; inversion H0;
+    - destruct v, v; subst; auto; simpl in *; inversion H0;
         destruct is_left; try discriminate; auto.
-      1-4: rewrite H3 in H1; eapply pair_wf in H1;
+      1-4: rewrite H3 in H1; eapply pair_typed in H1;
         destruct H1; destruct_conjs; discriminate.
     - destruct_conjs. unfold contains_nat in *.
       do 2 destruct H3; do 2 destruct H4; simpl; subst.
@@ -82,7 +88,7 @@ Section Project_Merge.
     - inversion H0.
       destruct v; subst; simpl; auto.
       destruct is_left; subst; simpl in *; subst.
-      all: eapply pair_wf in H2; destruct H2; destruct_conjs; discriminate.
+      all: eapply pair_typed in H2; destruct H2; destruct_conjs; discriminate.
   Qed.
       
   Lemma project_comm_reg : forall r b x,
@@ -206,19 +212,11 @@ Section Project_Merge.
            destruct is_left; [exists x | exists x0]; simpl; congruence.
     - destruct H; destruct v; unfold contains_nat; simpl in *; subst.
       + left; exists x; auto.
-      + pose (VPair v v0).
-        pose (pair_wf v1 v v0).
-        destruct i; destruct H0; auto.
-        -- destruct is_left; subst; simpl in *;
-             destruct_conjs.
-           destruct H1. left; exists x; exists H; split; auto.
-           right; exists H0; exists H. rewrite H2, H3; auto.
-           destruct H1. left; exists H0; exists x; split; auto.
-           right; exists H0; exists x; rewrite H2, H3; auto.
-        -- destruct H0; destruct_conjs.
-           destruct is_left.
-           rewrite H in H4; discriminate.
-           rewrite H in H5; discriminate.
+      + remember (VPair v v0) as v1.
+        pose (pair_typed v1 v v0 Heqv1).
+        destruct o; auto. 
+        -- destruct_conjs. right; subst. exists H0; exists H1; auto.
+        -- destruct_conjs; destruct is_left; subst; discriminate.
   Qed.
   
   Lemma project_value_apply_op : forall op v1 v2 n1 n2 is_left,
@@ -257,7 +255,6 @@ Section Project_Merge.
 End Project_Merge.
 
 Section Semantics.
-  (* XXX: thought I needed this for exp_output_wf, didn't use it. Might still be useful...? *)
   Lemma estep2_deterministic : forall md d e r m v1 v2,
       estep2 md d (e, r, m) v1 ->
       estep2 md d (e, r, m) v2 ->
@@ -353,7 +350,6 @@ Section Semantics.
           exists (Vnat (op x1 n0)). exists (Vnat (op x2 n1)); auto.
           1-2: exists (Vnat x1); exists (Vnat x2); auto.
   Qed.
-
 End Semantics.
 
 

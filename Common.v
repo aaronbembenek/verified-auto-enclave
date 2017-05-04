@@ -1,4 +1,3 @@
-(* FIXME: Copied these from pset4; probably won't need all of them. *)
 Require Import Bool Arith List Omega ListSet.
 Require Import Recdef Morphisms.
 Require Import Program.Tactics.

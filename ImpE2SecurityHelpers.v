@@ -97,6 +97,15 @@ Section Value_Preservation.
 End Value_Preservation.
   
 Section Typing_Helpers.
+  Lemma Loc_Contxt_not_Normal : forall d l bt p rt,
+      Loc_Contxt l = Some (Typ bt p, rt) ->
+      protected p ->
+      d l <> Normal.
+  Proof.
+    intros.
+    pose (Loc_Contxt_wt d). unfold forall_loc in *.
+    apply (f l (Typ bt p) rt H). auto.
+  Qed.
   
   Lemma LocContxt_if_VlocWT : forall md G d l s p rt q md',
       val_type md G d (Vloc l) (Typ (Tref (Typ s p) md' rt) q) ->
@@ -184,7 +193,7 @@ Section Typing_Helpers.
     assert (x = VSingle (Vloc l)).
     destruct x; unfold project_value in *; subst; auto.
     remember (VPair (Vloc l) (Vloc l)) as v.
-    rewrite pair_distinct in Heqv. assert ((Vloc l) = (Vloc l)) by auto. contradiction.
+    apply pair_distinct in Heqv. assert ((Vloc l) = (Vloc l)) by auto. contradiction.
     subst; auto.
     pose (impe2_value_type_preservation
             md G d e (Tref (Typ s p) md' Mut) q (merge_reg r r) (merge_mem m m) (VSingle (Vloc l))
@@ -215,8 +224,10 @@ Section Security.
     -- inversion H1; try discriminate; subst; unfold_cfgs.
        now inversion H6.
     -- inversion H1; try discriminate; subst; unfold_cfgs. inversion H2; subst.
-       pose (No_Loc_Mem m l0); destruct_pairs.
-       pose (H6 l). intuition. apply n in H4. omega.
+       assert ((project_mem m true) l0 = Vloc l).
+       unfold project_mem; rewrite H4; auto.
+       pose (No_Pointers (project_mem m true) l0 l); destruct_pairs.
+       intuition. apply n in H6. omega.
     -- inversion H0; try discriminate; subst.
        inversion H3.
   Qed.

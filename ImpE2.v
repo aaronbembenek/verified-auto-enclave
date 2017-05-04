@@ -1,5 +1,3 @@
-(* FIXME: Copied these from pset4; probably won't need all of them. *)
-
 Require Import Bool Arith List Omega ListSet.
 Require Import Recdef Morphisms.
 Require Import Program.Tactics.
@@ -104,7 +102,6 @@ Section Semantics.
              | VSingle v => v
           end.
     
-  (* XXX show event pairs are never nested *)
   Function event2_to_event (e: event2) (is_left: bool): event :=
      match e with
       | Mem2 m => Mem (project_mem m is_left)
@@ -395,6 +392,39 @@ Section Security_Defn.
   Axiom wf_minit2_left : forall d, meminit_wf minit2_left d.
   Axiom wf_minit2_right : forall d, meminit_wf minit2_right d.
   Definition minit2 := merge_mem minit2_left minit2_right.
+
+  Definition meminit2_wf (m: mem2) d := forall l,
+    match m l with
+    | VSingle (Vlambda md c) => exists Gm p Gp q rt,
+                               Loc_Contxt l = Some (Typ (Tlambda Gm p md Gp) q, rt) /\
+                               com_type p md Gm d c Gp
+    | VPair (Vlambda md1 c1) (Vlambda md2 c2) =>
+      (exists Gm p Gp q rt,
+          Loc_Contxt l = Some (Typ (Tlambda Gm p md1 Gp) q, rt) /\
+          com_type p md1 Gm d c1 Gp) /\
+      (exists Gm p Gp q rt,
+          Loc_Contxt l = Some (Typ (Tlambda Gm p md2 Gp) q, rt) /\
+          com_type p md2 Gm d c2 Gp)
+    | VSingle (Vnat n) => True
+    | VPair (Vnat n1) (Vnat n2) => True
+    | _ => False
+    end.
+
+   Lemma wf_minit2 : forall d: loc_mode, meminit2_wf minit2 d.
+   Proof.
+     intros.
+     unfold minit2.
+     unfold meminit2_wf; intros.
+     remember (minit2_left l) as vl; remember (minit2_right l) as vr.
+     pose (wf_minit2_left d l) as wfl; rewrite <- Heqvl in wfl.
+     pose (wf_minit2_right d l) as wfr; rewrite <- Heqvr in wfr.
+     unfold merge_mem.
+     rewrite <- Heqvl, <- Heqvr.
+     destruct (val_decidable vl vr); destruct vl, vr; auto;
+       destruct_conjs.
+     rewrite H5 in H0; discriminate.
+     rewrite H6 in H3; discriminate.
+   Qed.
   
   Definition esc_hatch : Type := exp.
   Definition is_escape_hatch e : Prop := exp_novars e /\ exp_locs_immutable e.
@@ -459,55 +489,12 @@ Section Security_Defn.
 End Security_Defn.
 
 Section Axioms.
-   Definition meminit2_wf (m: mem2) d := forall l,
-    match m l with
-    | VSingle (Vlambda md c) => exists Gm p Gp q rt,
-                               Loc_Contxt l = Some (Typ (Tlambda Gm p md Gp) q, rt) /\
-                               com_type p md Gm d c Gp
-    | VPair (Vlambda md1 c1) (Vlambda md2 c2) =>
-      (exists Gm p Gp q rt,
-          Loc_Contxt l = Some (Typ (Tlambda Gm p md1 Gp) q, rt) /\
-          com_type p md1 Gm d c1 Gp) /\
-      (exists Gm p Gp q rt,
-          Loc_Contxt l = Some (Typ (Tlambda Gm p md2 Gp) q, rt) /\
-          com_type p md2 Gm d c2 Gp)
-    | VSingle (Vnat n) => True
-    | VPair (Vnat n1) (Vnat n2) => True
-    | _ => False
-    end.
-
-   Lemma wf_minit2 : forall d: loc_mode, meminit2_wf minit2 d.
-   Proof.
-     intros.
-     unfold minit2.
-     unfold meminit2_wf; intros.
-     remember (minit2_left l) as vl; remember (minit2_right l) as vr.
-     pose (wf_minit2_left d l) as wfl; rewrite <- Heqvl in wfl.
-     pose (wf_minit2_right d l) as wfr; rewrite <- Heqvr in wfr.
-     unfold merge_mem.
-     rewrite <- Heqvl, <- Heqvr.
-     destruct (val_decidable vl vr); destruct vl, vr; auto;
-       destruct_conjs.
-     rewrite H5 in H0; discriminate.
-     rewrite H6 in H3; discriminate.
-   Qed.
-
    Axiom Initial_State2: forall d r' m',
        exists c md tr, cstep2 md d (c, reg_init2, minit2) (r', m') tr.
 
-   (* These follow from the axiom above and the assumption made in ImpE *)
-   Axiom No_Loc_Mem : forall (m: mem2) l,
-       (forall l', m l <> VSingle (Vloc l')) /\
-       (forall l' l'', m l <> VPair (Vloc l') (Vloc l'')).
-   
-   Axiom No_Pair_Loc_Reg : forall (r: reg2) l,
-       (forall l' l'', r l <> VPair (Vloc l') (Vloc l'')).
-   
-   Axiom pair_distinct : forall v v1 v2,
-       v = VPair v1 v2 <-> v1 <> v2.
-   
+   (* This follows from the axiom above and the assumption made in ImpE *)
    Axiom pair_wf : forall v v1 v2,
-       v = VPair v1 v2 <->
-       (exists n1 n2, v1 = Vnat n1 /\ v2 = Vnat n2) \/
-       (exists md1 md2 c1 c2, v1 = Vlambda md1 c1 /\ v2 = Vlambda md2 c2).
+       v = VPair v1 v2 <-> v1 <> v2 /\
+                           ((exists n1 n2, v1 = Vnat n1 /\ v2 = Vnat n2) \/
+                            (exists md1 md2 c1 c2, v1 = Vlambda md1 c1 /\ v2 = Vlambda md2 c2)).
 End Axioms.

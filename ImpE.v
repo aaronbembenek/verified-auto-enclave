@@ -1,5 +1,3 @@
-(* FIXME: Copied these from pset4; probably won't need all of them. *)
-
 Require Import Bool Arith List Omega ListSet.
 Require Import Recdef Morphisms.
 Require Import Program.Tactics.
@@ -309,7 +307,6 @@ Section Semantics.
   Definition mem : Type := memory val.
   Definition loc_mode : Type := location -> mode.
 
-
   Inductive event : Type :=
   | Decl : exp -> mem -> event
   | Mem : mem -> event
@@ -320,6 +317,9 @@ Section Semantics.
   | AEnc : forall c c' : com, enc_equiv c c'-> event
   | Emp: event.
   Definition trace : Type := list event.
+  (* Adding empty to the front of a trace doesn't change it *)
+  Axiom emp_eq : forall t,
+      Emp :: t = t.
 
   Definition mode_access_ok (md: mode) (d: loc_mode) (l: location) :=
     let lmd := d l in
@@ -385,7 +385,6 @@ Section Semantics.
     (c, (ccfg_reg ccfg), (ccfg_mem ccfg)).
   Definition csemantics : Type := mode -> loc_mode -> cconfig -> cterm -> trace -> Prop.  
 
-  (* XXX couldn't figure out a way to not have to introduce forall md d ccfg everywhere.. *)
   Inductive cstep : csemantics := 
   | Cstep_skip : forall md d ccfg,
       ccfg_com ccfg = Cskip ->
@@ -475,8 +474,6 @@ Section Typing.
   | Mut
   | Immut.
 
-  (* FIXME: we might want to change contexts to be defined in terms of
-     finite maps instead of functions. *)
   Inductive base_type : Type :=
   | Tnat : base_type
   | Tref : type -> mode -> ref_type -> base_type
@@ -559,7 +556,12 @@ Section Typing.
                        | Eloc n => set_In n (immutable_locs g0)
                        | _ => True
                        end).
-      
+          
+  Axiom Loc_Contxt_wt : forall d, 
+    forall_loc (fun l t _ =>
+                  let (_, p) := t in
+                  (p = H -> d l <> Normal)).
+
   Inductive val_type : mode -> context -> loc_mode -> val -> type -> Prop :=
   | VTnat: forall md g d n q,
       val_type md g d (Vnat n) (Typ Tnat q) 
@@ -662,39 +664,21 @@ Section Typing.
       forall_dom G (fun x t => (Gp x = None) -> Gout x = Some t) ->
       com_type pc md G d (Ccall e) Gout.
 
-  Hint Constructors exp_type.
-  Hint Constructors val_type.
-  Hint Constructors com_type.
-End Typing.
-
-Section Axioms.
-  Parameter minit : mem.
-  
-  Axiom No_Pointers : forall (m: mem) l l', m l <> Vloc l'.
-  
   Axiom subsumption : forall pc1 pc2 md d G1 G1' G2 G2' c,
       com_type pc1 md G1 d c G1' ->
       sec_level_le pc2 pc1 ->
       context_le G2 G1 ->
       context_le G1' G2' ->
-      (* XXX not including well-typed contexts *)
       com_type pc2 md G2 d c G2'.
-
-  Axiom Loc_Contxt_wt : forall d, 
-    forall_loc (fun l t _ =>
-                  let (_, p) := t in
-                  (p = H -> d l <> Normal)).
-
-  Lemma Loc_Contxt_not_Normal : forall d l bt p rt,
-      Loc_Contxt l = Some (Typ bt p, rt) ->
-      protected p ->
-      d l <> Normal.
-  Proof.
-    intros.
-    pose (Loc_Contxt_wt d). unfold forall_loc in *.
-    apply (f l (Typ bt p) rt H). auto.
-  Qed.
   
+  Hint Constructors exp_type.
+  Hint Constructors val_type.
+  Hint Constructors com_type.
+End Typing.
+
+Section Initial_State.
+  Parameter minit : mem.
+
   Definition meminit_wf minit d := forall l,
       match minit l with
       | Vlambda md c => exists Gm p Gp q rt,
@@ -706,10 +690,14 @@ Section Axioms.
 
   Axiom wf_minit : forall d, meminit_wf minit d.
 
-  Axiom Initial_State: forall d r' m',
+  Axiom Initial_State : forall d r' m',
       exists c md tr, cstep md d (c,reg_init,minit) (r',m') tr.
+End Initial_State.
 
-  (* These next three axioms follow from the statement of initial state above *)
+Section Axioms.
+  (* These next four axioms follow from the statement of initial state above *)
+  Axiom No_Pointers : forall (m: mem) l l', m l <> Vloc l'.
+
   Axiom Reg_Exp_Lambda : forall (r : reg) d x md c G Gm Gp p q,
       r x = Vlambda md c /\ G x = Some (Typ (Tlambda Gm p md Gp) q)
       <-> exists md', exp_type md' G d (Elambda md c)
@@ -725,10 +713,6 @@ Section Axioms.
       minit l = Vlambda md c \/
       (exists md',
           exp_type md' G d (Elambda md c) (Typ (Tlambda Gm p md Gp) L)).
-
-  (* Adding empty to the front of a trace doesn't change it *)
-  Axiom emp_eq : forall t,
-      Emp :: t = t.
 End Axioms.
 
 
