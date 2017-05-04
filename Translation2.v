@@ -65,6 +65,9 @@ End TypeTrans.
 
 Section TransDef.
   Definition union {A} (xs ys: list A) := (rev ys) ++ xs.
+
+  Lemma union_nil {A} (xs: list A) : union xs [] = xs.
+  Proof. reflexivity. Qed.
   
   Inductive process_kill : list E.enclave -> list E.enclave -> E.context ->
                            list E.com -> list E.context ->
@@ -87,7 +90,6 @@ Section TransDef.
                          (nth 0 Ks [] :: K's)
   | PSO1: forall c coms' K'' K''s2 K' K's2 K1 K2 Ks2 G1 G2 Gs2
                  kcoms pk_Gs pk_Ks Gs3 Ksout coms'' mds',
-      (* XXX This premise might be provable. *)
       pc = low ->
       md0 = E.Normal ->
       mds = E.Normal :: mds' ->
@@ -102,10 +104,11 @@ Section TransDef.
       process_seq_output pc coms md0 mds Gs Ks K's K''s
                          (c :: kcoms ++ coms'')
                          (G1 :: pk_Gs ++ Gs3)
-                         (K1 :: pk_Ks ++ Ksout).
-  (*
-  | PSO2: forall j mds1 mds2 c coms' coms1 coms2 Gs1 Gs2 Ks1 Ks2
-                 Gs2' Ks2' K1 K2 G1 G2,
+                         (K1 :: pk_Ks ++ Ksout)
+  | PSO2: forall j mds1 mds2 c coms' coms1 coms2 Gs1 Gs2
+                 Ks1 Ks2 K's2 K''s2 K''s1 K's1
+                 Gs2out Ks2out K1 K2 G1 G2 K' K'' kcoms pk_Gs pk_Ks,
+      pc = low ->
       md0 = E.Normal ->
       mds = mds1 ++ mds2 ->
       Forall (fun md => md = E.Encl j) mds1 ->
@@ -115,13 +118,21 @@ Section TransDef.
       Gs = G1 :: Gs1 ++ G2 :: Gs2 ->
       length (G1 :: Gs1) = length mds1 ->
       Ks = K1 :: Ks1 ++ K2 :: Ks2 ->
+      K's = K's1 ++ K' :: K's2 ->
+      K''s = K''s1 ++ K'' :: K''s2 ->
       length (K1 :: Ks1) = length mds1 ->
+      length (K's1 ++ [K']) = length mds1 ->
+      length (K''s1 ++ [K'']) = length mds1 ->
       c = E.Cenclave j (E.Cseq coms1) ->
-      process_seq_output coms2 md0 mds2 (G2 :: Gs2) (K2 :: Ks2)
-                         coms' (G2 :: Gs2') (K2 :: Ks2') ->
-      process_seq_output coms md0 mds Gs Ks
-                         (c :: coms') (G1 :: G2 :: Gs2') (K1 :: K2 :: Ks2').
-  *)
+      process_kill K' K'' G2 kcoms pk_Gs pk_Ks ->
+      process_seq_output pc coms2 md0 mds2 (G2 :: Gs2)
+                         (K2 :: Ks2) (K's2) (K''s2)
+                         coms' (G2 :: Gs2out) (K2 :: Ks2out) ->
+      process_seq_output pc coms md0 mds Gs Ks K's K''s
+                         (c :: kcoms ++ coms')
+                         (G1 :: pk_Gs ++ Gs2out)
+                         (K1 :: pk_Ks ++ Ks2out).
+
   Inductive exp_trans : S.context -> S.exp -> S.type -> S.ederiv ->
                         E.mode -> E.context -> E.loc_mode -> E.exp ->
                         E.type -> Prop :=
@@ -548,14 +559,14 @@ Section TransProof.
   Qed.
 *)
 
-  Lemma pk_length_Gsout : forall {G} {Gsout} {Ksout} {Kstokill} {Kinit} {kcoms},
+  Lemma pk_length_Gsout : forall {G} {Gsout} {Ksout} {Kstokill Kinit} {kcoms},
       process_kill Kinit Kstokill G kcoms Gsout Ksout ->
       length Gsout = length kcoms + 1.
   Proof.
     intros. induction H; simpl; auto.
   Qed.
 
-  Lemma pk_last_Gsout : forall {G} {Gsout} {Ksout} {Kstokill} {Kinit} {kcoms},
+  Lemma pk_last_Gsout : forall {G} {Gsout} {Ksout} {Kstokill Kinit} {kcoms},
       process_kill Kinit Kstokill G kcoms Gsout Ksout ->
       last Gsout E.mt = G.
   Proof.
@@ -563,20 +574,29 @@ Section TransProof.
     simpl in *. destruct Gsout. reflexivity. auto.
   Qed.
   
-  Lemma pk_first_Gsout : forall {G} {Gsout} {Ksout} {Kstokill} {Kinit} {kcoms},
+  Lemma pk_first_Gsout : forall {G} {Gsout} {Ksout} {Kstokill Kinit} {kcoms},
       process_kill Kinit Kstokill G kcoms Gsout Ksout ->
       nth 0 Gsout E.mt = G.
   Proof.
     intros. induction H; reflexivity.
   Qed.
 
-  Lemma pk_length_Ksout : forall {G} {Gsout} {Ksout} {Kstokill} {Kinit} {kcoms},
+  Lemma pk_first_Gsout_app : forall {G} {Gsout rest} {Ksout}
+                                    {Kstokill Kinit} {kcoms},
+      process_kill Kinit Kstokill G kcoms Gsout Ksout ->
+      nth 0 (Gsout ++ rest) E.mt = G.
+  Proof.
+    intros. rewrite app_nth1. now rewrite (pk_first_Gsout H).
+    rewrite (pk_length_Gsout H). omega.
+  Qed.
+
+  Lemma pk_length_Ksout : forall {G} {Gsout} {Ksout} {Kstokill Kinit} {kcoms},
       process_kill Kinit Kstokill G kcoms Gsout Ksout ->
       length Ksout = length kcoms + 1.
     intros. induction H; simpl; auto.
   Qed.
 
-  Lemma pk_last_Ksout : forall {G} {Gsout} {Ksout} {Kstokill} {Kinit} {kcoms},
+  Lemma pk_last_Ksout : forall {G} {Gsout} {Ksout} {Kstokill Kinit} {kcoms},
       process_kill Kinit Kstokill G kcoms Gsout Ksout ->
       last Ksout [] = union Kinit Kstokill.
   Proof.
@@ -584,11 +604,20 @@ Section TransProof.
     unfold union in *. simpl in *. rewrite <- app_assoc. now simpl.
   Qed.
 
-  Lemma pk_first_Ksout : forall {G} {Gsout} {Ksout} {Kstokill} {Kinit} {kcoms},
+  Lemma pk_first_Ksout : forall {G} {Gsout} {Ksout} {Kstokill Kinit} {kcoms},
       process_kill Kinit Kstokill G kcoms Gsout Ksout ->
       nth 0 Ksout [] = Kinit.
   Proof.
     intros. induction H; reflexivity.
+  Qed.
+
+  Lemma pk_first_Ksout_app : forall {G} {Gsout} {Ksout rest}
+                                    {Kstokill Kinit} {kcoms},
+      process_kill Kinit Kstokill G kcoms Gsout Ksout ->
+      nth 0 (Ksout ++ rest) [] = Kinit.
+  Proof.
+    intros. rewrite app_nth1. now rewrite (pk_first_Ksout H).
+    rewrite (pk_length_Ksout H). omega.
   Qed.
 
   Lemma pso_length_Gsout : forall {pc} {coms} {md0} {mds} {Gs}
@@ -602,6 +631,9 @@ Section TransProof.
       apply IHprocess_seq_output in H10. simpl in *. repeat rewrite app_length.
       rewrite (pk_length_Gsout H8).
       replace (length Gs3) with (length coms'') by omega. omega.
+    - subst. simpl in *. repeat rewrite app_length in *. simpl in *.
+      rewrite <- plus_assoc. rewrite <- IHprocess_seq_output.
+      rewrite (pk_length_Gsout H16). omega. omega.
   Qed.
 
   Lemma pso_length_Ksout : forall {pc} {coms} {md0} {mds} {Gs}
@@ -615,6 +647,10 @@ Section TransProof.
       apply IHprocess_seq_output in H10. simpl in *. repeat rewrite app_length.
       rewrite (pk_length_Ksout H8).
       replace (length Ksout) with (length coms'') by omega. omega.
+    - subst. repeat rewrite app_length in *. simpl in *.
+      assert (length K's2 = length coms2) by omega.
+      apply IHprocess_seq_output in H.
+      rewrite (pk_length_Ksout H16). omega.
   Qed.
   
   Lemma process_kill_wt' : forall Kstokill Kinit kcoms Ksout Gsout G U i d,
@@ -643,6 +679,9 @@ Section TransProof.
       + rewrite NoDup_cons_iff in H1. tauto.
       + simpl in H2. omega.
   Qed.
+
+  Ltac crush_length := subst; simpl in *; repeat rewrite app_length in *;
+                       simpl in *; auto; try omega.
   
   Lemma process_seq_output_wt' (pc: policy) (md0: E.mode) (mds: list E.mode)
         (Gs: list E.context) (Ks: list (list E.enclave))
@@ -809,6 +848,114 @@ Section TransProof.
                   apply app_nth2; omega.
 
           rewrite Heqx. symmetry. now apply app_nth2.
+
+    - destruct (Nat.eq_dec i 0).
+      + subst. simpl. repeat rewrite app_length in *.
+        rewrite (pk_first_Gsout_app H15).
+        rewrite (pk_first_Ksout_app H15).
+        eapply E.CTenclave; eauto.
+        eapply E.CTseq with (Gs:=G1 :: Gs1 ++ [G2]) (Ks:=K1 :: K's1 ++ [K']);
+          eauto.
+        1-2: crush_length.
+        
+        intros. assert (i < length coms1 + length coms2) by omega.
+        apply Hwt in H0.
+        assert (nth i (K1 :: Ks1 ++ K2 :: Ks2) [] = nth i (K1 :: K's1) []).
+        {
+          destruct (Nat.eq_dec i 0). subst. now simpl.
+          rewrite Nat.neq_0_r in n. destruct n as [m n].
+          subst. replace (S m) with (m + 1) by omega.
+          assert (m < length (K1 :: Ks1 ++ K2 :: Ks2) - 1) by crush_length.
+          apply Hunion in H1.
+          replace (nth m (K''s1 ++ K'' :: K''s2) [])
+          with ([]:list E.enclave) in H1.
+          replace (nth m (K's1 ++ K' :: K's2) []) with (nth m K's1 []) in H1.
+          rewrite union_nil in H1.
+          replace (nth (m + 1) (K1 :: K's1) []) with (nth m K's1 []) by
+              (rewrite <- nth_eq_nth_S_cons; auto). auto.
+          rewrite app_nth1; crush_length. auto.
+          symmetry. apply HK''sempty; crush_length.
+          rewrite app_nth1; crush_length.
+          rewrite app_nth1; crush_length.
+          replace (nth m mds1 E.Normal) with (E.Encl j).
+          replace (nth (m + 1) mds1 E.Normal) with (E.Encl j).
+          intuition. discriminate.
+          1-2: rewrite Forall_forall in H2; symmetry; apply H2;
+            apply nth_In; crush_length.
+        }
+
+        rewrite H1 in H0.
+        replace (nth i (mds1 ++ mds2) E.Normal) with (E.Encl j) in H0.
+        rewrite app_cons_helper in H0.
+        rewrite app_nth1 in H0.
+        rewrite app_nth1 in H0.
+        rewrite app_nth1 in H0.
+        replace (nth i (K's1 ++ K' :: K's2) [])
+        with (nth i (K's1 ++ [K']) []) in H0.
+        replace (nth i (K1 :: K's1 ++ [K']) [])
+        with (nth i (K1 :: K's1) []).
+        replace (nth (i + 1) (K1 :: K's1 ++ [K']) [])
+        with (nth i (K's1 ++ [K']) []).
+        replace U with ([]:set condition) in H0. auto.
+        
+        destruct HU; auto. contradict H1; auto.
+
+        now rewrite <- nth_eq_nth_S_cons.
+        rewrite app_comm_cons. symmetry. rewrite app_nth1; crush_length.
+        replace (K's1 ++ K' :: K's2) with ((K's1 ++ [K']) ++ K's2) by
+            (rewrite <- app_assoc; simpl; auto).
+        symmetry. rewrite app_nth1; crush_length.
+
+        1-3: crush_length.
+
+        rewrite app_nth1; crush_length. rewrite Forall_forall in H2.
+        symmetry. apply H2. apply nth_In; crush_length.
+
+        1-2: rewrite app_comm_cons; now rewrite last_app.
+
+        pose (Hcontext (length mds1 - 1)).
+        replace (length mds1 - 1 + 1) with (length (G1 :: Gs1)) in i
+          by crush_length.
+        rewrite app_comm_cons in i.
+        rewrite nth_app_helper_x in i.
+        apply i.
+        replace (nth (length mds1 - 1) (mds1 ++ mds2) E.Normal)
+        with (E.Encl j).
+        replace (length (G1 :: Gs1)) with (length mds1) by crush_length.
+        rewrite app_nth2.
+        split. intuition. discriminate.
+        left. replace (length mds1 - length mds1) with 0 by omega.
+        auto. omega.
+
+        rewrite app_nth1.
+        rewrite Forall_forall in H2. symmetry. apply H2.
+        apply nth_In.
+        1-2: simpl in H7; omega.
+
+      + rewrite Nat.neq_0_r in n. destruct n as [m n]. rewrite n. simpl.
+        assert (m < length kcoms \/ m >= length kcoms) by omega. destruct H17.
+        * clear IHHpso.
+          replace (nth m (pk_Gs ++ Gs2out) E.mt) with (nth m pk_Gs E.mt).
+          replace (nth m (pk_Ks ++ Ks2out) []) with (nth m pk_Ks []).
+          replace (nth m (kcoms ++ coms') E.Cskip) with
+          (nth m kcoms E.Cskip).
+          replace (nth (m + 1) (pk_Gs ++ Gs2out) E.mt) with
+          (nth (m + 1) pk_Gs E.mt).
+          replace (nth (m + 1) (pk_Ks ++ Ks2out) []) with
+          (nth (m + 1) pk_Ks []).
+          rewrite H. rewrite H0.
+          eapply process_kill_wt'; eauto. subst.
+          pose (Hinter (length K''s1)).
+          rewrite nth_app_helper_x in f.
+          replace (length K''s1) with (length K's1) in f by crush_length.
+          now rewrite nth_app_helper_x in f.
+          subst. rewrite Forall_forall in HNoDup.
+          apply HNoDup. apply in_or_app. right. constructor. auto.
+          all: symmetry; apply app_nth1.
+          1,4: rewrite (pk_length_Ksout H15).
+          3,5: rewrite (pk_length_Gsout H15).
+          all: crush_length.
+        * admit.
     Admitted.
 
   (*
