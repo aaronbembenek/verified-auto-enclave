@@ -392,107 +392,6 @@ Section TransDef.
 End TransDef.
 
 Section TransLemmas.
-  Hint Constructors btrans ttrans context_trans.
-  Lemma trans_exp_ttrans : forall sG e t md eG d e' t' drv,
-      exp_trans sG e t drv md eG d e' t' ->
-      ttrans t d t'.
-  Proof.
-    intros. induction H; eauto.
-    - inversion IHexp_trans. inversion H4. now constructor.
-    - inversion IHexp_trans1. now constructor.
-  Qed.
-
-  Lemma trans_exp_btrans : forall sG e s p md eG d e' s' q drv,
-      exp_trans sG e (S.Typ s p) drv md eG d e' (E.Typ s' q) ->
-      btrans s d s'.
-  Proof.
-    intros. apply trans_exp_ttrans in H. now inversion H.
-  Qed.
-
-  Hint Constructors E.forall_subexp E.forall_subexp'.
-       
-  Lemma trans_pres_exp_novars : forall e sG t drv md eG d e' t',
-      exp_trans sG e t drv md eG d e' t' ->
-      S.exp_novars e ->
-      E.exp_novars e'.
-  Proof.
-    unfold S.exp_novars.
-    remember (fun e : S.exp =>
-                match e with
-                | S.Evar _ => False
-                | _ => True
-                end) as Ps.
-    unfold E.exp_novars.
-    remember (fun e : E.exp =>
-                match e with
-                | E.Evar _ => False
-                | _ => True
-                end) as Pe.
-    induction e using S.exp_ind' with
-    (P:=fun c =>
-          forall pc sG U sG' drv md eG K d c' eG' K'
-                 (Htrans: com_trans pc sG U c sG' drv md eG K d c' eG' K')
-                 (HPs: S.forall_subexp' Ps c),
-            E.forall_subexp' Pe c')
-      (P0:=fun e =>
-             forall sG t drv md eG d e' t'
-                    (Htrans: exp_trans sG e t drv md eG d e' t')
-                    (HPs: S.forall_subexp Ps e),
-               E.forall_subexp Pe e')
-      (P1:=fun c =>
-             forall pc sG U sG' md eG K d c' eG' K' drv
-                    (Htrans: prog_trans pc sG U c sG' drv md eG K d c' eG' K')
-                    (HPs: S.forall_subexp'' Ps c),
-               E.forall_subexp' Pe c');
-      intros; inversion Htrans; subst; try constructor; auto;
-        inversion HPs; eauto.
-    subst. admit. (* induction H21.
-    - rewrite Forall_forall. intros.
-      eapply In_nth with (d:=E.Cskip) in H10.
-      destruct H10 as [ i [ Hilen Hx ] ].
-      assert (i < length coms) by omega.
-      apply nth_In with (d:=S.Cskip) in H10.
-      rewrite Forall_forall in H.
-      assert (i < length coms) by omega.
-      apply H8 in H12.
-      rewrite Forall_forall in H1.
-      eapply H with (c':=nth i coms0 E.Cskip) in H10; eauto.
-      now rewrite Hx in H10. *)
-    (*- admit.
-    - admit. *)
-  Admitted.
-
-  Lemma trans_pres_all_loc_immutable : forall e sG t drv md eG d e' t',
-      exp_trans sG e t drv md eG d e' t' ->
-      S.all_loc_immutable e sG ->
-      context_trans sG d eG ->
-      E.all_loc_immutable e' eG.
-  Proof.
-  Admitted.
-
-  Lemma trans_pres_forall_var : forall sG eG d (Pe: var -> E.type -> Prop),
-      context_trans sG d eG ->
-      S.forall_var sG (fun x t => forall t', ttrans t d t' -> Pe x t') ->
-      E.forall_var eG Pe.
-  Proof.
-    intros.
-    unfold E.forall_var.
-    unfold S.forall_var in H0. inversion H. subst.
-    intros. unfold subdom in H3.
-    inversion H8. subst.
-    pose (H3 x) as HsGx.
-    rewrite H9 in HsGx.
-    destruct HsGx as [ t' HsGx ].
-    assert (S.var_in_dom sG x t') by now apply S.Var_in_dom.
-    unfold S.forall_var in H5.
-    pose H10 as HeG.
-    apply H5 in HeG.
-    destruct HeG as [ t'0 HeG ].
-    destruct HeG. inversion H12. subst.
-    rewrite H9 in H13. inversion H13. subst.
-    eapply H0; eauto.
-  Qed.
-
   Lemma nth_eq_nth_S_cons {A} i xs (x: A) d :
     nth i xs d = nth (i + 1) (x :: xs) d.
   Proof.
@@ -557,6 +456,198 @@ Section TransLemmas.
   Lemma x_minus_x (x: nat) :
     x - x = 0.
   Proof. omega. Qed.
+  
+  Hint Constructors btrans ttrans context_trans.
+  Lemma trans_exp_ttrans : forall sG e t md eG d e' t' drv,
+      exp_trans sG e t drv md eG d e' t' ->
+      ttrans t d t'.
+  Proof.
+    intros. induction H; eauto.
+    - inversion IHexp_trans. inversion H4. now constructor.
+    - inversion IHexp_trans1. now constructor.
+  Qed.
+
+  Lemma trans_exp_btrans : forall sG e s p md eG d e' s' q drv,
+      exp_trans sG e (S.Typ s p) drv md eG d e' (E.Typ s' q) ->
+      btrans s d s'.
+  Proof.
+    intros. apply trans_exp_ttrans in H. now inversion H.
+  Qed.
+
+  Hint Constructors E.forall_subexp E.forall_subexp'.
+  
+  Ltac crush_length := subst; simpl in *; repeat rewrite app_length in *;
+                       simpl in *; auto; try omega.
+
+
+  Lemma pk_exp_novars : forall {G} {Gsout} {Ksout} {Kstokill Kinit} {kcoms},
+      process_kill Kinit Kstokill G kcoms Gsout Ksout ->
+      Forall (fun c => E.forall_subexp'
+                         (fun e => match e with
+                                   | E.Evar _ => False
+                                   | _ => True
+                                   end) c) kcoms.
+  Proof.
+    intros. induction H.
+    - apply Forall_nil.
+    - constructor; auto.
+  Qed.
+
+ Lemma pso_exp_novars : forall {pc} {coms} {md0} {mds} {Gs}
+                               {Ks K's K''s} {coms'} {Gsout} {Ksout},
+      process_seq_output pc coms md0 mds Gs Ks K's K''s coms' Gsout Ksout ->
+      Forall (fun c => E.forall_subexp'
+                         (fun e => match e with
+                                   | E.Evar _ => False
+                                   | _ => True
+                                   end) c) coms ->
+      Forall (fun c => E.forall_subexp'
+                         (fun e => match e with
+                                   | E.Evar _ => False
+                                   | _ => True
+                                   end) c) coms'.
+ Proof.
+   intros. induction H; auto.
+   - rewrite Forall_forall. intros.
+     apply In_nth with (d:=E.Cskip) in H10.
+     destruct_conjs. rename H10 into i.
+     destruct (Nat.eq_dec i 0). subst.
+     rewrite Forall_forall in H0.
+     assert (In (nth 0 (c :: coms') E.Cskip) (c :: coms')).
+     {
+       simpl. left. auto.
+     }
+     apply H0 in H. simpl in *. auto.
+     rewrite Nat.neq_0_r in n.
+     destruct n as [m n].
+     rewrite n in *. replace (S m) with (m + 1) in H12 by omega.
+     rewrite <- nth_eq_nth_S_cons in H12.
+     assert (m < length kcoms \/ m >= length kcoms) by omega.
+     destruct H10.
+     + rewrite app_nth1 in H12 by crush_length. subst.
+       apply pk_exp_novars in H8.
+       rewrite Forall_forall in H8. apply H8. apply nth_In. auto.
+     + rewrite app_nth2 in H12 by crush_length. subst.
+       inversion H0. subst. apply IHprocess_seq_output in H3.
+       rewrite Forall_forall in H3. apply H3. apply nth_In. crush_length.
+  Admitted.
+  
+  Lemma trans_pres_exp_novars : forall e sG t drv md eG d e' t',
+      exp_trans sG e t drv md eG d e' t' ->
+      S.exp_novars e ->
+      E.exp_novars e'.
+  Proof.
+    unfold S.exp_novars.
+    remember (fun e : S.exp =>
+                match e with
+                | S.Evar _ => False
+                | _ => True
+                end) as Ps.
+    unfold E.exp_novars.
+    remember (fun e : E.exp =>
+                match e with
+                | E.Evar _ => False
+                | _ => True
+                end) as Pe.
+    induction e using S.exp_ind' with
+    (P:=fun c =>
+          forall pc sG U sG' drv md eG K d c' eG' K'
+                 (Htrans: com_trans pc sG U c sG' drv md eG K d c' eG' K')
+                 (HPs: S.forall_subexp' Ps c),
+            E.forall_subexp' Pe c')
+      (P0:=fun e =>
+             forall sG t drv md eG d e' t'
+                    (Htrans: exp_trans sG e t drv md eG d e' t')
+                    (HPs: S.forall_subexp Ps e),
+               E.forall_subexp Pe e')
+      (P1:=fun c =>
+             forall pc sG U sG' md eG K d c' eG' K' drv
+                    (Htrans: prog_trans pc sG U c sG' drv md eG K d c' eG' K')
+                    (HPs: S.forall_subexp'' Ps c),
+               E.forall_subexp' Pe c');
+      intros; inversion Htrans; subst; try constructor; auto;
+        inversion HPs; eauto.
+    subst. induction H21.
+    - subst.
+      rewrite Forall_forall. intros.
+      apply In_nth with (d:=E.Cskip) in H19.
+      destruct_conjs. rename H19 into i.
+      assert (i < length coms) by crush_length.
+      apply H9 in H19.
+      rewrite Forall_forall in H.
+      rewrite H21 in *.
+      assert (In (nth i coms S.Cskip) coms).
+      {
+        apply nth_In. crush_length.
+      }
+      eapply H in H22; eauto.
+      rewrite Forall_forall in H11. eapply H11; eauto.
+    - rewrite Forall_forall. intros.
+      apply In_nth with (d:=E.Cskip) in H27.
+      destruct_conjs. rename H27 into i.
+      destruct (Nat.eq_dec i 0).
+      + subst.
+        assert (0 < length coms) by crush_length.
+        apply H9 in H0.
+        rewrite Forall_forall in H.
+        assert (In (nth 0 coms S.Cskip) coms).
+        {
+          apply nth_In. crush_length.
+        }
+        eapply H in H18; eauto.
+        rewrite Forall_forall in H11. eapply H11; eauto.
+      + assert (i < length kcoms \/ i >= length kcoms) by omega.
+        destruct H27.
+        rewrite Nat.neq_0_r in n.
+        destruct n as [m n].
+        admit.
+
+    admit. (* induction H21.
+    - rewrite Forall_forall. intros.
+      eapply In_nth with (d:=E.Cskip) in H10.
+      destruct H10 as [ i [ Hilen Hx ] ].
+      assert (i < length coms) by omega.
+      apply nth_In with (d:=S.Cskip) in H10.
+      rewrite Forall_forall in H.
+      assert (i < length coms) by omega.
+      apply H8 in H12.
+      rewrite Forall_forall in H1.
+      eapply H with (c':=nth i coms0 E.Cskip) in H10; eauto.
+      now rewrite Hx in H10. *)
+    (*- admit.
+    - admit. *)
+  Admitted.
+
+  Lemma trans_pres_all_loc_immutable : forall e sG t drv md eG d e' t',
+      exp_trans sG e t drv md eG d e' t' ->
+      S.all_loc_immutable e sG ->
+      context_trans sG d eG ->
+      E.all_loc_immutable e' eG.
+  Proof.
+  Admitted.
+
+  Lemma trans_pres_forall_var : forall sG eG d (Pe: var -> E.type -> Prop),
+      context_trans sG d eG ->
+      S.forall_var sG (fun x t => forall t', ttrans t d t' -> Pe x t') ->
+      E.forall_var eG Pe.
+  Proof.
+    intros.
+    unfold E.forall_var.
+    unfold S.forall_var in H0. inversion H. subst.
+    intros. unfold subdom in H3.
+    inversion H8. subst.
+    pose (H3 x) as HsGx.
+    rewrite H9 in HsGx.
+    destruct HsGx as [ t' HsGx ].
+    assert (S.var_in_dom sG x t') by now apply S.Var_in_dom.
+    unfold S.forall_var in H5.
+    pose H10 as HeG.
+    apply H5 in HeG.
+    destruct HeG as [ t'0 HeG ].
+    destruct HeG. inversion H12. subst.
+    rewrite H9 in H13. inversion H13. subst.
+    eapply H0; eauto.
+  Qed.
     
 End TransLemmas.
 
@@ -693,9 +784,6 @@ Section TransProof.
       + rewrite NoDup_cons_iff in H1. tauto.
       + simpl in H2. omega.
   Qed.
-
-  Ltac crush_length := subst; simpl in *; repeat rewrite app_length in *;
-                       simpl in *; auto; try omega.
   
   Lemma process_seq_output_wt' (pc: policy) (md0: E.mode) (mds: list E.mode)
         (Gs: list E.context) (Ks: list (list E.enclave))
