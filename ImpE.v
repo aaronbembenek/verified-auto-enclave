@@ -299,9 +299,6 @@ End Enclave_Equiv.
 *******************************************************************************)
 
 Section Semantics.
-  Parameter g0: sec_spec.
-  Parameter immutable_locs: sec_spec -> set location.
-
   Definition reg : Type := register val.
   Definition reg_init : reg := fun x => Vnat 0.
   Definition mem : Type := memory val.

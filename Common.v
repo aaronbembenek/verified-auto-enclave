@@ -94,5 +94,5 @@ Section Security.
   Qed.
 
   Parameter g0: sec_spec.
-  
+  Parameter immutable_locs: sec_spec -> set location.
 End Security.
