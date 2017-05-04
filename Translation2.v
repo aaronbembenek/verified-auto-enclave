@@ -87,7 +87,6 @@ Section TransDef.
                          (nth 0 Ks [] :: K's)
   | PSO1: forall c coms' K'' K''s2 K' K's2 K1 K2 Ks2 G1 G2 Gs2
                  kcoms pk_Gs pk_Ks Gs3 Ksout coms'' mds',
-      (* XXX This premise might be provable. *)
       pc = low ->
       md0 = E.Normal ->
       mds = E.Normal :: mds' ->
@@ -102,10 +101,10 @@ Section TransDef.
       process_seq_output pc coms md0 mds Gs Ks K's K''s
                          (c :: kcoms ++ coms'')
                          (G1 :: pk_Gs ++ Gs3)
-                         (K1 :: pk_Ks ++ Ksout).
-  (*
-  | PSO2: forall j mds1 mds2 c coms' coms1 coms2 Gs1 Gs2 Ks1 Ks2
-                 Gs2' Ks2' K1 K2 G1 G2,
+                         (K1 :: pk_Ks ++ Ksout)
+  | PSO2: forall j mds1 mds2 c coms' coms1 coms2 Gs1 Gs2
+                 Ks1 Ks2 K's2 K''s2 K''s1 K's1
+                 Gs2out Ks2out K1 K2 G1 G2 K' K'' kcoms pk_Gs pk_Ks,
       md0 = E.Normal ->
       mds = mds1 ++ mds2 ->
       Forall (fun md => md = E.Encl j) mds1 ->
@@ -115,13 +114,21 @@ Section TransDef.
       Gs = G1 :: Gs1 ++ G2 :: Gs2 ->
       length (G1 :: Gs1) = length mds1 ->
       Ks = K1 :: Ks1 ++ K2 :: Ks2 ->
+      K's = K's1 ++ K' :: K's2 ->
+      K''s = K''s1 ++ K'' :: K''s2 ->
       length (K1 :: Ks1) = length mds1 ->
+      length (K's1 ++ [K']) = length mds1 ->
+      length (K''s1 ++ [K'']) = length mds1 ->
       c = E.Cenclave j (E.Cseq coms1) ->
-      process_seq_output coms2 md0 mds2 (G2 :: Gs2) (K2 :: Ks2)
-                         coms' (G2 :: Gs2') (K2 :: Ks2') ->
-      process_seq_output coms md0 mds Gs Ks
-                         (c :: coms') (G1 :: G2 :: Gs2') (K1 :: K2 :: Ks2').
-  *)
+      process_kill K' K'' G2 kcoms pk_Gs pk_Ks ->
+      process_seq_output pc coms2 md0 mds2 (G2 :: Gs2)
+                         (K2 :: Ks2) (K's2) (K''s2)
+                         coms' (G2 :: Gs2out) (K2 :: Ks2out) ->
+      process_seq_output pc coms md0 mds Gs Ks K's K''s
+                         (c :: kcoms ++ coms')
+                         (G1 :: pk_Gs ++ Gs2out)
+                         (K1 :: pk_Ks ++ Ks2out).
+
   Inductive exp_trans : S.context -> S.exp -> S.type -> S.ederiv ->
                         E.mode -> E.context -> E.loc_mode -> E.exp ->
                         E.type -> Prop :=
@@ -602,6 +609,9 @@ Section TransProof.
       apply IHprocess_seq_output in H10. simpl in *. repeat rewrite app_length.
       rewrite (pk_length_Gsout H8).
       replace (length Gs3) with (length coms'') by omega. omega.
+    - subst. simpl in *. repeat rewrite app_length in *. simpl in *.
+      rewrite <- plus_assoc. rewrite <- IHprocess_seq_output.
+      rewrite (pk_length_Gsout H15). omega. omega.
   Qed.
 
   Lemma pso_length_Ksout : forall {pc} {coms} {md0} {mds} {Gs}
@@ -615,6 +625,10 @@ Section TransProof.
       apply IHprocess_seq_output in H10. simpl in *. repeat rewrite app_length.
       rewrite (pk_length_Ksout H8).
       replace (length Ksout) with (length coms'') by omega. omega.
+    - subst. repeat rewrite app_length in *. simpl in *.
+      assert (length K's2 = length coms2) by omega.
+      apply IHprocess_seq_output in H.
+      rewrite (pk_length_Ksout H15). omega.
   Qed.
   
   Lemma process_kill_wt' : forall Kstokill Kinit kcoms Ksout Gsout G U i d,
