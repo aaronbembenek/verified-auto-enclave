@@ -4,6 +4,11 @@ OBJS=$(SRCS:.v=.vo)
 all: $(OBJS)
 
 SImpESecurity.vo: SImpESecurity.v SImpE2TypeSystem.vo SImpE2Adequacy.vo SImpE2Helpers.vo SImpE2.vo SImpE.vo SImpECommon.vo
+
+Translation2.vo : Translation2.v ImpS.vo ImpE.vo
+	coqc $<
+
+IdTrans.vo : IdTrans.v ImpS.vo ImpE.vo
 	coqc $<
 
 SImpE2TypeSystem.vo: SImpE2TypeSystem.v SImpE2Adequacy.vo SImpE2SecurityHelpers.vo SImpE2Helpers.vo SImpE2.vo SImpE.vo SImpECommon.vo
