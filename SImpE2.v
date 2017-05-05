@@ -445,17 +445,13 @@ Section Security_Defn.
     forall l : location,
       sec_level_le (g0 l) sl <-> (project_mem minit2 true) l = (project_mem minit2 false) l.
 
-  (* capture the notion that the memory does not change at the locations by saying *)
-  (* that any memory---implicitly derived from minit2---has the same value at the *)
-  (* locations of e *)
+  (* any memory---implicitly derived from minit2---has values at locations
+   * used to compute escape hatches that result in the same value as minit 
+   * no variables are in the escape hatch, so we can quantify over any r *)
   Definition mem_esc_hatch_ind :=
-    forall e, is_escape_hatch e -> forall m md d r v, estep2 md d (e,r,m) v ->
-                                                      exists v', v = VSingle v'.
-(*
-              (forall (m: mem2) (l: location),
-                                       loc_in_exp e l ->
-                                       exists v, minit2 l = VSingle v /\ minit2 l = m l).
-  *)
+    forall e, is_escape_hatch e -> forall m v, (exists md d r, estep2 md d (e,r,m) v) ->
+                                               exists v', v = VSingle v'.
+
   Definition secure_prog (sl: sec_level) (d: loc_mode) (c: com) (G: context) : Prop :=
     forall m0 mknown r' m' t tobs,
       merge_mem m0 mknown = minit2 ->
