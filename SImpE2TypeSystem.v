@@ -91,13 +91,8 @@ Section Config_Preservation.
              destruct_pairs.
              unfold mem_esc_hatch_ind in H6.
              assert (is_escape_hatch e) as Heh by now unfold is_escape_hatch.
-             pose (H6 e Heh m') as Helocs.
-             assert (forall l, loc_in_exp e l -> exists v, m' l = VSingle v) as Hmsing.
-             intros. pose (Helocs l H10) as tmp; destruct tmp; destruct_pairs; subst.
-             rewrite <- H12; exists x1; auto.
-             destruct (same_mem_locs_evals_same_value
-                         e r m' md d G (Typ s p) v H8 H1 Heh Hmsing).
-             rewrite H in H10. discriminate.
+             pose (H6 e Heh m' _ _ _ _ H1) as Helocs.
+             destruct Helocs as [blah Helocs]. rewrite Helocs in H. discriminate.
          --- rewrite <- (Nat.eqb_neq x0 x) in n. rewrite n in H.
              now apply H3 in H.
       -- now apply H4 in H.

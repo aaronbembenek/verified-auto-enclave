@@ -449,10 +449,13 @@ Section Security_Defn.
   (* that any memory---implicitly derived from minit2---has the same value at the *)
   (* locations of e *)
   Definition mem_esc_hatch_ind :=
-    forall e, is_escape_hatch e -> (forall (m: mem2) (l: location),
+    forall e, is_escape_hatch e -> forall m md d r v, estep2 md d (e,r,m) v ->
+                                                      exists v', v = VSingle v'.
+(*
+              (forall (m: mem2) (l: location),
                                        loc_in_exp e l ->
                                        exists v, minit2 l = VSingle v /\ minit2 l = m l).
-  
+  *)
   Definition secure_prog (sl: sec_level) (d: loc_mode) (c: com) (G: context) : Prop :=
     forall m0 mknown r' m' t tobs,
       merge_mem m0 mknown = minit2 ->
