@@ -530,7 +530,39 @@ Section TransLemmas.
      + rewrite app_nth2 in H12 by crush_length. subst.
        inversion H0. subst. apply IHprocess_seq_output in H3.
        rewrite Forall_forall in H3. apply H3. apply nth_In. crush_length.
-  Admitted.
+   - rewrite Forall_forall. intros.
+     apply In_nth with (d:=E.Cskip) in H18.
+     destruct_conjs. rename H18 into i.
+     destruct (Nat.eq_dec i 0). subst.
+     simpl. constructor. constructor.
+     rewrite Forall_forall. intros.
+     rewrite Forall_forall in H0.
+     apply H0. apply in_or_app. tauto.
+     rewrite Nat.neq_0_r in n.
+     destruct n as [m n].
+     rewrite n in *. replace (S m) with (m + 1) in H20 by omega.
+     rewrite <- nth_eq_nth_S_cons in H20.
+     assert (m < length kcoms \/ m >= length kcoms) by omega.
+     destruct H18.
+     + rewrite app_nth1 in H20 by crush_length. subst.
+       apply pk_exp_novars in H16.
+       rewrite Forall_forall in H16. apply H16. apply nth_In. auto.
+     + rewrite app_nth2 in H20 by crush_length. subst.
+       rewrite Forall_forall in H0.
+       assert (forall x, In x coms2 ->
+                         E.forall_subexp'
+                           (fun e =>
+                              match e with
+                              | E.Evar _ => False
+                              | _ => True
+                              end) x).
+       {
+         intros. apply H0. apply in_or_app. tauto.
+       }
+       rewrite <- Forall_forall in H.
+       apply IHprocess_seq_output in H.
+       rewrite Forall_forall in H. apply H. apply nth_In. crush_length.
+  Qed.
   
   Lemma trans_pres_exp_novars : forall e sG t drv md eG d e' t',
       exp_trans sG e t drv md eG d e' t' ->
@@ -567,56 +599,20 @@ Section TransLemmas.
                E.forall_subexp' Pe c');
       intros; inversion Htrans; subst; try constructor; auto;
         inversion HPs; eauto.
-    subst. induction H21.
-    - subst.
-      rewrite Forall_forall. intros.
-      apply In_nth with (d:=E.Cskip) in H19.
-      destruct_conjs. rename H19 into i.
-      assert (i < length coms) by crush_length.
-      apply H9 in H19.
-      rewrite Forall_forall in H.
-      rewrite H21 in *.
-      assert (In (nth i coms S.Cskip) coms).
-      {
-        apply nth_In. crush_length.
-      }
-      eapply H in H22; eauto.
-      rewrite Forall_forall in H11. eapply H11; eauto.
-    - rewrite Forall_forall. intros.
-      apply In_nth with (d:=E.Cskip) in H27.
-      destruct_conjs. rename H27 into i.
-      destruct (Nat.eq_dec i 0).
-      + subst.
-        assert (0 < length coms) by crush_length.
-        apply H9 in H0.
-        rewrite Forall_forall in H.
-        assert (In (nth 0 coms S.Cskip) coms).
-        {
-          apply nth_In. crush_length.
-        }
-        eapply H in H18; eauto.
-        rewrite Forall_forall in H11. eapply H11; eauto.
-      + assert (i < length kcoms \/ i >= length kcoms) by omega.
-        destruct H27.
-        rewrite Nat.neq_0_r in n.
-        destruct n as [m n].
-        admit.
-
-    admit. (* induction H21.
-    - rewrite Forall_forall. intros.
-      eapply In_nth with (d:=E.Cskip) in H10.
-      destruct H10 as [ i [ Hilen Hx ] ].
-      assert (i < length coms) by omega.
-      apply nth_In with (d:=S.Cskip) in H10.
-      rewrite Forall_forall in H.
-      assert (i < length coms) by omega.
-      apply H8 in H12.
-      rewrite Forall_forall in H1.
-      eapply H with (c':=nth i coms0 E.Cskip) in H10; eauto.
-      now rewrite Hx in H10. *)
-    (*- admit.
-    - admit. *)
-  Admitted.
+    apply (pso_exp_novars H21). subst.
+    rewrite Forall_forall.
+    intros. apply In_nth with (d:= E.Cskip) in H0.
+    destruct H0 as [i [Hilen Hnthi]].
+    rewrite Forall_forall in H.
+    assert (i < length coms) by crush_length.
+    apply H9 in H0. subst.
+    assert (In (nth i coms S.Cskip) coms).
+    {
+      apply nth_In. crush_length.
+    }
+    apply (H _ H18) in H0. auto.
+    rewrite Forall_forall in H11. now apply H11.
+  Qed.
 
   Lemma trans_pres_all_loc_immutable : forall e sG t drv md eG d e' t',
       exp_trans sG e t drv md eG d e' t' ->
@@ -784,6 +780,9 @@ Section TransProof.
       + rewrite NoDup_cons_iff in H1. tauto.
       + simpl in H2. omega.
   Qed.
+
+  Ltac crush_length := subst; simpl in *; repeat rewrite app_length in *;
+                       simpl in *; auto; try omega.
   
   Lemma process_seq_output_wt' (pc: policy) (md0: E.mode) (mds: list E.mode)
         (Gs: list E.context) (Ks: list (list E.enclave))
