@@ -521,6 +521,39 @@ Section Typing.
                                pdenote p p0 ->
                                p0 = LevelP L).
 
+  Inductive all_loc_immutable : exp -> type -> context -> Prop :=
+  | Inat : forall n t G,
+      all_loc_immutable (Enat n) t G
+  | Ivar : forall x t G,
+      (forall t', var_context G x = Some t' -> type_ali t') ->
+      all_loc_immutable (Evar x) t G
+  | Ibinop : forall e1 e2 op t1 t2 t G,
+      all_loc_immutable e1 t1 G ->
+      all_loc_immutable e2 t2 G ->
+      all_loc_immutable (Ebinop e1 e2 op) t G
+  | Iloc : forall G l t,
+      (forall rt t',
+          loc_context G (Not_cnd l) = Some (t', rt) ->
+          rt = Immut /\ type_ali t') ->
+      all_loc_immutable (Eloc (Not_cnd l)) t G
+  | Ideref : forall G e t' t,
+      all_loc_immutable e t' G ->
+      all_loc_immutable (Ederef e) t G
+  | Ilambda : forall Gm U p Gp q c G md Km Kp,
+      type_ali (Typ (Tlambda Gm Km U p md Gp Kp) q) ->
+      all_loc_immutable (Elambda md c) (Typ (Tlambda Gm Km U p md Gp Kp) q) G
+
+  with type_ali : type -> Prop :=
+  | TInat : forall p, type_ali (Typ Tnat p)
+  | TIref : forall rt t p md,
+      rt = Immut ->
+      type_ali t ->
+      type_ali (Typ (Tref t md rt) p)
+  | TIlambda : forall Gm U p Gp q md Km Kp,
+      forall_loc Gm (fun _ t rt => rt = Immut /\ type_ali t) ->
+      type_ali (Typ (Tlambda Gm Km U p md Gp Kp) q).
+
+  (*
   Definition all_loc_immutable (e: exp) (G: context) : Prop :=
     forall_subexp (fun e =>
                      match e with
@@ -531,6 +564,7 @@ Section Typing.
                      | Eisunset _ => False
                      | _ => True
                      end) e.
+*)
 
   Definition loc_in_exp (e: exp) (G: context) (l: location) : Prop :=
     forall_subexp (fun e =>
@@ -598,7 +632,7 @@ Section Typing.
       ~pdenote p (LevelP T) ->
       mode_alive md k ->
       exp_novars e ->
-      all_loc_immutable e g ->
+      all_loc_immutable e (Typ s p) g ->
       vc' = update vc x (Some (Typ s low)) ->
       com_type low md g k u d (Cdeclassify x e) (Cntxt vc' lc) k
   | CTupdate : forall pc md g k u d e1 e2 s p md' q p',

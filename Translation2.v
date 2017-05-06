@@ -614,14 +614,7 @@ Section TransLemmas.
     rewrite Forall_forall in H11. now apply H11.
   Qed.
 
-  Lemma trans_pres_all_loc_immutable : forall e sG t drv md eG d e' t',
-      exp_trans sG e t drv md eG d e' t' ->
-      S.all_loc_immutable e sG ->
-      context_trans sG d eG ->
-      E.all_loc_immutable e' eG.
-  Proof.
-  Admitted.
-
+  (*
   Lemma trans_pres_forall_var : forall sG eG d (Pe: var -> E.type -> Prop),
       context_trans sG d eG ->
       S.forall_var sG (fun x t => forall t', ttrans t d t' -> Pe x t') ->
@@ -644,6 +637,190 @@ Section TransLemmas.
     rewrite H9 in H13. inversion H13. subst.
     eapply H0; eauto.
   Qed.
+   *)
+
+  Lemma trans_pres_type_ali t :
+    S.type_ali t ->
+    forall d t',
+      ttrans t d t' ->
+      E.type_ali t'.
+  Proof.
+    intro. induction H; intros.
+    - inversion H. subst. inversion H4. subst. constructor.
+    - inversion H1. subst. inversion H6. subst.
+      constructor; auto. apply IHtype_ali with (d:=d). constructor; auto.
+    - inversion H2. subst. inversion H7. subst.
+      constructor. unfold E.forall_loc. intros.
+      inversion H3. subst.
+      inversion H10. subst.
+      unfold subdom in H9.
+      pose (H9 l). rewrite H4 in y. destruct y.
+      destruct x.
+      assert (S.loc_context Gm l = Some (t0, r)) by auto.
+      apply H in H15. subst.
+      unfold S.forall_loc in H13.
+      assert (S.loc_in_dom Gm l t0 Immut) by now constructor.
+      apply H13 in H15. destruct_conjs. inversion H18. subst.
+      split. congruence.
+      replace t with H15 by congruence.
+      eapply H1; eauto.
+  Qed.
+
+  Lemma trans_pres_all_loc_immutable :
+    forall e sG t drv md eG d e' t'
+           (Hali: S.all_loc_immutable e t drv sG)
+           (Hexp: exp_trans sG e t drv md eG d e' t')
+           (Hctxt: context_trans sG d eG)
+           (Htyp: ttrans t d t'),
+      E.all_loc_immutable e' t' eG.
+  Proof.
+    induction e; intros; inversion Hali; subst; inversion Hexp;
+      subst; try constructor.
+    - intros. assert (t' = t'0) by congruence. subst.
+      inversion Hctxt. subst.
+      unfold subdom in H5.
+      pose (H5 v). rewrite H in y. destruct y.
+      assert (S.var_in_dom sG v x) by now constructor.
+      unfold S.forall_var in H7.
+      apply H7 in H11. destruct_conjs.
+      apply H0 in H10.
+      inversion H13. subst. replace t'0 with H11 by congruence.
+      eapply trans_pres_type_ali; eauto.
+    - eapply E.Ibinop; eauto.
+      eapply IHe1; eauto.
+      eapply trans_exp_ttrans in H15; eauto.
+      eapply IHe2; eauto.
+      eapply trans_exp_ttrans in H16; eauto.
+    - intros. clear H2.
+      inversion Hctxt. subst.
+      unfold subdom in H5.
+      pose (H5 (Not_cnd l0)).
+      rewrite H in y.
+      destruct y. destruct x.
+      unfold S.forall_loc in H7.
+      assert (S.loc_in_dom sG (Not_cnd l0) t r) by now constructor.
+      apply H7 in H10. apply H0 in H9. destruct_conjs.
+      inversion H13. subst.
+      split. congruence.
+      replace t' with H10 by congruence.
+      eapply trans_pres_type_ali; eauto.
+    - eapply E.Ideref; eauto.
+      eapply IHe; eauto.
+      constructor. constructor. now inversion Htyp.
+    - constructor. unfold E.forall_loc.
+      intros. inversion H0. subst.
+      inversion H. subst.
+      inversion H13. subst.
+      inversion H9. subst.
+      unfold subdom in H6.
+      pose (H6 l). rewrite H1 in y.
+      destruct y. destruct x.
+      assert (S.loc_context Gm l = Some (t0, r)) by auto.
+      apply H3 in H12. subst.
+      unfold S.forall_loc in H10.
+      assert (S.loc_in_dom Gm l t0 Immut) by now constructor.
+      apply H10 in H12. destruct_conjs.
+      inversion H19. subst.
+      split. congruence.
+      replace t with H12 by congruence.
+      apply H7 in H16. eapply trans_pres_type_ali; eauto.
+  Qed.
+
+  (*
+  Lemma trans_pres_all_loc_immutable : forall e sG t drv,
+      S.all_loc_immutable e t drv sG ->
+      forall md eG d e' t',
+        exp_trans sG e t drv md eG d e' t' ->
+        context_trans sG d eG ->
+        ttrans t d t' ->
+        E.all_loc_immutable e' t' eG.
+  Proof.
+    intros e sG t drv H. induction H; intros.
+    - inversion H. subst. constructor.
+    - inversion H0. subst. eapply E.Ivar with (t:=t').
+      intros. assert (t' = t'0) by congruence. subst.
+      inversion H1. subst.
+      unfold subdom in H8. pose (H8 x). rewrite H6 in y.
+      destruct y. pose (H _ H13).
+      unfold S.forall_var in H10.
+      assert (S.var_in_dom G x x0) by now constructor.
+      apply H10 in H14. destruct_conjs.
+      inversion H16. subst.
+      replace t'0 with H14 by congruence.
+      eapply trans_pres_type_ali; eauto.
+    - inversion H1. subst.
+      eapply IHall_loc_immutable2; eauto.
+    induction H using S.ali_mut.
+
+  (*
+    remember (fun G e => match e with
+                         | S.Eloc (Not_cnd l) =>
+                           forall t rt,
+                             S.loc_context G (Not_cnd l) = Some (t, rt) ->
+                             rt = Immut
+                         | S.Eloc (Cnd _) => False
+                         | S.Eisunset _ => False
+                         | _ => True
+                         end) as Ps.
+    remember (fun G e => match e with
+                         | E.Eloc (Not_cnd l) =>
+                           forall t rt,
+                             E.loc_context G (Not_cnd l) = Some (t, rt) ->
+                             rt = Immut
+                         | E.Eloc (Cnd _) => False
+                         | E.Eisunset _ => False
+                         | _ => True
+                         end) as Pe.
+    induction e using S.exp_ind' with
+    (P:=fun c =>
+          forall pc sG U sG' drv md eG K d c' eG' K'
+                 (Htrans: com_trans pc sG U c sG' drv md eG K d c' eG' K')
+                 (Hcontext: context_trans sG d eG)
+                 (Himmut: S.forall_subexp' (Ps sG) c),
+            E.forall_subexp' (Pe eG) c')
+      (P0:=fun e =>
+             forall sG t drv md eG d e' t'
+                    (Htrans: exp_trans sG e t drv md eG d e' t')
+                    (Himmut: S.all_loc_immutable e sG)
+                    (Hcontext: context_trans sG d eG),
+               E.all_loc_immutable e' eG)
+      (P1:=fun c =>
+             forall pc sG U sG' md eG K d c' eG' K' drv
+                    (Htrans: prog_trans pc sG U c sG' drv md eG K d c' eG' K')
+                    (Hcontext: context_trans sG d eG)
+                    (Himmut: S.forall_subexp'' (Ps sG) c),
+               E.forall_subexp' (Pe eG) c'); subst; intros.
+    - inversion Htrans. subst. now constructor.
+    - inversion Htrans. subst. now constructor.
+    - inversion Htrans. subst.
+      constructor; auto; inversion Himmut; auto; subst;
+        unfold S.all_loc_immutable; unfold E.all_loc_immutable in *; eauto.
+    - inversion Htrans; subst; inversion Himmut. inversion H0. constructor.
+      intros. inversion Hcontext. subst.
+      unfold S.forall_loc in H9.
+      unfold subdom in H7.
+      pose (H7 (Not_cnd l0)). rewrite H3 in y.
+      destruct y. destruct x.
+      assert (r = Immut) by (eapply H2; eauto). subst.
+      assert (S.loc_in_dom sG (Not_cnd l0) t1 Immut) by (now constructor).
+      apply H9 in H11. destruct_conjs. inversion H13. subst. congruence.
+    - inversion Htrans. subst.
+      constructor; inversion Himmut; unfold E.all_loc_immutable in *;
+        unfold S.all_loc_immutable in *; eauto.
+    - inversion Htrans. subst. inversion Himmut. inversion H0.
+    - inversion Htrans. subst.
+      constructor; auto. inversion Himmut. subst.
+
+      (* XXXX *)
+      unfold E.all_loc_immutable. constructor.
+
+      inversion Htrans. subst.
+      inversion Himmut. subst. unfold E.all_loc_immutable in *.
+      unfold S.all_loc_immutable in *. constructor; eauto.
+      eapply IHe in H1; eauto. apply H1. destruct c'.
+      unfold E.forall_subexp' in H1. *)
+  Admitted.
+*)
     
 End TransLemmas.
 
@@ -1259,6 +1436,7 @@ Section TransProof.
     - eapply E.CTdeclassify; eauto.
       + eapply trans_pres_exp_novars; eauto.
       + eapply trans_pres_all_loc_immutable; eauto.
+        eapply trans_exp_ttrans; eauto.
     - eapply E.CTifelse; eauto; intuition.
     - eapply E.CTwhile; eauto; intuition.
     (* Programs. *)

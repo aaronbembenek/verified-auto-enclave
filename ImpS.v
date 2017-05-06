@@ -227,7 +227,61 @@ Section Typing.
 
   Definition is_var_low_context (G: context) : Prop :=
     forall_var G (fun _ t => let (_, p) := t in policy_le p low).
+
+  Inductive ederiv : Type :=
+  | Ederiv_none : ederiv
+  | Ederiv_e1 : type -> ederiv -> ederiv
+  | Ederiv_e2: type -> ederiv -> type -> ederiv -> ederiv
+  | Ederiv_prog : pderiv -> ederiv
+
+  with cderiv : Type :=
+  | Cderiv_none : cderiv
+  | Cderiv_e1 : type -> ederiv -> cderiv
+  | Cderiv_e2 : type -> ederiv -> type -> ederiv -> cderiv
+  | Cderiv_e1_prog2 : type -> ederiv -> pderiv -> pderiv -> cderiv
+  | Cderiv_e1_p_prog1 : type -> ederiv -> policy -> pderiv -> cderiv
+  | Cderiv_e1_p_prog2 : type -> ederiv -> policy -> pderiv -> pderiv -> cderiv
+
+  with pderiv : Type :=
+  | Pderiv : list context -> list cderiv -> pderiv.
   
+  Inductive all_loc_immutable : exp -> type -> ederiv -> context -> Prop :=
+  | Inat : forall n t drv G,
+      all_loc_immutable (Enat n) t drv G
+  | Ivar : forall x t G drv,
+      (forall t', var_context G x = Some t' -> type_ali t') ->
+      all_loc_immutable (Evar x) t drv G
+  | Ibinop : forall e1 e2 op t1 drv1 t2 drv2 t G,
+      all_loc_immutable e1 t1 drv1 G ->
+      all_loc_immutable e2 t2 drv2 G ->
+      all_loc_immutable (Ebinop e1 e2 op) t (Ederiv_e2 t1 drv1 t2 drv2) G
+  | Iloc : forall G l t drv,
+      (forall t' rt,
+          loc_context G (Not_cnd l) = Some (t', rt) ->
+          rt = Immut /\ type_ali t') ->
+      all_loc_immutable (Eloc (Not_cnd l)) t drv G
+  | Ideref : forall G e t' drv t,
+      all_loc_immutable e t' drv G ->
+      all_loc_immutable (Ederef e) t (Ederiv_e1 t' drv) G
+  | Ilambda : forall Gm U p Gp q c drv G,
+      type_ali (Typ (Tlambda Gm U p Gp) q) ->
+      all_loc_immutable (Elambda c) (Typ (Tlambda Gm U p Gp) q) drv G
+
+  with type_ali : type -> Prop :=
+  | TInat : forall p, type_ali (Typ Tnat p)
+  | TIref : forall rt t p,
+      rt = Immut ->
+      type_ali t ->
+      type_ali (Typ (Tref t rt) p)
+  | TIlambda : forall Gm U p Gp q,
+      (forall l t rt,
+          loc_context Gm l = Some (t, rt) ->
+          rt = Immut) ->
+      (forall l t rt,
+          loc_context Gm l = Some (t, rt) ->
+          type_ali t) ->
+      type_ali (Typ (Tlambda Gm U p Gp) q).
+                     (*
   Definition all_loc_immutable (e: exp) (G: context) : Prop :=
     forall_subexp (fun e =>
                      match e with
@@ -237,6 +291,7 @@ Section Typing.
                      | Eisunset _ => False
                      | _ => True
                      end) e.
+*)
 
   Inductive type_le : type -> type -> Prop :=
   | Type_le : forall s1 s2 p1 p2,
@@ -266,25 +321,7 @@ Section Typing.
       (forall l t rt,
           loc_in_dom G2 l t rt -> exists t', loc_in_dom G1 l t' rt) ->
       context_le G1 G2.
-
-  Inductive ederiv : Type :=
-  | Ederiv_none : ederiv
-  | Ederiv_e1 : type -> ederiv -> ederiv
-  | Ederiv_e2: type -> ederiv -> type -> ederiv -> ederiv
-  | Ederiv_prog : pderiv -> ederiv
-
-  with cderiv : Type :=
-  | Cderiv_none : cderiv
-  | Cderiv_e1 : type -> ederiv -> cderiv
-  | Cderiv_e2 : type -> ederiv -> type -> ederiv -> cderiv
-  | Cderiv_e1_prog2 : type -> ederiv -> pderiv -> pderiv -> cderiv
-  | Cderiv_e1_p_prog1 : type -> ederiv -> policy -> pderiv -> cderiv
-  | Cderiv_e1_p_prog2 : type -> ederiv -> policy -> pderiv -> pderiv -> cderiv
-
-  with pderiv : Type :=
-  | Pderiv : list context -> list cderiv -> pderiv.
   
-  (* XXX need this for using List.nth... maybe better option *)
   Definition mt := Cntxt (fun _ => None) (fun _ => None).
   
   Inductive exp_wt : context -> exp -> type -> ederiv -> Prop :=
@@ -329,7 +366,7 @@ Section Typing.
       exp_wt (Cntxt vc lc) e (Typ s p) drv ->
       ~pdenote p (LevelP T) ->
       exp_novars e ->
-      all_loc_immutable e (Cntxt vc lc) ->
+      all_loc_immutable e (Typ s p) drv (Cntxt vc lc) ->
       vc' = update vc x (Some (Typ s low)) ->
       com_wt low (Cntxt vc lc) U (Cdeclassify x e) (Cntxt vc' lc)
              (Cderiv_e1 (Typ s p) drv)
@@ -399,9 +436,6 @@ Section Typing.
   with prog_wt : policy -> context -> set condition -> prog ->
                  context -> pderiv -> Prop :=
   | STprog : forall pc G U coms (Gs: list context) drvs,
-      (* There might be a better way to write this with a function
-         that recurses over the list of commands. *)
-      (* XXX fix drv part *)
       length Gs = length coms + 1 ->
       length drvs = length coms ->
       nth 0 Gs mt = G ->
@@ -411,10 +445,4 @@ Section Typing.
                  (nth i drvs Cderiv_none)) ->
       prog_wt pc G U (Prog coms) (last Gs mt)
               (Pderiv Gs drvs).
-  (*
-
-  Scheme exp_wt_mut := Induction for exp_wt Sort Prop
-  with com_wt_mut := Induction for com_wt Sort Prop
-  with prog_wt_mut := Induction for prog_wt Sort Prop.
-*)
 End Typing.
