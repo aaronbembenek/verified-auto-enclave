@@ -20,8 +20,7 @@ SImpE is a simplified security-typed calculus that models enclaves. We prove tha
 ### Translation Files
 The translation scheme takes an ImpS program and produces an ImpE program. ImpS is a security-typed calculus without enclaves. ImpE is a security-typed calculus that models enclaves. We prove that the translation scheme preserves well-typedness.
 
-- ImpE.v : Model of ImpE syntax, semantics
-- ImpS.v : Model of ImpS syntax, semantics
+- ImpE.v : Model of ImpE syntax, semantics, typing
+- ImpS.v : Model of ImpS syntax, typing
 - Common.v : General definitions of security policies and levels, machine model used by ImpE and ImpS
-- IdTrans.v : A naive computational translation
-- Translation2.v : A model of the translation scheme and a proof that the translation sheme preserves well-typedness.
+- Translation2.v : A model of the translation scheme and a proof that the translation scheme preserves well-typedness.
