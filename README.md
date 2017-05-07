@@ -1,4 +1,4 @@
-# verified-auto-enclave
+# Better Trust Zone: Verifying an Enclave-Aware Calculus
 ### Aaron Bembenek, Lily Tsai, Ezra Zigmond
 
 Verified automatic placement of Intel SGX-like enclaves that provides provable security against low-level attackers.
