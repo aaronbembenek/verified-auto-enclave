@@ -1,11 +1,11 @@
 # verified-auto-enclave
-## Aaron Bembenek, Lily Tsai, Ezra Zigmond
+### Aaron Bembenek, Lily Tsai, Ezra Zigmond
 
 Verified automatic placement of Intel SGX-like enclaves that provides provable security against low-level attackers.
 
 `make` compiles all proofs.
 
-##SImpE Files
+### SImpE Files
 SImpE is a simplified security-typed calculus that models enclaves. We prove that a well-typed SImpE program has security properties.
 
 - SImpE.v : Model of SImpE syntax, semantics
@@ -17,7 +17,7 @@ SImpE is a simplified security-typed calculus that models enclaves. We prove tha
 - SImpE2Helpers.v : Helpers necessary to prove adequacy of SImpE2 
 - SImpE2SecurityHelpers.v : Helpers necessary to prove security lemmas (preservation and observational equivalence)
 
-##Translation Files
+### Translation Files
 The translation scheme takes an ImpS program and produces an ImpE program. ImpS is a security-typed calculus without enclaves. ImpE is a security-typed calculus that models enclaves. We prove that the translation scheme preserves well-typedness.
 
 - ImpE.v : Model of ImpE syntax, semantics
