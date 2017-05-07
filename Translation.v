@@ -72,9 +72,9 @@ Section TransDef.
   Inductive process_kill : list E.enclave -> list E.enclave -> E.context ->
                            list E.com -> list E.context ->
                            list (list E.enclave) -> Prop :=
-  | PK_nil : forall Kinit G,
+  | PKnil : forall Kinit G,
       process_kill Kinit [] G [] [G] [Kinit]
-  | PK_cons : forall Kinit G K Ks kcoms Ksout Gsout,
+  | PKcons : forall Kinit G K Ks kcoms Ksout Gsout,
       process_kill (K :: Kinit) Ks G kcoms Gsout ((K :: Kinit) :: Ksout) ->
       process_kill Kinit (K :: Ks) G (E.Ckill K :: kcoms)
                    (G :: Gsout) (Kinit :: (K :: Kinit) :: Ksout).
@@ -373,13 +373,6 @@ Section TransDef.
           nth i K''s [] = []) ->
       Forall (fun K'' => NoDup K'') K''s ->
       U = [] \/ md0 <> E.Normal ->
-      (*sG0 = nth 0 sGs S.mt ->
-      sGn = last sGs S.mt ->
-      eG0 = nth 0 eGs E.mt ->
-      K0 = nth 0 Ks [] ->
-      eGn = last eGs' E.mt ->
-      Kn = last Ks [] -> *)
-      (*process_seq_output coms' md0 (skipn 1 mds) eGs coms'' eGs' -> *)
       process_seq_output pc coms' md0 mds' eGs Ks K's K''s coms'' eGs' Ksout ->
       prog_trans pc (nth 0 sGs S.mt) U (S.Prog coms) (last sGs S.mt)
                  (S.Pderiv sGs drvs)
@@ -614,31 +607,6 @@ Section TransLemmas.
     rewrite Forall_forall in H11. now apply H11.
   Qed.
 
-  (*
-  Lemma trans_pres_forall_var : forall sG eG d (Pe: var -> E.type -> Prop),
-      context_trans sG d eG ->
-      S.forall_var sG (fun x t => forall t', ttrans t d t' -> Pe x t') ->
-      E.forall_var eG Pe.
-  Proof.
-    intros.
-    unfold E.forall_var.
-    unfold S.forall_var in H0. inversion H. subst.
-    intros. unfold subdom in H3.
-    inversion H8. subst.
-    pose (H3 x) as HsGx.
-    rewrite H9 in HsGx.
-    destruct HsGx as [ t' HsGx ].
-    assert (S.var_in_dom sG x t') by now apply S.Var_in_dom.
-    unfold S.forall_var in H5.
-    pose H10 as HeG.
-    apply H5 in HeG.
-    destruct HeG as [ t'0 HeG ].
-    destruct HeG. inversion H12. subst.
-    rewrite H9 in H13. inversion H13. subst.
-    eapply H0; eauto.
-  Qed.
-   *)
-
   Lemma trans_pres_type_ali t :
     S.type_ali t ->
     forall d t',
@@ -726,116 +694,11 @@ Section TransLemmas.
       apply H7 in H16. eapply trans_pres_type_ali; eauto.
   Qed.
 
-  (*
-  Lemma trans_pres_all_loc_immutable : forall e sG t drv,
-      S.all_loc_immutable e t drv sG ->
-      forall md eG d e' t',
-        exp_trans sG e t drv md eG d e' t' ->
-        context_trans sG d eG ->
-        ttrans t d t' ->
-        E.all_loc_immutable e' t' eG.
-  Proof.
-    intros e sG t drv H. induction H; intros.
-    - inversion H. subst. constructor.
-    - inversion H0. subst. eapply E.Ivar with (t:=t').
-      intros. assert (t' = t'0) by congruence. subst.
-      inversion H1. subst.
-      unfold subdom in H8. pose (H8 x). rewrite H6 in y.
-      destruct y. pose (H _ H13).
-      unfold S.forall_var in H10.
-      assert (S.var_in_dom G x x0) by now constructor.
-      apply H10 in H14. destruct_conjs.
-      inversion H16. subst.
-      replace t'0 with H14 by congruence.
-      eapply trans_pres_type_ali; eauto.
-    - inversion H1. subst.
-      eapply IHall_loc_immutable2; eauto.
-    induction H using S.ali_mut.
-
-  (*
-    remember (fun G e => match e with
-                         | S.Eloc (Not_cnd l) =>
-                           forall t rt,
-                             S.loc_context G (Not_cnd l) = Some (t, rt) ->
-                             rt = Immut
-                         | S.Eloc (Cnd _) => False
-                         | S.Eisunset _ => False
-                         | _ => True
-                         end) as Ps.
-    remember (fun G e => match e with
-                         | E.Eloc (Not_cnd l) =>
-                           forall t rt,
-                             E.loc_context G (Not_cnd l) = Some (t, rt) ->
-                             rt = Immut
-                         | E.Eloc (Cnd _) => False
-                         | E.Eisunset _ => False
-                         | _ => True
-                         end) as Pe.
-    induction e using S.exp_ind' with
-    (P:=fun c =>
-          forall pc sG U sG' drv md eG K d c' eG' K'
-                 (Htrans: com_trans pc sG U c sG' drv md eG K d c' eG' K')
-                 (Hcontext: context_trans sG d eG)
-                 (Himmut: S.forall_subexp' (Ps sG) c),
-            E.forall_subexp' (Pe eG) c')
-      (P0:=fun e =>
-             forall sG t drv md eG d e' t'
-                    (Htrans: exp_trans sG e t drv md eG d e' t')
-                    (Himmut: S.all_loc_immutable e sG)
-                    (Hcontext: context_trans sG d eG),
-               E.all_loc_immutable e' eG)
-      (P1:=fun c =>
-             forall pc sG U sG' md eG K d c' eG' K' drv
-                    (Htrans: prog_trans pc sG U c sG' drv md eG K d c' eG' K')
-                    (Hcontext: context_trans sG d eG)
-                    (Himmut: S.forall_subexp'' (Ps sG) c),
-               E.forall_subexp' (Pe eG) c'); subst; intros.
-    - inversion Htrans. subst. now constructor.
-    - inversion Htrans. subst. now constructor.
-    - inversion Htrans. subst.
-      constructor; auto; inversion Himmut; auto; subst;
-        unfold S.all_loc_immutable; unfold E.all_loc_immutable in *; eauto.
-    - inversion Htrans; subst; inversion Himmut. inversion H0. constructor.
-      intros. inversion Hcontext. subst.
-      unfold S.forall_loc in H9.
-      unfold subdom in H7.
-      pose (H7 (Not_cnd l0)). rewrite H3 in y.
-      destruct y. destruct x.
-      assert (r = Immut) by (eapply H2; eauto). subst.
-      assert (S.loc_in_dom sG (Not_cnd l0) t1 Immut) by (now constructor).
-      apply H9 in H11. destruct_conjs. inversion H13. subst. congruence.
-    - inversion Htrans. subst.
-      constructor; inversion Himmut; unfold E.all_loc_immutable in *;
-        unfold S.all_loc_immutable in *; eauto.
-    - inversion Htrans. subst. inversion Himmut. inversion H0.
-    - inversion Htrans. subst.
-      constructor; auto. inversion Himmut. subst.
-
-      (* XXXX *)
-      unfold E.all_loc_immutable. constructor.
-
-      inversion Htrans. subst.
-      inversion Himmut. subst. unfold E.all_loc_immutable in *.
-      unfold S.all_loc_immutable in *. constructor; eauto.
-      eapply IHe in H1; eauto. apply H1. destruct c'.
-      unfold E.forall_subexp' in H1. *)
-  Admitted.
-*)
     
 End TransLemmas.
 
 Section TransProof.
   Hint Constructors E.exp_type E.com_type.
-
-  (*
-  Lemma pk_Forall_Gsout_eq_G : forall {G} {Gsout} {Ksout}
-                                      {Kstokill} {Kinit} {kcoms},
-      process_kill Kinit Kstokill G kcoms Gsout Ksout ->
-      Forall (fun x => x = G) Gsout.
-  Proof.
-    intros. induction H; apply Forall_cons; auto.
-  Qed.
-*)
 
   Lemma pk_length_Gsout : forall {G} {Gsout} {Ksout} {Kstokill Kinit} {kcoms},
       process_kill Kinit Kstokill G kcoms Gsout Ksout ->

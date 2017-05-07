@@ -23,4 +23,4 @@ The translation scheme takes an ImpS program and produces an ImpE program. ImpS 
 - ImpE.v : Model of ImpE syntax, semantics, typing
 - ImpS.v : Model of ImpS syntax, typing
 - Common.v : General definitions of security policies and levels, machine model used by ImpE and ImpS
-- Translation2.v : A model of the translation scheme and a proof that the translation scheme preserves well-typedness.
+- Translation.v : A model of the translation scheme and a proof that the translation scheme preserves well-typedness
